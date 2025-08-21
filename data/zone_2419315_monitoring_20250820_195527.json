@@ -1,0 +1,2142 @@
+{
+  "zone_id": 2419315,
+  "zone_name": "Front Turf Acro",
+  "baseline_data": {
+    "timestamp": "2025-08-20T19:55:07.274811",
+    "zones": {
+      "2419310": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419315": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419320": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419334": {
+        "running": false,
+        "time_left": "07:05",
+        "status": "Unknown"
+      },
+      "2419337": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419343": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419349": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419356": {
+        "running": false,
+        "time_left": "06:30",
+        "status": "Unknown"
+      },
+      "2419364": {
+        "running": false,
+        "time_left": "06:33",
+        "status": "Unknown"
+      },
+      "2419369": {
+        "running": false,
+        "time_left": "06:00",
+        "status": "Unknown"
+      },
+      "2419383": {
+        "running": false,
+        "time_left": "06:01",
+        "status": "Unknown"
+      },
+      "2419387": {
+        "running": false,
+        "time_left": "09:00",
+        "status": "Unknown"
+      },
+      "2419394": {
+        "running": false,
+        "time_left": "Sat",
+        "status": "Unknown"
+      },
+      "2419461": {
+        "running": false,
+        "time_left": "09:02",
+        "status": "Unknown"
+      },
+      "2419465": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419469": {
+        "running": false,
+        "time_left": "07:15",
+        "status": "Unknown"
+      },
+      "2419483": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      }
+    },
+    "sensors": {
+      "0": {
+        "input": 0,
+        "type": 1,
+        "mode": 1,
+        "timer": 0,
+        "offtimer": 0,
+        "relays": [
+          {
+            "id": 2419310
+          },
+          {
+            "id": 2419315
+          },
+          {
+            "id": 2419320
+          },
+          {
+            "id": 2419334
+          },
+          {
+            "id": 2419337
+          },
+          {
+            "id": 2419343
+          },
+          {
+            "id": 2419349
+          },
+          {
+            "id": 2419356
+          },
+          {
+            "id": 2419364
+          },
+          {
+            "id": 2419369
+          },
+          {
+            "id": 2419383
+          },
+          {
+            "id": 2419387
+          },
+          {
+            "id": 2419394
+          },
+          {
+            "id": 2419461
+          },
+          {
+            "id": 2419465
+          },
+          {
+            "id": 2419469
+          },
+          {
+            "id": 2419483
+          }
+        ]
+      },
+      "1": {
+        "input": 1,
+        "type": 3,
+        "mode": 0,
+        "timer": 0,
+        "offtimer": 0,
+        "rate": 1.8927,
+        "relays": [
+          {
+            "id": 2419310
+          },
+          {
+            "id": 2419315
+          },
+          {
+            "id": 2419320
+          },
+          {
+            "id": 2419334
+          },
+          {
+            "id": 2419337
+          },
+          {
+            "id": 2419343
+          },
+          {
+            "id": 2419349
+          },
+          {
+            "id": 2419356
+          },
+          {
+            "id": 2419364
+          },
+          {
+            "id": 2419369
+          },
+          {
+            "id": 2419383
+          },
+          {
+            "id": 2419387
+          },
+          {
+            "id": 2419394
+          },
+          {
+            "id": 2419461
+          },
+          {
+            "id": 2419465
+          },
+          {
+            "id": 2419469
+          },
+          {
+            "id": 2419483
+          }
+        ]
+      }
+    },
+    "raw_data": {
+      "time": 1755737708,
+      "nextpoll": 60,
+      "message": "",
+      "simRelays": 1,
+      "options": 1,
+      "stupdate": 0,
+      "expanders": [],
+      "sensors": [
+        {
+          "input": 0,
+          "type": 1,
+          "mode": 1,
+          "timer": 0,
+          "offtimer": 0,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        },
+        {
+          "input": 1,
+          "type": 3,
+          "mode": 0,
+          "timer": 0,
+          "offtimer": 0,
+          "rate": 1.8927,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        }
+      ],
+      "relays": [
+        {
+          "relay_id": 2419310,
+          "time": 113692,
+          "type": 1,
+          "run": 600,
+          "relay": 1,
+          "name": "Front Right Tur",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419315,
+          "time": 114295,
+          "type": 1,
+          "run": 600,
+          "relay": 2,
+          "name": "Front Turf Acro",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419320,
+          "time": 114898,
+          "type": 1,
+          "run": 600,
+          "relay": 3,
+          "name": "Front Left Turf",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419334,
+          "time": 40192,
+          "type": 1,
+          "run": 60,
+          "relay": 4,
+          "name": "Front Planters ",
+          "period": 259200,
+          "timestr": "07:05",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419337,
+          "time": 115501,
+          "type": 1,
+          "run": 600,
+          "relay": 5,
+          "name": "Left Side Turf ",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419343,
+          "time": 116104,
+          "type": 1,
+          "run": 900,
+          "relay": 6,
+          "name": "Rear Left Turf ",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419349,
+          "time": 117007,
+          "type": 1,
+          "run": 600,
+          "relay": 7,
+          "name": "Rear Right Turf",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419356,
+          "time": 38092,
+          "type": 1,
+          "run": 180,
+          "relay": 8,
+          "name": "Rear Left Beds ",
+          "period": 259200,
+          "timestr": "06:30",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419364,
+          "time": 38275,
+          "type": 1,
+          "run": 180,
+          "relay": 9,
+          "name": "Rear Right Beds",
+          "period": 259200,
+          "timestr": "06:33",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419369,
+          "time": 36292,
+          "type": 1,
+          "run": 60,
+          "relay": 10,
+          "name": "Rear Left Pots,",
+          "period": 259200,
+          "timestr": "06:00",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419383,
+          "time": 36355,
+          "type": 1,
+          "run": 60,
+          "relay": 11,
+          "name": "Rear Right Pots",
+          "period": 259200,
+          "timestr": "06:01",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419387,
+          "time": 47092,
+          "type": 1,
+          "run": 120,
+          "relay": 12,
+          "name": "Rear Bed/Plante",
+          "period": 259200,
+          "timestr": "09:00",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419394,
+          "time": 209992,
+          "type": 1,
+          "run": 600,
+          "relay": 13,
+          "name": "Front Right Bed",
+          "period": 259200,
+          "timestr": "Sat",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419461,
+          "time": 47215,
+          "type": 1,
+          "run": 120,
+          "relay": 14,
+          "name": "Rear Right Bed ",
+          "period": 259200,
+          "timestr": "09:02",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419465,
+          "time": 125338,
+          "type": 1,
+          "run": 300,
+          "relay": 15,
+          "name": "Rear Left Bed a",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419469,
+          "time": 40792,
+          "type": 1,
+          "run": 180,
+          "relay": 16,
+          "name": "Front Color (S)",
+          "period": 259200,
+          "timestr": "07:15",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419483,
+          "time": 125641,
+          "type": 1,
+          "run": 300,
+          "relay": 17,
+          "name": "Front Left Beds",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        }
+      ]
+    }
+  },
+  "monitoring_data": [
+    {
+      "timestamp": "2025-08-20T19:55:17.707507",
+      "zones": {
+        "2419310": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419315": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419320": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419334": {
+          "running": false,
+          "time_left": "07:05",
+          "status": "Unknown"
+        },
+        "2419337": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419343": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419349": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419356": {
+          "running": false,
+          "time_left": "06:30",
+          "status": "Unknown"
+        },
+        "2419364": {
+          "running": false,
+          "time_left": "06:33",
+          "status": "Unknown"
+        },
+        "2419369": {
+          "running": false,
+          "time_left": "06:00",
+          "status": "Unknown"
+        },
+        "2419383": {
+          "running": false,
+          "time_left": "06:01",
+          "status": "Unknown"
+        },
+        "2419387": {
+          "running": false,
+          "time_left": "09:00",
+          "status": "Unknown"
+        },
+        "2419394": {
+          "running": false,
+          "time_left": "Sat",
+          "status": "Unknown"
+        },
+        "2419461": {
+          "running": false,
+          "time_left": "09:02",
+          "status": "Unknown"
+        },
+        "2419465": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419469": {
+          "running": false,
+          "time_left": "07:15",
+          "status": "Unknown"
+        },
+        "2419483": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        }
+      },
+      "sensors": {
+        "0": {
+          "input": 0,
+          "type": 1,
+          "mode": 1,
+          "timer": 0,
+          "offtimer": 0,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        },
+        "1": {
+          "input": 1,
+          "type": 3,
+          "mode": 0,
+          "timer": 0,
+          "offtimer": 0,
+          "rate": 1.8927,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        }
+      },
+      "raw_data": {
+        "time": 1755737718,
+        "nextpoll": 60,
+        "message": "",
+        "simRelays": 1,
+        "options": 1,
+        "stupdate": 0,
+        "expanders": [],
+        "sensors": [
+          {
+            "input": 0,
+            "type": 1,
+            "mode": 1,
+            "timer": 0,
+            "offtimer": 0,
+            "relays": [
+              {
+                "id": 2419310
+              },
+              {
+                "id": 2419315
+              },
+              {
+                "id": 2419320
+              },
+              {
+                "id": 2419334
+              },
+              {
+                "id": 2419337
+              },
+              {
+                "id": 2419343
+              },
+              {
+                "id": 2419349
+              },
+              {
+                "id": 2419356
+              },
+              {
+                "id": 2419364
+              },
+              {
+                "id": 2419369
+              },
+              {
+                "id": 2419383
+              },
+              {
+                "id": 2419387
+              },
+              {
+                "id": 2419394
+              },
+              {
+                "id": 2419461
+              },
+              {
+                "id": 2419465
+              },
+              {
+                "id": 2419469
+              },
+              {
+                "id": 2419483
+              }
+            ]
+          },
+          {
+            "input": 1,
+            "type": 3,
+            "mode": 0,
+            "timer": 0,
+            "offtimer": 0,
+            "rate": 1.8927,
+            "relays": [
+              {
+                "id": 2419310
+              },
+              {
+                "id": 2419315
+              },
+              {
+                "id": 2419320
+              },
+              {
+                "id": 2419334
+              },
+              {
+                "id": 2419337
+              },
+              {
+                "id": 2419343
+              },
+              {
+                "id": 2419349
+              },
+              {
+                "id": 2419356
+              },
+              {
+                "id": 2419364
+              },
+              {
+                "id": 2419369
+              },
+              {
+                "id": 2419383
+              },
+              {
+                "id": 2419387
+              },
+              {
+                "id": 2419394
+              },
+              {
+                "id": 2419461
+              },
+              {
+                "id": 2419465
+              },
+              {
+                "id": 2419469
+              },
+              {
+                "id": 2419483
+              }
+            ]
+          }
+        ],
+        "relays": [
+          {
+            "relay_id": 2419310,
+            "time": 113682,
+            "type": 1,
+            "run": 600,
+            "relay": 1,
+            "name": "Front Right Tur",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419315,
+            "time": 114285,
+            "type": 1,
+            "run": 600,
+            "relay": 2,
+            "name": "Front Turf Acro",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419320,
+            "time": 114888,
+            "type": 1,
+            "run": 600,
+            "relay": 3,
+            "name": "Front Left Turf",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419334,
+            "time": 40182,
+            "type": 1,
+            "run": 60,
+            "relay": 4,
+            "name": "Front Planters ",
+            "period": 259200,
+            "timestr": "07:05",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419337,
+            "time": 115491,
+            "type": 1,
+            "run": 600,
+            "relay": 5,
+            "name": "Left Side Turf ",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419343,
+            "time": 116094,
+            "type": 1,
+            "run": 900,
+            "relay": 6,
+            "name": "Rear Left Turf ",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419349,
+            "time": 116997,
+            "type": 1,
+            "run": 600,
+            "relay": 7,
+            "name": "Rear Right Turf",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419356,
+            "time": 38082,
+            "type": 1,
+            "run": 180,
+            "relay": 8,
+            "name": "Rear Left Beds ",
+            "period": 259200,
+            "timestr": "06:30",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419364,
+            "time": 38265,
+            "type": 1,
+            "run": 180,
+            "relay": 9,
+            "name": "Rear Right Beds",
+            "period": 259200,
+            "timestr": "06:33",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419369,
+            "time": 36282,
+            "type": 1,
+            "run": 60,
+            "relay": 10,
+            "name": "Rear Left Pots,",
+            "period": 259200,
+            "timestr": "06:00",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419383,
+            "time": 36345,
+            "type": 1,
+            "run": 60,
+            "relay": 11,
+            "name": "Rear Right Pots",
+            "period": 259200,
+            "timestr": "06:01",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419387,
+            "time": 47082,
+            "type": 1,
+            "run": 120,
+            "relay": 12,
+            "name": "Rear Bed/Plante",
+            "period": 259200,
+            "timestr": "09:00",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419394,
+            "time": 209982,
+            "type": 1,
+            "run": 600,
+            "relay": 13,
+            "name": "Front Right Bed",
+            "period": 259200,
+            "timestr": "Sat",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419461,
+            "time": 47205,
+            "type": 1,
+            "run": 120,
+            "relay": 14,
+            "name": "Rear Right Bed ",
+            "period": 259200,
+            "timestr": "09:02",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419465,
+            "time": 125328,
+            "type": 1,
+            "run": 300,
+            "relay": 15,
+            "name": "Rear Left Bed a",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419469,
+            "time": 40782,
+            "type": 1,
+            "run": 180,
+            "relay": 16,
+            "name": "Front Color (S)",
+            "period": 259200,
+            "timestr": "07:15",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419483,
+            "time": 125631,
+            "type": 1,
+            "run": 300,
+            "relay": 17,
+            "name": "Front Left Beds",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          }
+        ]
+      }
+    },
+    {
+      "timestamp": "2025-08-20T19:55:27.831229",
+      "zones": {
+        "2419310": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419315": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419320": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419334": {
+          "running": false,
+          "time_left": "07:05",
+          "status": "Unknown"
+        },
+        "2419337": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419343": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419349": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419356": {
+          "running": false,
+          "time_left": "06:30",
+          "status": "Unknown"
+        },
+        "2419364": {
+          "running": false,
+          "time_left": "06:33",
+          "status": "Unknown"
+        },
+        "2419369": {
+          "running": false,
+          "time_left": "06:00",
+          "status": "Unknown"
+        },
+        "2419383": {
+          "running": false,
+          "time_left": "06:01",
+          "status": "Unknown"
+        },
+        "2419387": {
+          "running": false,
+          "time_left": "09:00",
+          "status": "Unknown"
+        },
+        "2419394": {
+          "running": false,
+          "time_left": "Sat",
+          "status": "Unknown"
+        },
+        "2419461": {
+          "running": false,
+          "time_left": "09:02",
+          "status": "Unknown"
+        },
+        "2419465": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        },
+        "2419469": {
+          "running": false,
+          "time_left": "07:15",
+          "status": "Unknown"
+        },
+        "2419483": {
+          "running": false,
+          "time_left": "Fri",
+          "status": "Unknown"
+        }
+      },
+      "sensors": {
+        "0": {
+          "input": 0,
+          "type": 1,
+          "mode": 1,
+          "timer": 0,
+          "offtimer": 0,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        },
+        "1": {
+          "input": 1,
+          "type": 3,
+          "mode": 0,
+          "timer": 0,
+          "offtimer": 0,
+          "rate": 1.8927,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        }
+      },
+      "raw_data": {
+        "time": 1755737728,
+        "nextpoll": 60,
+        "message": "",
+        "simRelays": 1,
+        "options": 1,
+        "stupdate": 0,
+        "expanders": [],
+        "sensors": [
+          {
+            "input": 0,
+            "type": 1,
+            "mode": 1,
+            "timer": 0,
+            "offtimer": 0,
+            "relays": [
+              {
+                "id": 2419310
+              },
+              {
+                "id": 2419315
+              },
+              {
+                "id": 2419320
+              },
+              {
+                "id": 2419334
+              },
+              {
+                "id": 2419337
+              },
+              {
+                "id": 2419343
+              },
+              {
+                "id": 2419349
+              },
+              {
+                "id": 2419356
+              },
+              {
+                "id": 2419364
+              },
+              {
+                "id": 2419369
+              },
+              {
+                "id": 2419383
+              },
+              {
+                "id": 2419387
+              },
+              {
+                "id": 2419394
+              },
+              {
+                "id": 2419461
+              },
+              {
+                "id": 2419465
+              },
+              {
+                "id": 2419469
+              },
+              {
+                "id": 2419483
+              }
+            ]
+          },
+          {
+            "input": 1,
+            "type": 3,
+            "mode": 0,
+            "timer": 0,
+            "offtimer": 0,
+            "rate": 1.8927,
+            "relays": [
+              {
+                "id": 2419310
+              },
+              {
+                "id": 2419315
+              },
+              {
+                "id": 2419320
+              },
+              {
+                "id": 2419334
+              },
+              {
+                "id": 2419337
+              },
+              {
+                "id": 2419343
+              },
+              {
+                "id": 2419349
+              },
+              {
+                "id": 2419356
+              },
+              {
+                "id": 2419364
+              },
+              {
+                "id": 2419369
+              },
+              {
+                "id": 2419383
+              },
+              {
+                "id": 2419387
+              },
+              {
+                "id": 2419394
+              },
+              {
+                "id": 2419461
+              },
+              {
+                "id": 2419465
+              },
+              {
+                "id": 2419469
+              },
+              {
+                "id": 2419483
+              }
+            ]
+          }
+        ],
+        "relays": [
+          {
+            "relay_id": 2419310,
+            "time": 113672,
+            "type": 1,
+            "run": 600,
+            "relay": 1,
+            "name": "Front Right Tur",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419315,
+            "time": 114275,
+            "type": 1,
+            "run": 600,
+            "relay": 2,
+            "name": "Front Turf Acro",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419320,
+            "time": 114878,
+            "type": 1,
+            "run": 600,
+            "relay": 3,
+            "name": "Front Left Turf",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419334,
+            "time": 40172,
+            "type": 1,
+            "run": 60,
+            "relay": 4,
+            "name": "Front Planters ",
+            "period": 259200,
+            "timestr": "07:05",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419337,
+            "time": 115481,
+            "type": 1,
+            "run": 600,
+            "relay": 5,
+            "name": "Left Side Turf ",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419343,
+            "time": 116084,
+            "type": 1,
+            "run": 900,
+            "relay": 6,
+            "name": "Rear Left Turf ",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419349,
+            "time": 116987,
+            "type": 1,
+            "run": 600,
+            "relay": 7,
+            "name": "Rear Right Turf",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419356,
+            "time": 38072,
+            "type": 1,
+            "run": 180,
+            "relay": 8,
+            "name": "Rear Left Beds ",
+            "period": 259200,
+            "timestr": "06:30",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419364,
+            "time": 38255,
+            "type": 1,
+            "run": 180,
+            "relay": 9,
+            "name": "Rear Right Beds",
+            "period": 259200,
+            "timestr": "06:33",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419369,
+            "time": 36272,
+            "type": 1,
+            "run": 60,
+            "relay": 10,
+            "name": "Rear Left Pots,",
+            "period": 259200,
+            "timestr": "06:00",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419383,
+            "time": 36335,
+            "type": 1,
+            "run": 60,
+            "relay": 11,
+            "name": "Rear Right Pots",
+            "period": 259200,
+            "timestr": "06:01",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419387,
+            "time": 47072,
+            "type": 1,
+            "run": 120,
+            "relay": 12,
+            "name": "Rear Bed/Plante",
+            "period": 259200,
+            "timestr": "09:00",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419394,
+            "time": 209972,
+            "type": 1,
+            "run": 600,
+            "relay": 13,
+            "name": "Front Right Bed",
+            "period": 259200,
+            "timestr": "Sat",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419461,
+            "time": 47195,
+            "type": 1,
+            "run": 120,
+            "relay": 14,
+            "name": "Rear Right Bed ",
+            "period": 259200,
+            "timestr": "09:02",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419465,
+            "time": 125318,
+            "type": 1,
+            "run": 300,
+            "relay": 15,
+            "name": "Rear Left Bed a",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419469,
+            "time": 40772,
+            "type": 1,
+            "run": 180,
+            "relay": 16,
+            "name": "Front Color (S)",
+            "period": 259200,
+            "timestr": "07:15",
+            "stop": 1
+          },
+          {
+            "relay_id": 2419483,
+            "time": 125621,
+            "type": 1,
+            "run": 300,
+            "relay": 17,
+            "name": "Front Left Beds",
+            "period": 259200,
+            "timestr": "Fri",
+            "stop": 1
+          }
+        ]
+      }
+    }
+  ],
+  "final_data": {
+    "timestamp": "2025-08-20T19:55:27.831229",
+    "zones": {
+      "2419310": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419315": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419320": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419334": {
+        "running": false,
+        "time_left": "07:05",
+        "status": "Unknown"
+      },
+      "2419337": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419343": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419349": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419356": {
+        "running": false,
+        "time_left": "06:30",
+        "status": "Unknown"
+      },
+      "2419364": {
+        "running": false,
+        "time_left": "06:33",
+        "status": "Unknown"
+      },
+      "2419369": {
+        "running": false,
+        "time_left": "06:00",
+        "status": "Unknown"
+      },
+      "2419383": {
+        "running": false,
+        "time_left": "06:01",
+        "status": "Unknown"
+      },
+      "2419387": {
+        "running": false,
+        "time_left": "09:00",
+        "status": "Unknown"
+      },
+      "2419394": {
+        "running": false,
+        "time_left": "Sat",
+        "status": "Unknown"
+      },
+      "2419461": {
+        "running": false,
+        "time_left": "09:02",
+        "status": "Unknown"
+      },
+      "2419465": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      },
+      "2419469": {
+        "running": false,
+        "time_left": "07:15",
+        "status": "Unknown"
+      },
+      "2419483": {
+        "running": false,
+        "time_left": "Fri",
+        "status": "Unknown"
+      }
+    },
+    "sensors": {
+      "0": {
+        "input": 0,
+        "type": 1,
+        "mode": 1,
+        "timer": 0,
+        "offtimer": 0,
+        "relays": [
+          {
+            "id": 2419310
+          },
+          {
+            "id": 2419315
+          },
+          {
+            "id": 2419320
+          },
+          {
+            "id": 2419334
+          },
+          {
+            "id": 2419337
+          },
+          {
+            "id": 2419343
+          },
+          {
+            "id": 2419349
+          },
+          {
+            "id": 2419356
+          },
+          {
+            "id": 2419364
+          },
+          {
+            "id": 2419369
+          },
+          {
+            "id": 2419383
+          },
+          {
+            "id": 2419387
+          },
+          {
+            "id": 2419394
+          },
+          {
+            "id": 2419461
+          },
+          {
+            "id": 2419465
+          },
+          {
+            "id": 2419469
+          },
+          {
+            "id": 2419483
+          }
+        ]
+      },
+      "1": {
+        "input": 1,
+        "type": 3,
+        "mode": 0,
+        "timer": 0,
+        "offtimer": 0,
+        "rate": 1.8927,
+        "relays": [
+          {
+            "id": 2419310
+          },
+          {
+            "id": 2419315
+          },
+          {
+            "id": 2419320
+          },
+          {
+            "id": 2419334
+          },
+          {
+            "id": 2419337
+          },
+          {
+            "id": 2419343
+          },
+          {
+            "id": 2419349
+          },
+          {
+            "id": 2419356
+          },
+          {
+            "id": 2419364
+          },
+          {
+            "id": 2419369
+          },
+          {
+            "id": 2419383
+          },
+          {
+            "id": 2419387
+          },
+          {
+            "id": 2419394
+          },
+          {
+            "id": 2419461
+          },
+          {
+            "id": 2419465
+          },
+          {
+            "id": 2419469
+          },
+          {
+            "id": 2419483
+          }
+        ]
+      }
+    },
+    "raw_data": {
+      "time": 1755737728,
+      "nextpoll": 60,
+      "message": "",
+      "simRelays": 1,
+      "options": 1,
+      "stupdate": 0,
+      "expanders": [],
+      "sensors": [
+        {
+          "input": 0,
+          "type": 1,
+          "mode": 1,
+          "timer": 0,
+          "offtimer": 0,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        },
+        {
+          "input": 1,
+          "type": 3,
+          "mode": 0,
+          "timer": 0,
+          "offtimer": 0,
+          "rate": 1.8927,
+          "relays": [
+            {
+              "id": 2419310
+            },
+            {
+              "id": 2419315
+            },
+            {
+              "id": 2419320
+            },
+            {
+              "id": 2419334
+            },
+            {
+              "id": 2419337
+            },
+            {
+              "id": 2419343
+            },
+            {
+              "id": 2419349
+            },
+            {
+              "id": 2419356
+            },
+            {
+              "id": 2419364
+            },
+            {
+              "id": 2419369
+            },
+            {
+              "id": 2419383
+            },
+            {
+              "id": 2419387
+            },
+            {
+              "id": 2419394
+            },
+            {
+              "id": 2419461
+            },
+            {
+              "id": 2419465
+            },
+            {
+              "id": 2419469
+            },
+            {
+              "id": 2419483
+            }
+          ]
+        }
+      ],
+      "relays": [
+        {
+          "relay_id": 2419310,
+          "time": 113672,
+          "type": 1,
+          "run": 600,
+          "relay": 1,
+          "name": "Front Right Tur",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419315,
+          "time": 114275,
+          "type": 1,
+          "run": 600,
+          "relay": 2,
+          "name": "Front Turf Acro",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419320,
+          "time": 114878,
+          "type": 1,
+          "run": 600,
+          "relay": 3,
+          "name": "Front Left Turf",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419334,
+          "time": 40172,
+          "type": 1,
+          "run": 60,
+          "relay": 4,
+          "name": "Front Planters ",
+          "period": 259200,
+          "timestr": "07:05",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419337,
+          "time": 115481,
+          "type": 1,
+          "run": 600,
+          "relay": 5,
+          "name": "Left Side Turf ",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419343,
+          "time": 116084,
+          "type": 1,
+          "run": 900,
+          "relay": 6,
+          "name": "Rear Left Turf ",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419349,
+          "time": 116987,
+          "type": 1,
+          "run": 600,
+          "relay": 7,
+          "name": "Rear Right Turf",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419356,
+          "time": 38072,
+          "type": 1,
+          "run": 180,
+          "relay": 8,
+          "name": "Rear Left Beds ",
+          "period": 259200,
+          "timestr": "06:30",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419364,
+          "time": 38255,
+          "type": 1,
+          "run": 180,
+          "relay": 9,
+          "name": "Rear Right Beds",
+          "period": 259200,
+          "timestr": "06:33",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419369,
+          "time": 36272,
+          "type": 1,
+          "run": 60,
+          "relay": 10,
+          "name": "Rear Left Pots,",
+          "period": 259200,
+          "timestr": "06:00",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419383,
+          "time": 36335,
+          "type": 1,
+          "run": 60,
+          "relay": 11,
+          "name": "Rear Right Pots",
+          "period": 259200,
+          "timestr": "06:01",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419387,
+          "time": 47072,
+          "type": 1,
+          "run": 120,
+          "relay": 12,
+          "name": "Rear Bed/Plante",
+          "period": 259200,
+          "timestr": "09:00",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419394,
+          "time": 209972,
+          "type": 1,
+          "run": 600,
+          "relay": 13,
+          "name": "Front Right Bed",
+          "period": 259200,
+          "timestr": "Sat",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419461,
+          "time": 47195,
+          "type": 1,
+          "run": 120,
+          "relay": 14,
+          "name": "Rear Right Bed ",
+          "period": 259200,
+          "timestr": "09:02",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419465,
+          "time": 125318,
+          "type": 1,
+          "run": 300,
+          "relay": 15,
+          "name": "Rear Left Bed a",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419469,
+          "time": 40772,
+          "type": 1,
+          "run": 180,
+          "relay": 16,
+          "name": "Front Color (S)",
+          "period": 259200,
+          "timestr": "07:15",
+          "stop": 1
+        },
+        {
+          "relay_id": 2419483,
+          "time": 125621,
+          "type": 1,
+          "run": 300,
+          "relay": 17,
+          "name": "Front Left Beds",
+          "period": 259200,
+          "timestr": "Fri",
+          "stop": 1
+        }
+      ]
+    }
+  }
+}
