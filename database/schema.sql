@@ -34,6 +34,12 @@ CREATE TABLE scheduled_runs (
     source TEXT DEFAULT 'web_scraper' CHECK (source IN ('web_scraper', 'api', 'manual')),
     scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
+    raw_popup_text TEXT,  -- Complete popup text from hover
+    popup_lines_json TEXT,  -- JSON array of parsed popup lines with type/value
+    parsed_summary TEXT,  -- Summary of key parsed data
+    is_rain_cancelled BOOLEAN DEFAULT FALSE,  -- True if "Not scheduled to run" due to rain
+    rain_sensor_status TEXT,  -- Rain sensor related status text
+    popup_status TEXT,  -- Full status from popup
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
@@ -51,11 +57,16 @@ CREATE TABLE actual_runs (
     actual_gallons REAL,  -- From hover popup data
     status TEXT NOT NULL DEFAULT 'Normal watering cycle',
     failure_reason TEXT,  -- e.g., 'Aborted due to sensor input'
-    current_ma INTEGER,  -- Current reading in milliamps
+    current_ma REAL,  -- Current reading in milliamps (changed to REAL for decimals)
     end_time TIMESTAMP,  -- Calculated: start_time + duration
     source TEXT DEFAULT 'web_scraper' CHECK (source IN ('web_scraper', 'api', 'manual')),
     scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
+    raw_popup_text TEXT,  -- Complete popup text from hover
+    popup_lines_json TEXT,  -- JSON array of parsed popup lines with type/value
+    parsed_summary TEXT,  -- Summary of key parsed data
+    water_efficiency REAL,  -- Percentage: (actual/expected) * 100
+    abort_reason TEXT,  -- Specific abort reason if run was aborted
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (zone_id) REFERENCES zones(zone_id),

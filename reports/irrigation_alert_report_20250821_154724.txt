@@ -1,0 +1,43 @@
+============================================================
+HYDRAWISE IRRIGATION FAILURE DETECTION REPORT
+============================================================
+Generated: 2025-08-21 03:47PM
+System Status: CRITICAL
+
+SYSTEM SUMMARY:
+  Total Zones: 8
+  Zones Running Normally: 3
+  Zones with Warnings: 0
+  Zones with Failures: 5
+  Water Scheduled: 0.0 gallons
+  Water Delivered: 180.0 gallons
+  Water Efficiency: 0.0%
+
+CRITICAL ALERTS (IMMEDIATE ACTION REQUIRED):
+---------------------------------------------
+Zone: Front Planters & Pots
+  Issue: Scheduled 1min run at 06:30PM did not execute
+  Action: Manually run zone immediately or check controller status
+  Plant Risk: HIGH
+
+Zone: Rear Bed/Planters at Pool (M)
+  Issue: Scheduled 2min run at 06:33PM did not execute
+  Action: Manually run zone immediately or check controller status
+  Plant Risk: HIGH
+
+Zone: Rear Left Pots, Baskets & Planters (M)
+  Issue: Scheduled 1min run at 06:31PM did not execute
+  Action: Manually run zone immediately or check controller status
+  Plant Risk: HIGH
+
+Zone: Rear Right Bed at House and Pool (M/D)
+  Issue: Scheduled 2min run at 06:35PM did not execute
+  Action: Manually run zone immediately or check controller status
+  Plant Risk: MEDIUM
+
+Zone: Rear Right Pots, Baskets & Planters (M)
+  Issue: Scheduled 1min run at 06:32PM did not execute
+  Action: Manually run zone immediately or check controller status
+  Plant Risk: HIGH
+
+============================================================

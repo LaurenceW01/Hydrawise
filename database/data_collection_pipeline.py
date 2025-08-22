@@ -20,8 +20,8 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import our modules
-from hydrawise_web_scraper import HydrawiseWebScraper
-from database.database_manager import DatabaseManager
+from hydrawise_web_scraper_refactored import HydrawiseWebScraper
+from database.intelligent_data_storage import IntelligentDataStorage
 from irrigation_failure_detector import IrrigationFailureDetector
 
 # Configure logging
@@ -39,10 +39,10 @@ class DataCollectionPipeline:
     """Orchestrates complete irrigation data collection and analysis"""
     
     def __init__(self, username: str, password: str, db_path: str = "database/irrigation_data.db"):
-        """Initialize pipeline with credentials and database"""
+        """Initialize pipeline with credentials and enhanced database storage"""
         self.username = username
         self.password = password
-        self.db = DatabaseManager(db_path)
+        self.db = IntelligentDataStorage(db_path)
         self.scraper = HydrawiseWebScraper(username, password, headless=True)
         self.failure_detector = IrrigationFailureDetector(username, password)
         
@@ -177,12 +177,12 @@ class DataCollectionPipeline:
                 pass
                 
     def _store_collected_data(self, scheduled_runs: List, actual_runs: List, target_date: date):
-        """Store collected data in database"""
+        """Store collected data in database with enhanced popup analysis"""
         try:
-            scheduled_count = self.db.store_scheduled_runs(scheduled_runs, target_date)
-            actual_count = self.db.store_actual_runs(actual_runs, target_date)
+            scheduled_count = self.db.store_scheduled_runs_enhanced(scheduled_runs, target_date)
+            actual_count = self.db.store_actual_runs_enhanced(actual_runs, target_date)
             
-            logger.info(f"Stored {scheduled_count} scheduled and {actual_count} actual runs")
+            logger.info(f"Stored {scheduled_count} scheduled and {actual_count} actual runs with full popup data")
             
         except Exception as e:
             logger.error(f"Failed to store collected data: {e}")

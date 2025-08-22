@@ -106,3 +106,4 @@ def check_rain_sensor_status(self) -> Dict[str, any]:
         sensor_info['sensor_status'] = f'Error checking sensor: {e}'
         
     return sensor_info
+

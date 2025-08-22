@@ -44,7 +44,16 @@ def format_reported_data(reported_runs, logger, reference_date):
             duration_str = f"{run.duration_minutes} min" if hasattr(run, 'duration_minutes') else 'Unknown'
             water_str = f"{run.actual_gallons:.2f} gal" if hasattr(run, 'actual_gallons') and run.actual_gallons else 'N/A'
             status_str = run.status if hasattr(run, 'status') else 'Unknown'
-            notes_str = (run.notes if hasattr(run, 'notes') and run.notes else 'No notes')[:37] + "..."
+            
+            # Show detailed popup information if available
+            if hasattr(run, 'notes') and run.notes:
+                # Try to get parsed summary first, fallback to truncated notes
+                if hasattr(run, 'parsed_summary'):
+                    notes_str = run.parsed_summary[:37] + "..." if len(run.parsed_summary) > 37 else run.parsed_summary
+                else:
+                    notes_str = run.notes[:37] + "..." if len(run.notes) > 37 else run.notes
+            else:
+                notes_str = 'No popup data'
             
             # Truncate long zone names
             display_zone = zone_name[:34] + "..." if len(zone_name) > 34 else zone_name
@@ -77,6 +86,27 @@ def format_reported_data(reported_runs, logger, reference_date):
             for run in reported_runs:
                 if hasattr(run, 'failure_reason') and run.failure_reason:
                     output_lines.append(f"   • {run.zone_name}: {run.failure_reason}")
+        
+        # Add detailed popup analysis section
+        output_lines.append("")
+        output_lines.append("📄 DETAILED POPUP ANALYSIS:")
+        output_lines.append("-" * 80)
+        for i, run in enumerate(reported_runs[:5]):  # Show first 5 for detail
+            output_lines.append(f"Zone {i+1}: {run.zone_name}")
+            if hasattr(run, 'popup_lines'):
+                for line_data in run.popup_lines:
+                    line_type = line_data.get('type', 'unknown')
+                    parsed_val = line_data.get('parsed_value', 'N/A')
+                    line_text = line_data.get('text', '')
+                    if parsed_val != 'N/A' and parsed_val is not None:
+                        output_lines.append(f"  [{line_type.upper()}]: {line_text} → {parsed_val}")
+                    else:
+                        output_lines.append(f"  [{line_type.upper()}]: {line_text}")
+            elif hasattr(run, 'raw_popup_text'):
+                output_lines.append(f"  RAW TEXT: {run.raw_popup_text}")
+            else:
+                output_lines.append("  No popup data available")
+            output_lines.append("")
     else:
         output_lines.append("❌ No reported runs found for previous day")
         output_lines.append("   This could mean:")

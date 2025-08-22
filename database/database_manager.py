@@ -51,8 +51,11 @@ class DatabaseManager:
             # Check if database is already initialized
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='zones'")
-            if cursor.fetchone():
-                logger.info("Database already initialized")
+            existing_db = cursor.fetchone() is not None
+            
+            if existing_db:
+                logger.info("Database already initialized - checking for schema updates")
+                self._migrate_schema(conn)
                 return
                 
             # Read and execute schema
@@ -75,6 +78,51 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"Failed to initialize database: {e}")
                 raise
+                
+    def _migrate_schema(self, conn):
+        """Apply schema migrations for popup data fields and enhanced matching"""
+        cursor = conn.cursor()
+        
+        # Check if popup data columns exist in scheduled_runs
+        cursor.execute("PRAGMA table_info(scheduled_runs)")
+        scheduled_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'raw_popup_text' not in scheduled_columns:
+            logger.info("Adding popup data columns to scheduled_runs table")
+            cursor.execute("ALTER TABLE scheduled_runs ADD COLUMN raw_popup_text TEXT")
+            cursor.execute("ALTER TABLE scheduled_runs ADD COLUMN popup_lines_json TEXT") 
+            cursor.execute("ALTER TABLE scheduled_runs ADD COLUMN parsed_summary TEXT")
+            
+        if 'is_rain_cancelled' not in scheduled_columns:
+            logger.info("Adding rain cancellation tracking to scheduled_runs table")
+            cursor.execute("ALTER TABLE scheduled_runs ADD COLUMN is_rain_cancelled BOOLEAN DEFAULT FALSE")
+            cursor.execute("ALTER TABLE scheduled_runs ADD COLUMN rain_sensor_status TEXT")
+            cursor.execute("ALTER TABLE scheduled_runs ADD COLUMN popup_status TEXT")
+            
+        # Check if popup data columns exist in actual_runs
+        cursor.execute("PRAGMA table_info(actual_runs)")
+        actual_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'raw_popup_text' not in actual_columns:
+            logger.info("Adding popup data columns to actual_runs table")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN raw_popup_text TEXT")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN popup_lines_json TEXT")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN parsed_summary TEXT")
+            
+        if 'water_efficiency' not in actual_columns:
+            logger.info("Adding enhanced analysis columns to actual_runs table")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN water_efficiency REAL")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN abort_reason TEXT")
+            
+        # Update current_ma to REAL if it's INTEGER
+        cursor.execute("PRAGMA table_info(actual_runs)")
+        current_ma_info = [row for row in cursor.fetchall() if row[1] == 'current_ma']
+        if current_ma_info and 'INTEGER' in current_ma_info[0][2].upper():
+            logger.info("Updating current_ma column type to REAL for decimal precision")
+            # SQLite doesn't support ALTER COLUMN, so we'll handle this in the application
+            
+        conn.commit()
+        logger.info("Schema migration completed successfully")
                 
     def _initialize_zones(self):
         """Initialize zones table with known irrigation zones"""
@@ -170,7 +218,7 @@ class DatabaseManager:
             return new_zone_id
             
     def store_scheduled_runs(self, scheduled_runs: List[ScheduledRun], collection_date: date = None) -> int:
-        """Store scheduled runs in database"""
+        """Store scheduled runs in database with popup line data"""
         if collection_date is None:
             collection_date = date.today()
             
@@ -191,11 +239,20 @@ class DatabaseManager:
                         if flow_rate and flow_rate[0]:
                             expected_gallons = flow_rate[0] * (run.duration_minutes / 60.0)
                     
+                    # Extract popup data if available
+                    raw_popup_text = getattr(run, 'raw_popup_text', None)
+                    popup_lines_json = None
+                    parsed_summary = getattr(run, 'parsed_summary', None)
+                    
+                    if hasattr(run, 'popup_lines') and run.popup_lines:
+                        popup_lines_json = json.dumps(run.popup_lines)
+                    
                     cursor.execute("""
                         INSERT OR REPLACE INTO scheduled_runs 
                         (zone_id, zone_name, schedule_date, scheduled_start_time, 
-                         scheduled_duration_minutes, expected_gallons, notes)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                         scheduled_duration_minutes, expected_gallons, notes,
+                         raw_popup_text, popup_lines_json, parsed_summary)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         zone_id,
                         run.zone_name,
@@ -203,7 +260,10 @@ class DatabaseManager:
                         run.start_time,
                         run.duration_minutes,
                         expected_gallons,
-                        run.notes or ""
+                        run.notes or "",
+                        raw_popup_text,
+                        popup_lines_json,
+                        parsed_summary
                     ))
                     
                     stored_count += 1
@@ -217,7 +277,7 @@ class DatabaseManager:
         return stored_count
         
     def store_actual_runs(self, actual_runs: List[ActualRun], collection_date: date = None) -> int:
-        """Store actual runs in database"""
+        """Store actual runs in database with popup line data"""
         if collection_date is None:
             collection_date = date.today()
             
@@ -233,11 +293,20 @@ class DatabaseManager:
                     # Calculate end time
                     end_time = run.start_time + timedelta(minutes=run.duration_minutes)
                     
+                    # Extract popup data if available
+                    raw_popup_text = getattr(run, 'raw_popup_text', None)
+                    popup_lines_json = None
+                    parsed_summary = getattr(run, 'parsed_summary', None)
+                    
+                    if hasattr(run, 'popup_lines') and run.popup_lines:
+                        popup_lines_json = json.dumps(run.popup_lines)
+                    
                     cursor.execute("""
                         INSERT OR REPLACE INTO actual_runs 
                         (zone_id, zone_name, run_date, actual_start_time, actual_duration_minutes,
-                         actual_gallons, status, failure_reason, end_time, notes)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         actual_gallons, status, failure_reason, end_time, notes,
+                         raw_popup_text, popup_lines_json, parsed_summary)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         zone_id,
                         run.zone_name,
@@ -248,7 +317,10 @@ class DatabaseManager:
                         run.status,
                         run.failure_reason,
                         end_time,
-                        run.notes or ""
+                        run.notes or "",
+                        raw_popup_text,
+                        popup_lines_json,
+                        parsed_summary
                     ))
                     
                     stored_count += 1

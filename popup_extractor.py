@@ -80,33 +80,61 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
             'actual_gallons': None,
             'status': 'Unknown',
             'notes': popup_text,
-            'current_ma': None
+            'current_ma': None,
+            'raw_popup_text': popup_text,  # Store complete original text
+            'popup_lines': [],  # Store each line individually
+            'parsed_data': {}  # Store structured parsed data
         }
         
         lines = popup_text.split('\n')
         
-        for line in lines:
+        # Store each line with metadata
+        for i, line in enumerate(lines):
             line = line.strip()
+            if line:  # Only store non-empty lines
+                line_data = {
+                    'line_number': i + 1,
+                    'text': line,
+                    'type': 'unknown',  # Will be determined by content
+                    'parsed_value': None
+                }
+                data['popup_lines'].append(line_data)
+            
+            # Identify and categorize each line type
+            line_type = 'other'
+            parsed_value = None
             
             # Extract status/cycle type - handle all abort conditions
             if 'watering cycle' in line.lower():
                 data['status'] = line
+                line_type = 'status'
+                parsed_value = line
             elif 'not scheduled to run' in line.lower():
                 data['status'] = line
                 data['rain_suspended'] = True
                 data['duration_minutes'] = 0  # Override duration to 0 for not scheduled
+                line_type = 'status'
+                parsed_value = 'not_scheduled_rain'
             elif 'aborted due to sensor input' in line.lower():
                 data['status'] = line
                 data['rain_suspended'] = True
                 data['duration_minutes'] = 0  # Override duration to 0 for sensor abort
+                line_type = 'status'
+                parsed_value = 'aborted_sensor'
             elif 'aborted due to high daily rainfall' in line.lower():
                 data['status'] = line
                 data['rain_suspended'] = True
                 data['duration_minutes'] = 0  # Override duration to 0 for rainfall abort
+                line_type = 'status'
+                parsed_value = 'aborted_rainfall'
             elif 'scheduled to run' in line.lower() and 'not' not in line.lower():
                 data['status'] = line
+                line_type = 'status'
+                parsed_value = 'scheduled'
             elif any(keyword in line.lower() for keyword in ['suspended', 'stopped', 'sensor', 'rain', 'aborted']):
                 data['status'] = line
+                line_type = 'status'
+                parsed_value = 'suspended_other'
                 if 'sensor' in line.lower() or 'rain' in line.lower():
                     data['rain_suspended'] = True
             
@@ -115,6 +143,8 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
             if time_match:
                 time_str = time_match.group(1).strip()
                 data['time_info'] = time_str
+                line_type = 'time'
+                parsed_value = time_str
             
             # Extract duration - try multiple patterns
             duration_patterns = [
@@ -127,7 +157,10 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
             for pattern in duration_patterns:
                 duration_match = re.search(pattern, line, re.IGNORECASE)
                 if duration_match:
-                    data['duration_minutes'] = int(duration_match.group(1))
+                    duration_value = int(duration_match.group(1))
+                    data['duration_minutes'] = duration_value
+                    line_type = 'duration'
+                    parsed_value = duration_value
                     break
             
             # Extract water usage (gallons) - try multiple patterns for more robust matching
@@ -144,36 +177,74 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
                     gallons = float(water_match.group(1))
                     data['actual_gallons'] = gallons
                     data['expected_gallons'] = gallons  # For scheduled, this is expected
+                    line_type = 'water_usage'
+                    parsed_value = gallons
                     break
             
             # Extract current reading
             current_match = re.search(r'Current[:\s]*([0-9.]+)\s*mA', line, re.IGNORECASE)
             if current_match:
-                data['current_ma'] = float(current_match.group(1))
+                current_value = float(current_match.group(1))
+                data['current_ma'] = current_value
+                line_type = 'current'
+                parsed_value = current_value
             
             # Extract zone name (if in popup)
             if any(keyword in line.lower() for keyword in ['rear', 'front', 'left', 'right', 'pots', 'beds', 'turf']):
                 if not data['zone_name'] and len(line) > 5:
                     data['zone_name'] = line
+                    line_type = 'zone_name'
+                    parsed_value = line
+            
+            # Update the line data with identified type and parsed value
+            if data['popup_lines'] and line:
+                # Find the corresponding line data and update it
+                for line_data in data['popup_lines']:
+                    if line_data['text'] == line:
+                        line_data['type'] = line_type
+                        line_data['parsed_value'] = parsed_value
+                        break
         
-        # Log what we extracted for debugging
+        # Enhanced logging for detailed popup analysis
         self.logger.debug(f"Raw popup text: {popup_text}")
         self.logger.debug(f"Extracted popup data: {data}")
         
-        # Special debug logging for key data extraction
+        # Log each parsed line with details
+        if data['popup_lines']:
+            self.logger.info(f"📄 POPUP ANALYSIS - {len(data['popup_lines'])} lines:")
+            for line_data in data['popup_lines']:
+                line_type = line_data['type']
+                parsed_val = line_data['parsed_value']
+                line_text = line_data['text']
+                if parsed_val is not None:
+                    self.logger.info(f"  Line {line_data['line_number']} [{line_type.upper()}]: '{line_text}' → {parsed_val}")
+                else:
+                    self.logger.info(f"  Line {line_data['line_number']} [{line_type.upper()}]: '{line_text}'")
+        
+        # Summary logging for key extracted data
+        summary_items = []
         if 'duration_minutes' in data and data['duration_minutes'] > 0:
-            self.logger.debug(f"SUCCESS: Found duration {data['duration_minutes']} minutes in popup")
+            summary_items.append(f"Duration: {data['duration_minutes']} min")
         elif 'rain_suspended' in data and data['rain_suspended']:
-            self.logger.info(f"RAIN SUSPENDED: Zone shows 'not scheduled to run' due to rain sensor")
+            summary_items.append("Status: RAIN SUSPENDED")
             data['duration_minutes'] = 0  # Set to 0 for rain-suspended zones
-        else:
-            self.logger.debug(f"NO DURATION: No duration found in popup text: '{popup_text}'")
             
         if 'actual_gallons' in data and data['actual_gallons']:
-            self.logger.debug(f"SUCCESS: Found water usage {data['actual_gallons']} gallons in popup")
+            summary_items.append(f"Water: {data['actual_gallons']} gal")
         
         if 'current_ma' in data and data['current_ma']:
-            self.logger.debug(f"SUCCESS: Found current reading {data['current_ma']} mA in popup")
+            summary_items.append(f"Current: {data['current_ma']} mA")
+            
+        if 'status' in data and data['status'] != 'Unknown':
+            summary_items.append(f"Status: {data['status']}")
+            
+        if summary_items:
+            self.logger.info(f"📊 POPUP SUMMARY: {' | '.join(summary_items)}")
+        else:
+            self.logger.warning(f"⚠️ NO STRUCTURED DATA: Could not parse popup: '{popup_text[:100]}...'")
+            
+        # Store parsed summary for easy access
+        data['parsed_summary'] = ' | '.join(summary_items) if summary_items else 'No data parsed'
         
         return data
             

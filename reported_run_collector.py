@@ -397,7 +397,9 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                     elif 'manual' in notes.lower():
                         failure_reason = "Manual intervention"
                     
-                    # Create ActualRun object
+                    # Create ActualRun object with enhanced popup data
+                    enhanced_notes = f"Current: {current_ma}mA, {notes}" if current_ma else notes
+                    
                     actual_run = ActualRun(
                         zone_id=f'zone_{len(actual_runs) + 1}',
                         zone_name=zone_name,
@@ -406,8 +408,15 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                         actual_gallons=actual_gallons,
                         status=status,
                         failure_reason=failure_reason,
-                        notes=f"Current: {current_ma}mA, {notes}" if current_ma else notes
+                        notes=enhanced_notes
                     )
+                    
+                    # Add enhanced popup data as attributes
+                    if popup_data:
+                        actual_run.raw_popup_text = popup_data.get('raw_popup_text', '')
+                        actual_run.popup_lines = popup_data.get('popup_lines', [])
+                        actual_run.parsed_summary = popup_data.get('parsed_summary', '')
+                        actual_run.parsed_data = popup_data.get('parsed_data', {})
                     
                     actual_runs.append(actual_run)
                     self.logger.info(f"✅ Extracted reported run {len(actual_runs)}: '{zone_name}' at {start_time_str}, {duration_minutes}min, {actual_gallons}gal - {status}")
