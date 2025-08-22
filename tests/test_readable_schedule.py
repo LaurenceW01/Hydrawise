@@ -90,6 +90,30 @@ def format_schedule_data(results, logger):
         
         output_lines.append(f"\nTotal Tomorrow: {len(results['tomorrow'])} runs")
     
+    # DETAILED POPUP ANALYSIS for scheduled runs (similar to previous day reported test)
+    output_lines.append("")
+    output_lines.append("📄 DETAILED POPUP ANALYSIS:")
+    output_lines.append("-" * 80)
+    
+    # Show detailed popup parsing for first few today runs to verify parsing works
+    schedule_runs_to_analyze = results.get('today', [])[:5]  # Show first 5 for detail
+    for i, run in enumerate(schedule_runs_to_analyze):
+        output_lines.append(f"Zone {i+1}: {run.zone_name}")
+        if hasattr(run, 'popup_lines'):
+            for line_data in run.popup_lines:
+                line_type = line_data.get('type', 'unknown')
+                parsed_val = line_data.get('parsed_value', 'N/A')
+                line_text = line_data.get('text', '')
+                if parsed_val != 'N/A' and parsed_val is not None:
+                    output_lines.append(f"  [{line_type.upper()}]: {line_text} → {parsed_val}")
+                else:
+                    output_lines.append(f"  [{line_type.upper()}]: {line_text}")
+        elif hasattr(run, 'raw_popup_text'):
+            output_lines.append(f"  RAW TEXT: {run.raw_popup_text}")
+        else:
+            output_lines.append("  No popup data available")
+        output_lines.append("")
+
     # Summary
     output_lines.append("")
     output_lines.append("="*80)
@@ -97,6 +121,12 @@ def format_schedule_data(results, logger):
     output_lines.append(f"   Today: {len(results.get('today', []))} runs")
     output_lines.append(f"   Tomorrow: {len(results.get('tomorrow', []))} runs") 
     output_lines.append(f"   Total: {len(results.get('today', [])) + len(results.get('tomorrow', []))} runs")
+    
+    # Count runs with popup line data to verify parsing is working
+    today_with_popup_lines = sum(1 for run in results.get('today', []) if hasattr(run, 'popup_lines') and run.popup_lines)
+    tomorrow_with_popup_lines = sum(1 for run in results.get('tomorrow', []) if hasattr(run, 'popup_lines') and run.popup_lines)
+    output_lines.append(f"   Popup Line Data: {today_with_popup_lines + tomorrow_with_popup_lines} runs have detailed parsing")
+    
     if results.get('errors'):
         output_lines.append(f"   Errors: {len(results['errors'])}")
         for error in results['errors']:

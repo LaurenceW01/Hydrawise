@@ -337,6 +337,12 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                     notes=popup_data.get('status', 'Scheduled run')
                 )
                 
+                # Add enhanced popup data as attributes (consistent with ActualRun)
+                if popup_data:
+                    scheduled_run.raw_popup_text = popup_data.get('raw_popup_text', '')
+                    scheduled_run.popup_lines = popup_data.get('popup_lines', [])
+                    scheduled_run.parsed_summary = popup_data.get('parsed_summary', '')
+                
                 scheduled_runs.append(scheduled_run)
                 self.logger.info(f"Extracted {len(scheduled_runs)}: '{zone_name}' at {start_datetime.strftime('%I:%M%p').lower()} for {duration_minutes} minutes")
                 
