@@ -111,7 +111,13 @@ def main():
     """Run the readable schedule test"""
     
     # Setup logging to capture to file with minimal console output
-    log_filename = f"../logs/readable_schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Ensure logs directory exists
+    logs_dir = os.path.join(parent_dir, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    log_filename = os.path.join(logs_dir, f"readable_schedule_{timestamp}.log")
     
     # Create a dedicated logger ONLY for our readable output
     logger = logging.getLogger('readable_output')

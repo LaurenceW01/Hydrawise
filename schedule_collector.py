@@ -18,13 +18,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
-def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None) -> List:
+def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None, skip_schedule_click: bool = False) -> List:
     """
     Extract scheduled runs from the Schedule tab
     
     Args:
         target_date (datetime): Date to extract schedule for
         limit_zones (int, optional): Limit to first N zones for testing speed
+        skip_schedule_click (bool): Skip Schedule tab clicking if already in Schedule view
         
     Returns:
         List[ScheduledRun]: List of scheduled irrigation runs
@@ -34,33 +35,36 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None)
     try:
         self.logger.info("Extracting scheduled runs...")
         
-        # Navigate to the Schedule tab first
-        # Look for the Schedule tab element using multiple strategies
-        schedule_selectors = [
-            "//div[@data-testid='sub-tab-reports.name.watering-schedule']",
-            "//div[contains(@class, 'reports-page__subtabs__tab') and contains(text(), 'Schedule')]",
-            "//button[contains(text(), 'Schedule')]",
-            "//*[contains(text(), 'Schedule')]"
-        ]
-        
-        schedule_clicked = False
-        for selector in schedule_selectors:
-            try:
-                schedule_element = self.wait.until(
-                    EC.element_to_be_clickable((By.XPATH, selector))
-                )
-                schedule_element.click()
-                self.logger.info("Clicked Schedule tab - waiting for data to load")
-                time.sleep(5)  # Wait for schedule data to load
-                schedule_clicked = True
-                break
-            except Exception as e:
-                self.logger.debug(f"Schedule selector '{selector}' failed: {e}")
-                continue
-        
-        if not schedule_clicked:
-            self.logger.error("❌ Could not find or click Schedule tab")
-            return []
+        # Navigate to the Schedule tab first (unless skipping)
+        if not skip_schedule_click:
+            # Look for the Schedule tab element using multiple strategies
+            schedule_selectors = [
+                "//div[@data-testid='sub-tab-reports.name.watering-schedule']",
+                "//div[contains(@class, 'reports-page__subtabs__tab') and contains(text(), 'Schedule')]",
+                "//button[contains(text(), 'Schedule')]",
+                "//*[contains(text(), 'Schedule')]"
+            ]
+            
+            schedule_clicked = False
+            for selector in schedule_selectors:
+                try:
+                    schedule_element = self.wait.until(
+                        EC.element_to_be_clickable((By.XPATH, selector))
+                    )
+                    schedule_element.click()
+                    self.logger.info("Clicked Schedule tab - waiting for data to load")
+                    time.sleep(5)  # Wait for schedule data to load
+                    schedule_clicked = True
+                    break
+                except Exception as e:
+                    self.logger.debug(f"Schedule selector '{selector}' failed: {e}")
+                    continue
+            
+            if not schedule_clicked:
+                self.logger.error("❌ Could not find or click Schedule tab")
+                return []
+        else:
+            self.logger.info("⏭️ Skipping Schedule tab click (already in Schedule view)")
         
         # SECOND: CRITICAL - Must click Day button to get daily schedule (not week view)
         try:
@@ -137,10 +141,22 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None)
             self.logger.info(f"🚀 TESTING MODE: Processing only first {limit_zones} zones out of {len(timeline_elements)}")
             
         # Debug: Show what elements we're about to process
-        self.logger.info(f"📋 About to process {len(zones_to_process)} elements:")
+        # CRITICAL: Scroll to top to ensure we capture all zones (especially early morning ones)
+        self.logger.info("📜 Scrolling to top of page to capture all zones...")
+        self.driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(1)  # Brief pause after scroll
+        
+        self.logger.info(f"📋 About to process {len(zones_to_process)} elements with progressive scrolling:")
         
         for i, element in enumerate(zones_to_process):
             try:
+                # Progressive scrolling: Scroll the element into view before processing
+                try:
+                    self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
+                    time.sleep(0.2)  # Brief pause to let scroll complete
+                except:
+                    pass  # Continue even if scroll fails
+                
                 # Small delay to ensure DOM element is fully rendered
                 time.sleep(0.1)
                 
@@ -237,9 +253,28 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None)
                         duration_minutes = 1  # Default minimum duration
                         self.logger.debug(f"Could not extract duration for {zone_name}")
                 
-                # CRITICAL: Get accurate duration from hover popup (not visual number)
+                # CRITICAL: Get accurate duration from hover popup with enhanced scrolling
                 popup_data = {}
                 try:
+                    # Enhanced scrolling: Center the element in viewport for reliable hover
+                    self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'});", element)
+                    time.sleep(0.5)  # Allow scroll to complete
+                    
+                    # Ensure element is fully visible and not obstructed
+                    element_rect = element.rect
+                    viewport_height = self.driver.execute_script("return window.innerHeight;")
+                    element_y = element_rect['y']
+                    
+                    self.logger.debug(f"🔍 Hovering over zone {zone_name}: element_y={element_y}, viewport_height={viewport_height}")
+                    
+                    # Additional small scroll if element is too close to edges
+                    if element_y < 100:  # Too close to top
+                        self.driver.execute_script("window.scrollBy(0, -100);")
+                        time.sleep(0.3)
+                    elif element_y > (viewport_height - 150):  # Too close to bottom
+                        self.driver.execute_script("window.scrollBy(0, 100);")
+                        time.sleep(0.3)
+                    
                     actions = ActionChains(self.driver)
                     actions.move_to_element(element).perform()
                     time.sleep(1.5)  # Longer wait for popup to appear
@@ -308,6 +343,10 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None)
             except Exception as e:
                 self.logger.error(f"❌ Failed to process schedule element {i+1}: {e}")
                 continue
+        
+        # Final scroll back to top after processing all zones
+        self.driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(0.5)
         
         self.logger.info(f"✅ Successfully extracted {len(scheduled_runs)} scheduled runs for {target_date.date()}")
         return scheduled_runs
@@ -454,9 +493,9 @@ def collect_24_hour_schedule(self, start_date: datetime = None, limit_zones: int
                     next_button.click()
                     time.sleep(4)  # Wait for navigation
                     
-                    # Extract tomorrow's schedule using same proven method
+                    # Extract tomorrow's schedule using same proven method (skip Schedule tab click)
                     self.logger.info("Extracting tomorrow's schedule using proven method...")
-                    tomorrow_schedule = self.extract_scheduled_runs(tomorrow, limit_zones)
+                    tomorrow_schedule = self.extract_scheduled_runs(tomorrow, limit_zones, skip_schedule_click=True)
                     results['tomorrow'] = tomorrow_schedule
                     self.logger.info(f"Collected {len(tomorrow_schedule)} runs for tomorrow")
                 else:

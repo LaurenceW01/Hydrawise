@@ -213,6 +213,118 @@ def get_current_displayed_date(self) -> Optional[str]:
         self.logger.error(f"Failed to get current displayed date: {e}")
         return None
 
+def click_previous_button(self) -> bool:
+    """Click the Previous button to navigate to the previous day"""
+    try:
+        self.logger.info("Looking for Previous button...")
+        
+        # Step 1: Quick check if Previous button is immediately available
+        quick_selectors = [
+            "//button[text()='Previous']",  # Most direct match
+            "//button[contains(text(), 'Previous')]"  # Simple contains match
+        ]
+        
+        previous_button = None
+        successful_selector = None
+        
+        # Quick scan without waiting
+        for selector in quick_selectors:
+            try:
+                elements = self.driver.find_elements(By.XPATH, selector)
+                for element in elements:
+                    if element.is_displayed() and element.is_enabled():
+                        previous_button = element
+                        successful_selector = f"{selector} (immediate)"
+                        self.logger.info(f"✅ Found Previous button immediately: {successful_selector}")
+                        break
+                if previous_button:
+                    break
+            except:
+                continue
+        
+        # Step 2: If not found immediately, try waiting with comprehensive selectors
+        if not previous_button:
+            self.logger.info("Previous button not immediately available, trying with wait...")
+            comprehensive_selectors = [
+                "//button[normalize-space(text())='Previous']",
+                "//button[contains(normalize-space(text()), 'Previous')]", 
+                "//button[text()='Previous']",
+                "//button[contains(text(), 'Previous')]",
+                "//*[@type='button' and contains(text(), 'Previous')]",
+                "//span[contains(text(), 'Previous')]/parent::button",
+                "//*[contains(@class, 'button') and contains(text(), 'Previous')]",
+                "//div[contains(@class, 'rbc-toolbar')]//button[contains(text(), 'Previous')]",
+                "//div[contains(@class, 'rbc-btn-group')]//button[contains(text(), 'Previous')]"
+            ]
+            
+            # Try each selector with shorter timeout
+            for selector in comprehensive_selectors:
+                try:
+                    previous_button = WebDriverWait(self.driver, 2).until(  # Reduced from 5 to 2 seconds
+                        EC.element_to_be_clickable((By.XPATH, selector))
+                    )
+                    successful_selector = selector
+                    break
+                except:
+                    continue
+        
+        if not previous_button:
+            # Fallback: Search through all buttons
+            self.logger.info("Direct selectors failed, searching all buttons...")
+            buttons = self.driver.find_elements(By.TAG_NAME, "button")
+            
+            for button in buttons:
+                try:
+                    button_text = button.text.strip()
+                    if button_text.lower() == "previous":
+                        if button.is_enabled() and button.is_displayed():
+                            previous_button = button
+                            successful_selector = "General button search"
+                            break
+                except:
+                    continue
+        
+        if previous_button:
+            # Try multiple click methods to handle click interception
+            try:
+                # Method 1: Direct click
+                previous_button.click()
+                self.logger.info(f"✅ Clicked Previous button (direct) using: {successful_selector}")
+                time.sleep(3)
+                return True
+            except Exception as e:
+                self.logger.debug(f"Direct click failed: {e}")
+                
+                try:
+                    # Method 2: JavaScript click (bypasses interception)
+                    self.driver.execute_script("arguments[0].click();", previous_button)
+                    self.logger.info(f"✅ Clicked Previous button (JavaScript) using: {successful_selector}")
+                    time.sleep(3)
+                    return True
+                except Exception as e:
+                    self.logger.debug(f"JavaScript click failed: {e}")
+                    
+                    try:
+                        # Method 3: ActionChains click after scroll
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", previous_button)
+                        time.sleep(1)
+                        from selenium.webdriver.common.action_chains import ActionChains
+                        ActionChains(self.driver).move_to_element(previous_button).click().perform()
+                        self.logger.info(f"✅ Clicked Previous button (ActionChains) using: {successful_selector}")
+                        time.sleep(3)
+                        return True
+                    except Exception as e:
+                        self.logger.error(f"All click methods failed: {e}")
+                        return False
+        else:
+            self.logger.error("❌ Could not find Previous button")
+            self._debug_available_buttons()
+            return False
+            
+    except Exception as e:
+        self.logger.error(f"❌ Failed to click Previous button: {e}")
+        return False
+
 def _debug_available_buttons(self):
     """Debug method to see what buttons are available on the page"""
     try:

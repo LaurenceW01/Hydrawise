@@ -130,13 +130,18 @@ class HydrawiseWebScraper:
         return popup_extractor.extract_hover_popup_data_with_retry(self, zone_name, max_retries)
     
     # ========== SCHEDULE COLLECTION (DELEGATED) ==========
-    def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None) -> List[ScheduledRun]:
+    def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None, skip_schedule_click: bool = False) -> List[ScheduledRun]:
         """Extract scheduled runs from the Schedule tab"""
-        return schedule_collector.extract_scheduled_runs(self, target_date, limit_zones)
+        return schedule_collector.extract_scheduled_runs(self, target_date, limit_zones, skip_schedule_click)
     
     def collect_24_hour_schedule(self, start_date: datetime = None, limit_zones: int = None) -> Dict[str, List]:
         """Collect schedule data for current day and next day (24 hour window)"""
         return schedule_collector.collect_24_hour_schedule(self, start_date, limit_zones)
+    
+    def extract_previous_day_reported_runs(self, reference_date: datetime = None) -> List:
+        """Extract reported runs from the previous day"""
+        import reported_run_collector
+        return reported_run_collector.extract_previous_day_reported_runs(self, reference_date)
     
     def _setup_schedule_view(self) -> bool:
         """Setup the Schedule view and ensure it's ready for navigation"""

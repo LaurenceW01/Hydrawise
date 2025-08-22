@@ -61,8 +61,12 @@ def start_browser(self):
 def stop_browser(self):
     """Stop the browser and clean up"""
     if self.driver:
-        self.driver.quit()
-        self.logger.info("Browser stopped")
+        try:
+            self.driver.quit()
+            self.logger.info("Browser stopped")
+        except Exception as e:
+            self.logger.debug(f"Browser cleanup warning (harmless): {e}")
+            self.logger.info("Browser stopped")
 
 def login(self) -> bool:
     """
@@ -72,7 +76,7 @@ def login(self) -> bool:
         bool: True if login successful, False otherwise
     """
     try:
-        self.logger.info("Logging into Hydrawise portal...")
+        self.logger.info("📍 Step 1: Logging into Hydrawise portal...")
         
         # Navigate to login page
         self.driver.get(self.login_url)
@@ -112,11 +116,12 @@ def login(self) -> bool:
 def navigate_to_reports(self):
     """Navigate to the reports page"""
     try:
-        self.logger.info("Navigating to reports page...")
+        self.logger.info("📍 Step 2: Navigating to reports page...")
         
-        # Method 1: Direct URL navigation (most reliable)
+        # Step 2: Navigate to reports URL with 2 second delay (as specified)
         self.driver.get(self.reports_url)
-        time.sleep(3)
+        self.logger.info("⏳ Waiting 2 seconds after reports page load...")
+        time.sleep(2)
         
         # Log current URL for debugging
         current_url = self.driver.current_url
