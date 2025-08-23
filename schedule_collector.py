@@ -327,7 +327,7 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                 self.logger.info(f"✅ PROCESSING ZONE {len(scheduled_runs)+1}: {zone_name} at {start_datetime.strftime('%I:%M %p')}")
                 
                 # Create ScheduledRun object
-                from hydrawise_web_scraper import ScheduledRun  # Import here to avoid circular imports
+                from hydrawise_web_scraper_refactored import ScheduledRun  # Import here to avoid circular imports
                 scheduled_run = ScheduledRun(
                     zone_id=f"zone_{i+1}",  # Generate ID since not available
                     zone_name=zone_name,

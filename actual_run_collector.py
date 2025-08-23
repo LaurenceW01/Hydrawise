@@ -195,7 +195,7 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                     failure_reason = "Manual intervention"
                 
                 # Create ActualRun object
-                from hydrawise_web_scraper import ActualRun  # Import here to avoid circular imports
+                from hydrawise_web_scraper_refactored import ActualRun  # Import here to avoid circular imports
                 actual_run = ActualRun(
                     zone_id=popup_data.get('zone_id', f'zone_{len(actual_runs)}'),
                     zone_name=clean_zone_name,

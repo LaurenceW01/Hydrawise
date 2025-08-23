@@ -22,7 +22,7 @@ import hashlib
 import json
 
 # Import our data models
-from hydrawise_web_scraper import ScheduledRun, ActualRun
+from hydrawise_web_scraper_refactored import ScheduledRun, ActualRun
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

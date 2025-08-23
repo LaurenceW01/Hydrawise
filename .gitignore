@@ -64,6 +64,12 @@ Thumbs.db
 test_output/
 debug_output/
 
+# Reports
+reports/
+
+# archived files
+archive/
+
 # Selenium
 chromedriver
 geckodriver

@@ -1239,21 +1239,31 @@ class HydrawiseWebScraper:
                 sensor_info['sensor_status'] = sensor_text
                 
                 # Check for irrigation suspension indicators
-                suspension_keywords = [
-                    'stopping irrigation',
-                    'sensor is stopping',
-                    'irrigation suspended',
-                    'rain detected'
-                ]
+                # Be more precise to avoid false positives with "not stopping irrigation"
+                sensor_lower = sensor_text.lower()
                 
-                if any(keyword in sensor_text.lower() for keyword in suspension_keywords):
-                    sensor_info['rain_sensor_active'] = True
-                    sensor_info['irrigation_suspended'] = True
-                    self.logger.warning(f"🌧️  Rain sensor detected: {sensor_text}")
-                else:
+                # First check for explicit "not stopping" cases (normal operation)
+                if 'not stopping irrigation' in sensor_lower or 'is not stopping' in sensor_lower:
                     sensor_info['rain_sensor_active'] = False
                     sensor_info['irrigation_suspended'] = False
                     self.logger.info(f"✅ Normal sensor status: {sensor_text}")
+                else:
+                    # Then check for suspension indicators (only if not explicitly "not stopping")
+                    suspension_keywords = [
+                        'sensor is stopping',
+                        'stopping irrigation',
+                        'irrigation suspended',
+                        'rain detected'
+                    ]
+                    
+                    if any(keyword in sensor_lower for keyword in suspension_keywords):
+                        sensor_info['rain_sensor_active'] = True
+                        sensor_info['irrigation_suspended'] = True
+                        self.logger.warning(f"🌧️  Rain sensor detected: {sensor_text}")
+                    else:
+                        sensor_info['rain_sensor_active'] = False
+                        sensor_info['irrigation_suspended'] = False
+                        self.logger.info(f"✅ Normal sensor status: {sensor_text}")
             else:
                 # No sensor status found - assume normal operation
                 sensor_info['sensor_status'] = 'No sensor alerts detected'

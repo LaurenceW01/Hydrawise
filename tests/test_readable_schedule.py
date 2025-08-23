@@ -203,8 +203,7 @@ def main():
         # Display in readable format and save to log
         format_schedule_data(results, logger)
         
-        # Cleanup browser
-        scraper.stop_browser()
+        # Note: Browser cleanup is handled by collect_24_hour_schedule() method
         
         logger.info("✅ Readable schedule test completed successfully")
         print("✅ Schedule data saved to log file:", log_filename)

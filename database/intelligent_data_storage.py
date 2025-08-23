@@ -15,6 +15,7 @@ import sqlite3
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Tuple, Any
 from database.database_manager import DatabaseManager
+from utils.timezone_utils import get_database_timestamp, to_houston_time
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,9 @@ class IntelligentDataStorage(DatabaseManager):
                         (zone_id, zone_name, schedule_date, scheduled_start_time, 
                          scheduled_duration_minutes, expected_gallons, notes,
                          raw_popup_text, popup_lines_json, parsed_summary,
-                         is_rain_cancelled, rain_sensor_status, popup_status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         is_rain_cancelled, rain_sensor_status, popup_status,
+                         created_at, scraped_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         zone_id,
                         run.zone_name,
@@ -72,7 +74,9 @@ class IntelligentDataStorage(DatabaseManager):
                         popup_analysis.get('parsed_summary'),
                         popup_analysis.get('is_rain_cancelled', False),
                         popup_analysis.get('rain_sensor_status'),
-                        popup_analysis.get('status')
+                        popup_analysis.get('status'),
+                        get_database_timestamp(),  # Houston time for created_at
+                        get_database_timestamp()   # Houston time for scraped_at
                     ))
                     
                     stored_count += 1
@@ -120,8 +124,8 @@ class IntelligentDataStorage(DatabaseManager):
                         (zone_id, zone_name, run_date, actual_start_time, actual_duration_minutes,
                          actual_gallons, status, failure_reason, end_time, notes,
                          raw_popup_text, popup_lines_json, parsed_summary, current_ma,
-                         water_efficiency, abort_reason)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         water_efficiency, abort_reason, created_at, scraped_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         zone_id,
                         run.zone_name,
@@ -138,7 +142,9 @@ class IntelligentDataStorage(DatabaseManager):
                         popup_analysis.get('parsed_summary'),
                         popup_analysis.get('current_ma'),
                         popup_analysis.get('water_efficiency'),
-                        popup_analysis.get('abort_reason')
+                        popup_analysis.get('abort_reason'),
+                        get_database_timestamp(),  # Houston time for created_at
+                        get_database_timestamp()   # Houston time for scraped_at
                     ))
                     
                     stored_count += 1
