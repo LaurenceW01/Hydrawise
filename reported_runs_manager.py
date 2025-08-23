@@ -308,9 +308,20 @@ class ReportedRunsManager:
             
             # Store the data
             if collected_runs:
-                stored_count = self.db.write_actual_runs(collected_runs, target_date)
+                storage_result = self.db.write_actual_runs(collected_runs, target_date)
+                
+                # Handle both old int return and new dict return
+                if isinstance(storage_result, dict):
+                    stored_count = storage_result.get('new', 0) + storage_result.get('updated', 0)
+                    storage_breakdown = storage_result
+                else:
+                    stored_count = storage_result
+                    storage_breakdown = {'new': stored_count, 'updated': 0, 'unchanged': 0, 'total': len(collected_runs)}
+                
                 logger.info(f"   Stored {stored_count} runs for {target_date}")
                 result.runs_stored = stored_count
+            else:
+                storage_breakdown = {'new': 0, 'updated': 0, 'unchanged': 0, 'total': 0}
             
             result.runs_collected = len(collected_runs)
             result.success = True
@@ -318,7 +329,8 @@ class ReportedRunsManager:
                 "target_date": str(target_date),
                 "runs_collected": len(collected_runs),
                 "limit_zones": limit_zones,
-                "admin_mode": True
+                "admin_mode": True,
+                "storage_breakdown": storage_breakdown
             }
             
             logger.info(f"✅ Admin collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")

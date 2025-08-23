@@ -133,7 +133,14 @@ class HydrawiseDB:
                 logger.warning(f"Cloud sync down failed: {e}")
         
         # Store the data
-        stored_count = self.storage.store_actual_runs_enhanced(actual_runs, target_date)
+        result = self.storage.store_actual_runs_enhanced(actual_runs, target_date)
+        
+        # Handle both old int return and new dict return for backwards compatibility
+        if isinstance(result, dict):
+            stored_count = result['new'] + result['updated']
+        else:
+            stored_count = result
+            result = {'new': stored_count, 'updated': 0, 'unchanged': 0, 'total': len(actual_runs)}
         
         # Sync up after writing
         if self.use_cloud_sync and stored_count > 0:
@@ -143,8 +150,8 @@ class HydrawiseDB:
             except Exception as e:
                 logger.warning(f"Cloud sync up failed: {e}")
         
-        logger.info(f"Successfully wrote {stored_count} actual runs to database")
-        return stored_count
+        logger.info(f"Successfully wrote actual runs to database: {result['new']} new, {result['updated']} updated")
+        return result
     
     # ========== READ METHODS ==========
     

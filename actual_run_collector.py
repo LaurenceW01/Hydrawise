@@ -63,16 +63,48 @@ def extract_actual_runs(self, target_date: datetime) -> List:
         
         # SECOND: CRITICAL - Must click Day button to get daily actual runs (not week view)
         try:
-            # Wait for Day button to appear after Reported tab loads
-            time.sleep(2)
+            # Wait longer for Day button to appear after Reported tab loads (especially in headless mode)
+            time.sleep(3)
             
-            # Find and click Day button using same logic as schedule extraction
+            # Multiple strategies to find the Day button
             day_button = None
-            all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-            for button in all_buttons:
-                if button.text.strip().lower() == 'day' and button.is_displayed():
-                    day_button = button
-                    break
+            
+            # Strategy 1: Look for active day button with specific class
+            try:
+                day_button = self.driver.find_element(By.CSS_SELECTOR, "button.rbc-active")
+                if day_button.text.strip().lower() == 'day':
+                    self.logger.info("Found Day button using rbc-active class")
+                else:
+                    day_button = None
+            except:
+                pass
+            
+            # Strategy 2: Look for any button with text "day"
+            if not day_button:
+                try:
+                    all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                    for button in all_buttons:
+                        if button.text.strip().lower() == 'day':
+                            # Check if clickable instead of just displayed (better for headless)
+                            if button.is_enabled():
+                                day_button = button
+                                self.logger.info("Found Day button using text search")
+                                break
+                except:
+                    pass
+            
+            # Strategy 3: Look in the rbc-btn-group container
+            if not day_button:
+                try:
+                    btn_group = self.driver.find_element(By.CSS_SELECTOR, ".rbc-btn-group")
+                    buttons = btn_group.find_elements(By.TAG_NAME, "button")
+                    for button in buttons:
+                        if button.text.strip().lower() == 'day':
+                            day_button = button
+                            self.logger.info("Found Day button in rbc-btn-group")
+                            break
+                except:
+                    pass
             
             if day_button:
                 # Always click Day button to ensure we get daily view (not week view)
@@ -81,6 +113,13 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                 self.logger.info("Clicked Day button - switched to daily actual runs view")
             else:
                 self.logger.error("CRITICAL: Could not find Day button - may be viewing week actuals instead of daily")
+                # Log what buttons are actually available for debugging
+                try:
+                    all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                    button_texts = [f"'{btn.text.strip()}'" for btn in all_buttons[:10]]  # First 10 buttons
+                    self.logger.error(f"Available buttons: {', '.join(button_texts)}")
+                except:
+                    pass
                 
         except Exception as e:
             self.logger.error(f"CRITICAL: Failed to click Day button: {e}")

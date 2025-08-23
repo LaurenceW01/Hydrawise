@@ -53,7 +53,7 @@ def cmd_daily(args):
     print_banner()
     print("🌅 DAILY COLLECTION - Previous Day + Current Day")
     
-    manager = ReportedRunsManager(headless=not args.visible)
+    manager = ReportedRunsManager(headless=args.headless)
     result = manager.collect_daily(force=args.force)
     
     print_result(result, "Daily Collection Results")
@@ -65,7 +65,7 @@ def cmd_periodic(args):
     print_banner()
     print("🔄 PERIODIC COLLECTION - Current Day Delta Updates")
     
-    manager = ReportedRunsManager(headless=not args.visible)
+    manager = ReportedRunsManager(headless=args.headless)
     result = manager.collect_periodic(min_interval_minutes=args.interval)
     
     print_result(result, "Periodic Collection Results")
@@ -90,7 +90,7 @@ def cmd_admin(args):
         print("   Use YYYY-MM-DD format, 'today', or 'yesterday'")
         return 1
     
-    manager = ReportedRunsManager(headless=not args.visible)
+    manager = ReportedRunsManager(headless=args.headless)
     result = manager.collect_admin(target_date, limit_zones=args.limit)
     
     print_result(result, f"Admin Collection Results for {target_date}")
@@ -139,7 +139,7 @@ def cmd_test(args):
     print("🧪 TEST MODE - Small Collection Sample")
     
     try:
-        manager = ReportedRunsManager(headless=not args.visible)
+        manager = ReportedRunsManager(headless=args.headless)
         
         # Test with yesterday, limit to 3 zones
         yesterday = date.today() - timedelta(days=1)
@@ -160,6 +160,62 @@ def cmd_test(args):
         print(f"❌ Test failed: {e}")
         return 1
 
+def cmd_update(args):
+    """Update/refresh current day's reported runs"""
+    print_banner()
+    print("🔄 UPDATING CURRENT DAY'S REPORTED RUNS")
+    print()
+    
+    try:
+        manager = ReportedRunsManager(headless=args.headless)
+        
+        # Use admin collection for today to get fresh data
+        target_date = date.today()
+        print(f"📅 Updating reported runs for {target_date}")
+        print("   This will collect the latest run data and update deltas")
+        print()
+        
+        # Run collection for today with no zone limit (get all fresh data)
+        result = manager.collect_admin(target_date, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
+        
+        print_result(result, "UPDATE RESULTS")
+        
+        if result.success:
+            # Extract storage details for better reporting
+            storage_details = result.details.get('storage_breakdown', {})
+            
+            if isinstance(storage_details, dict) and 'new' in storage_details:
+                # New detailed breakdown
+                new_runs = storage_details['new']
+                updated_runs = storage_details['updated']
+                unchanged_runs = storage_details['unchanged']
+                total_processed = storage_details['total']
+                
+                print(f"\n✅ Successfully processed {total_processed} reported runs for today:")
+                print(f"   🆕 {new_runs} new runs added to database")
+                print(f"   🔄 {updated_runs} existing runs updated")
+                print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
+                print(f"   💾 Total database changes: {new_runs + updated_runs}")
+            else:
+                # Fallback to old format
+                print(f"\n✅ Successfully updated {result.runs_stored} reported runs for today")
+                if result.runs_collected != result.runs_stored:
+                    print(f"   📊 {result.runs_collected - result.runs_stored} runs were duplicates")
+            
+            print("   💡 Latest irrigation status is now available for analysis")
+        else:
+            print(f"\n❌ Update failed")
+            if result.errors:
+                print("   Check errors above for troubleshooting")
+        
+        return 0 if result.success else 1
+        
+    except Exception as e:
+        print(f"❌ Update failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
 def main():
     """Main CLI entry point"""
     # Load environment variables
@@ -173,15 +229,21 @@ Examples:
   # Show current status
   python admin_reported_runs.py status
   
+  # Update current day's reported runs (refresh latest data)
+  python admin_reported_runs.py update
+  
   # Run daily collection (previous day + current day)
   python admin_reported_runs.py daily
   
   # Run periodic collection (current day deltas)
   python admin_reported_runs.py periodic
   
-  # Admin collection for specific date
+  # Admin collection for specific date (browser visible by default)
   python admin_reported_runs.py admin yesterday
   python admin_reported_runs.py admin 2025-08-22
+  
+  # Run in headless mode (no browser window)
+  python admin_reported_runs.py update --headless
   
   # Test the system
   python admin_reported_runs.py test
@@ -189,8 +251,8 @@ Examples:
     )
     
     # Global options
-    parser.add_argument('--visible', action='store_true', 
-                       help='Show browser window (default: headless)')
+    parser.add_argument('--headless', action='store_true', 
+                       help='Run browser in headless mode (default: visible)')
     
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -213,6 +275,12 @@ Examples:
     admin_parser.add_argument('--limit', type=int,
                              help='Limit number of zones to process (for testing)')
     admin_parser.set_defaults(func=cmd_admin)
+    
+    # Update current day
+    update_parser = subparsers.add_parser('update', help='Update/refresh current day reported runs')
+    update_parser.add_argument('--limit', type=int,
+                              help='Limit number of zones to process (for testing)')
+    update_parser.set_defaults(func=cmd_update)
     
     # Status
     status_parser = subparsers.add_parser('status', help='Show collection status')
