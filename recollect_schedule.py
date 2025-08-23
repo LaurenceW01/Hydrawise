@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Re-collect Schedule Data
+Admin Schedule Collection
 
-Re-collect the first 10 scheduled runs to fix ordering and missing data
+Collect scheduled runs with configurable zone limits
+- Default: collect ALL scheduled runs
+- Optional: limit to specific number of zones for testing
 """
 
 import os
 import sys
+import argparse
 from datetime import datetime, date
 from dotenv import load_dotenv
 
@@ -16,8 +19,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from hydrawise_web_scraper_refactored import HydrawiseWebScraper
 from database.intelligent_data_storage import IntelligentDataStorage
 
-def recollect_schedule():
-    """Re-collect and store the first 10 scheduled runs"""
+def recollect_schedule(limit_zones: int = None):
+    """Re-collect and store scheduled runs
+    
+    Args:
+        limit_zones: Optional limit on number of zones to collect (None = all zones)
+    """
     
     print("Re-collecting first 10 scheduled runs for proper ordering...")
     

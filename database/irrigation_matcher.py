@@ -14,18 +14,25 @@ Date: August 22, 2025
 
 import sqlite3
 import json
+import sys
+import os
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.timezone_utils import get_houston_now, to_houston_time, HOUSTON_TZ
+
 class MatchType(Enum):
     """Types of matches between scheduled and actual runs"""
     PERFECT_MATCH = "perfect_match"           # Exact zone and time match
     TIME_VARIANCE = "time_variance"           # Same zone, slight time difference
-    MISSING_RUN = "missing_run"               # Scheduled but no actual run
+    MISSING_RUN = "missing_run"               # Scheduled but no actual run (past time only)
     UNEXPECTED_RUN = "unexpected_run"         # Actual run with no schedule
     RAIN_CANCELLED = "rain_cancelled"         # Legitimately cancelled due to rain
+    FUTURE_SCHEDULED = "future_scheduled"     # Scheduled for future (not yet due)
 
 @dataclass
 class MatchResult:
@@ -281,6 +288,9 @@ class IrrigationMatcher:
         results = []
         used_actual_runs = set()
         
+        # Get current Houston time for comparison
+        current_houston_time = get_houston_now()
+        
         # Process each scheduled run
         for scheduled_run in scheduled_runs:
             # Handle rain-cancelled runs separately
@@ -295,6 +305,32 @@ class IrrigationMatcher:
                     time_difference_minutes=None,
                     confidence_score=1.0,
                     notes=f"Legitimately cancelled: {scheduled_run.rain_sensor_status or 'Rain detected'}",
+                    alert_priority="NONE"
+                )
+                results.append(result)
+                continue
+            
+            # Check if scheduled run is in the future (not yet due)
+            # Database times are stored as Houston local time but naive
+            # We need to localize them to Houston timezone, not convert from another timezone
+            if scheduled_run.scheduled_start_time.tzinfo is None:
+                # Localize naive datetime as Houston time (don't convert from UTC)
+                scheduled_houston_time = HOUSTON_TZ.localize(scheduled_run.scheduled_start_time)
+            else:
+                scheduled_houston_time = scheduled_run.scheduled_start_time
+            
+            scheduled_time_with_buffer = scheduled_houston_time + timedelta(minutes=10)
+            if scheduled_time_with_buffer > current_houston_time:
+                result = MatchResult(
+                    scheduled_run_id=scheduled_run.id,
+                    actual_run_id=None,
+                    zone_name=scheduled_run.zone_name,
+                    scheduled_time=scheduled_run.scheduled_start_time,
+                    actual_time=None,
+                    match_type=MatchType.FUTURE_SCHEDULED,
+                    time_difference_minutes=None,
+                    confidence_score=1.0,
+                    notes=f"Scheduled for future - not yet due (current time: {current_houston_time.strftime('%I:%M %p')})",
                     alert_priority="NONE"
                 )
                 results.append(result)
@@ -381,6 +417,7 @@ class IrrigationMatcher:
         missing_runs = [m for m in matches if m.match_type == MatchType.MISSING_RUN]
         unexpected_runs = [m for m in matches if m.match_type == MatchType.UNEXPECTED_RUN]
         rain_cancelled = [m for m in matches if m.match_type == MatchType.RAIN_CANCELLED]
+        future_scheduled = [m for m in matches if m.match_type == MatchType.FUTURE_SCHEDULED]
         
         # Generate report
         report_lines = []
@@ -398,6 +435,7 @@ class IrrigationMatcher:
         report_lines.append(f"   ❌ Missing Runs: {len(missing_runs)}")
         report_lines.append(f"   ❓ Unexpected Runs: {len(unexpected_runs)}")
         report_lines.append(f"   🌧️  Rain Cancelled: {len(rain_cancelled)}")
+        report_lines.append(f"   ⏰ Future Scheduled: {len(future_scheduled)}")
         report_lines.append(f"   📋 Total Processed: {len(matches)}")
         report_lines.append("")
         
@@ -441,7 +479,8 @@ class IrrigationMatcher:
                     MatchType.TIME_VARIANCE: "⏰",
                     MatchType.MISSING_RUN: "❌",
                     MatchType.UNEXPECTED_RUN: "❓",
-                    MatchType.RAIN_CANCELLED: "🌧️"
+                    MatchType.RAIN_CANCELLED: "🌧️",
+                    MatchType.FUTURE_SCHEDULED: "⏳"
                 }
                 
                 report_lines.append(f"{status_emoji[match.match_type]} {match.zone_name}")
