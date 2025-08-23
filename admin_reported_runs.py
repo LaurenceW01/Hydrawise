@@ -216,6 +216,163 @@ def cmd_update(args):
         traceback.print_exc()
         return 1
 
+def cmd_yesterday(args):
+    """Collect yesterday's reported runs"""
+    print_banner()
+    print("📅 COLLECTING YESTERDAY'S REPORTED RUNS")
+    print()
+    
+    try:
+        manager = ReportedRunsManager(headless=args.headless)
+        
+        # Target yesterday's date
+        target_date = date.today() - timedelta(days=1)
+        print(f"📅 Collecting reported runs for {target_date}")
+        print("   This ensures we have complete data for yesterday")
+        print()
+        
+        # Run collection for yesterday
+        result = manager.collect_admin(target_date, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
+        
+        print_result(result, "YESTERDAY COLLECTION RESULTS")
+        
+        if result.success:
+            # Extract storage details for better reporting
+            storage_details = result.details.get('storage_breakdown', {})
+            
+            if isinstance(storage_details, dict) and 'new' in storage_details:
+                # New detailed breakdown
+                new_runs = storage_details['new']
+                updated_runs = storage_details['updated']
+                unchanged_runs = storage_details['unchanged']
+                total_processed = storage_details['total']
+                
+                print(f"\n✅ Successfully processed {total_processed} reported runs for yesterday:")
+                print(f"   🆕 {new_runs} new runs added to database")
+                print(f"   🔄 {updated_runs} existing runs updated")
+                print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
+                print(f"   💾 Total database changes: {new_runs + updated_runs}")
+                
+                if new_runs == 0 and updated_runs == 0:
+                    print(f"   ✨ Yesterday's data was already complete!")
+                else:
+                    print(f"   📊 Yesterday's irrigation data is now complete for analysis")
+            else:
+                # Legacy simple count
+                print(f"\n✅ Successfully collected yesterday's reported runs:")
+                print(f"   💾 {result.runs_stored} runs stored in database")
+        
+        return 0 if result.success else 1
+        
+    except Exception as e:
+        print(f"❌ Yesterday collection failed: {e}")
+        return 1
+
+def cmd_today(args):
+    """Collect today's reported runs (enhanced version of update)"""
+    print_banner()
+    print("📅 COLLECTING TODAY'S REPORTED RUNS")
+    print()
+    
+    try:
+        manager = ReportedRunsManager(headless=args.headless)
+        
+        # Use admin collection for today to get fresh data
+        target_date = date.today()
+        print(f"📅 Collecting reported runs for {target_date}")
+        print("   This will collect all runs from today")
+        print()
+        
+        # Run collection for today
+        result = manager.collect_admin(target_date, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
+        
+        print_result(result, "TODAY COLLECTION RESULTS")
+        
+        if result.success:
+            # Extract storage details for better reporting
+            storage_details = result.details.get('storage_breakdown', {})
+            
+            if isinstance(storage_details, dict) and 'new' in storage_details:
+                # New detailed breakdown
+                new_runs = storage_details['new']
+                updated_runs = storage_details['updated']
+                unchanged_runs = storage_details['unchanged']
+                total_processed = storage_details['total']
+                
+                print(f"\n✅ Successfully processed {total_processed} reported runs for today:")
+                print(f"   🆕 {new_runs} new runs added to database")
+                print(f"   🔄 {updated_runs} existing runs updated")
+                print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
+                print(f"   💾 Total database changes: {new_runs + updated_runs}")
+            else:
+                # Legacy simple count
+                print(f"\n✅ Successfully collected today's reported runs:")
+                print(f"   💾 {result.runs_stored} runs stored in database")
+                
+            print(f"   💡 Latest irrigation status is now available for analysis")
+        
+        return 0 if result.success else 1
+        
+    except Exception as e:
+        print(f"❌ Today collection failed: {e}")
+        return 1
+
+def cmd_catchup(args):
+    """Collect both yesterday and today's runs for complete coverage"""
+    print_banner()
+    print("🔄 CATCH-UP COLLECTION (YESTERDAY + TODAY)")
+    print()
+    
+    print("This will collect both yesterday and today's runs to ensure complete coverage.")
+    print()
+    
+    try:
+        manager = ReportedRunsManager(headless=args.headless)
+        
+        # Collect yesterday first
+        yesterday = date.today() - timedelta(days=1)
+        print(f"📅 Step 1: Collecting yesterday's runs ({yesterday})...")
+        
+        result_yesterday = manager.collect_admin(yesterday, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
+        
+        print_result(result_yesterday, "YESTERDAY RESULTS")
+        
+        # Collect today
+        today = date.today()
+        print(f"\n📅 Step 2: Collecting today's runs ({today})...")
+        
+        result_today = manager.collect_admin(today, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
+        
+        print_result(result_today, "TODAY RESULTS")
+        
+        # Summary
+        total_success = result_yesterday.success and result_today.success
+        
+        if total_success:
+            # Calculate totals
+            yesterday_details = result_yesterday.details.get('storage_breakdown', {})
+            today_details = result_today.details.get('storage_breakdown', {})
+            
+            if isinstance(yesterday_details, dict) and isinstance(today_details, dict):
+                total_new = yesterday_details.get('new', 0) + today_details.get('new', 0)
+                total_updated = yesterday_details.get('updated', 0) + today_details.get('updated', 0)
+                total_unchanged = yesterday_details.get('unchanged', 0) + today_details.get('unchanged', 0)
+                total_processed = yesterday_details.get('total', 0) + today_details.get('total', 0)
+                
+                print(f"\n🎉 CATCH-UP COMPLETE!")
+                print(f"   📊 Total runs processed: {total_processed}")
+                print(f"   🆕 New runs added: {total_new}")
+                print(f"   🔄 Runs updated: {total_updated}")
+                print(f"   ✓  Runs unchanged: {total_unchanged}")
+                print(f"   💾 Total database changes: {total_new + total_updated}")
+                print(f"   ✨ Irrigation data is now up-to-date for analysis!")
+        
+        return 0 if total_success else 1
+        
+    except Exception as e:
+        print(f"❌ Catch-up collection failed: {e}")
+        return 1
+
 def main():
     """Main CLI entry point"""
     # Load environment variables
@@ -228,6 +385,15 @@ def main():
 Examples:
   # Show current status
   python admin_reported_runs.py status
+  
+  # Collect yesterday's runs (recommended daily task)
+  python admin_reported_runs.py yesterday
+  
+  # Collect today's runs
+  python admin_reported_runs.py today
+  
+  # Catch-up collection (yesterday + today)
+  python admin_reported_runs.py catchup
   
   # Update current day's reported runs (refresh latest data)
   python admin_reported_runs.py update
@@ -281,6 +447,24 @@ Examples:
     update_parser.add_argument('--limit', type=int,
                               help='Limit number of zones to process (for testing)')
     update_parser.set_defaults(func=cmd_update)
+    
+    # Yesterday collection
+    yesterday_parser = subparsers.add_parser('yesterday', help='Collect yesterday\'s reported runs')
+    yesterday_parser.add_argument('--limit', type=int,
+                                 help='Limit number of zones to process (for testing)')
+    yesterday_parser.set_defaults(func=cmd_yesterday)
+    
+    # Today collection
+    today_parser = subparsers.add_parser('today', help='Collect today\'s reported runs')
+    today_parser.add_argument('--limit', type=int,
+                             help='Limit number of zones to process (for testing)')
+    today_parser.set_defaults(func=cmd_today)
+    
+    # Catch-up collection (yesterday + today)
+    catchup_parser = subparsers.add_parser('catchup', help='Collect both yesterday and today\'s runs for complete coverage')
+    catchup_parser.add_argument('--limit', type=int,
+                               help='Limit number of zones to process (for testing)')
+    catchup_parser.set_defaults(func=cmd_catchup)
     
     # Status
     status_parser = subparsers.add_parser('status', help='Show collection status')

@@ -64,47 +64,59 @@ def extract_actual_runs(self, target_date: datetime) -> List:
         # SECOND: CRITICAL - Must click Day button to get daily actual runs (not week view)
         try:
             # Wait longer for Day button to appear after Reported tab loads (especially in headless mode)
-            time.sleep(3)
+            # Increased wait time and add progressive waiting
+            time.sleep(5)  # Increased from 3 to 5 seconds
             
-            # Multiple strategies to find the Day button
+            # Multiple strategies to find the Day button with retry logic
             day_button = None
+            max_retries = 3
             
-            # Strategy 1: Look for active day button with specific class
-            try:
-                day_button = self.driver.find_element(By.CSS_SELECTOR, "button.rbc-active")
-                if day_button.text.strip().lower() == 'day':
-                    self.logger.info("Found Day button using rbc-active class")
-                else:
-                    day_button = None
-            except:
-                pass
-            
-            # Strategy 2: Look for any button with text "day"
-            if not day_button:
+            for retry_attempt in range(max_retries):
+                if day_button:
+                    break
+                    
+                if retry_attempt > 0:
+                    # Progressive wait - wait longer each retry
+                    wait_time = 3 + (retry_attempt * 2)  # 3, 5, 7 seconds
+                    self.logger.info(f"Day button not found, retry {retry_attempt + 1}/{max_retries} - waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                
+                # Strategy 1: Look for active day button with specific class
                 try:
-                    all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                    for button in all_buttons:
-                        if button.text.strip().lower() == 'day':
-                            # Check if clickable instead of just displayed (better for headless)
-                            if button.is_enabled():
+                    day_button = self.driver.find_element(By.CSS_SELECTOR, "button.rbc-active")
+                    if day_button.text.strip().lower() == 'day':
+                        self.logger.info(f"Found Day button using rbc-active class (attempt {retry_attempt + 1})")
+                    else:
+                        day_button = None
+                except:
+                    pass
+                
+                # Strategy 2: Look for any button with text "day"
+                if not day_button:
+                    try:
+                        all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                        for button in all_buttons:
+                            if button.text.strip().lower() == 'day':
+                                # Check if clickable instead of just displayed (better for headless)
+                                if button.is_enabled():
+                                    day_button = button
+                                    self.logger.info(f"Found Day button using text search (attempt {retry_attempt + 1})")
+                                    break
+                    except:
+                        pass
+                
+                # Strategy 3: Look in the rbc-btn-group container
+                if not day_button:
+                    try:
+                        btn_group = self.driver.find_element(By.CSS_SELECTOR, ".rbc-btn-group")
+                        buttons = btn_group.find_elements(By.TAG_NAME, "button")
+                        for button in buttons:
+                            if button.text.strip().lower() == 'day':
                                 day_button = button
-                                self.logger.info("Found Day button using text search")
+                                self.logger.info(f"Found Day button in rbc-btn-group (attempt {retry_attempt + 1})")
                                 break
-                except:
-                    pass
-            
-            # Strategy 3: Look in the rbc-btn-group container
-            if not day_button:
-                try:
-                    btn_group = self.driver.find_element(By.CSS_SELECTOR, ".rbc-btn-group")
-                    buttons = btn_group.find_elements(By.TAG_NAME, "button")
-                    for button in buttons:
-                        if button.text.strip().lower() == 'day':
-                            day_button = button
-                            self.logger.info("Found Day button in rbc-btn-group")
-                            break
-                except:
-                    pass
+                    except:
+                        pass
             
             if day_button:
                 # Always click Day button to ensure we get daily view (not week view)
@@ -113,13 +125,40 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                 self.logger.info("Clicked Day button - switched to daily actual runs view")
             else:
                 self.logger.error("CRITICAL: Could not find Day button - may be viewing week actuals instead of daily")
-                # Log what buttons are actually available for debugging
+                # Enhanced debugging for headless mode
                 try:
+                    # Log current page URL and source snippet
+                    current_url = self.driver.current_url
+                    self.logger.error(f"Current URL: {current_url}")
+                    
+                    # Log all buttons with more details
                     all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                    button_texts = [f"'{btn.text.strip()}'" for btn in all_buttons[:10]]  # First 10 buttons
-                    self.logger.error(f"Available buttons: {', '.join(button_texts)}")
-                except:
-                    pass
+                    self.logger.error(f"Total buttons found: {len(all_buttons)}")
+                    
+                    for i, btn in enumerate(all_buttons[:15]):  # Check first 15 buttons
+                        try:
+                            text = btn.text.strip()
+                            enabled = btn.is_enabled()
+                            displayed = btn.is_displayed()
+                            classes = btn.get_attribute("class") or ""
+                            self.logger.error(f"Button {i}: text='{text}', enabled={enabled}, displayed={displayed}, classes='{classes}'")
+                        except:
+                            pass
+                    
+                    # Try to find any element with "day" text (case insensitive)
+                    try:
+                        day_elements = self.driver.find_elements(By.XPATH, "//*[contains(translate(text(), 'DAY', 'day'), 'day')]")
+                        self.logger.error(f"Found {len(day_elements)} elements containing 'day' text")
+                        for elem in day_elements[:5]:
+                            try:
+                                self.logger.error(f"Day element: tag={elem.tag_name}, text='{elem.text.strip()}', classes='{elem.get_attribute('class')}'")
+                            except:
+                                pass
+                    except:
+                        pass
+                        
+                except Exception as debug_e:
+                    self.logger.error(f"Debug logging failed: {debug_e}")
                 
         except Exception as e:
             self.logger.error(f"CRITICAL: Failed to click Day button: {e}")
