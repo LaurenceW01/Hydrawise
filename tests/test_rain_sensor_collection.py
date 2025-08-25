@@ -18,23 +18,20 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add current directory to path for imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from hydrawise_web_scraper_refactored import HydrawiseWebScraper
+from hydrawise_web_scraper import HydrawiseWebScraper
 
 def setup_logging():
     """Setup detailed logging for test session"""
-    # Create logs directory if it doesn't exist
-    os.makedirs('../logs', exist_ok=True)
-    
-    log_filename = f"../logs/test_rain_sensor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_filename = f"test_rain_sensor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(log_filename, encoding='utf-8'),
+            logging.FileHandler(log_filename),
             logging.StreamHandler()
         ]
     )
@@ -149,8 +146,6 @@ def test_rain_sensor_collection():
         
     except Exception as e:
         logger.error(f"❌ Test failed: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
         return False
 
 def main():
@@ -162,9 +157,9 @@ def main():
     
     if success:
         print("\n✅ Test completed successfully!")
-        print("📊 Check the logs/ folder for detailed results")
+        print("📊 Check the log file for detailed results")
     else:
-        print("\n❌ Test failed - check logs/ folder for details")
+        print("\n❌ Test failed - check logs for details")
         
     return success
 

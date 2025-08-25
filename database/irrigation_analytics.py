@@ -1042,6 +1042,270 @@ class IrrigationAnalytics:
         
         lines.append("=" * 80)
         return "\n".join(lines)
+    
+    def generate_zero_gallon_report(self, start_date: date, end_date: date) -> str:
+        """Generate comprehensive report on zones with zero gallon water usage"""
+        lines = []
+        
+        # Header
+        lines.append("🚨 ZERO GALLON WATER USAGE ANALYSIS REPORT")
+        lines.append("=" * 80)
+        lines.append(f"📅 Analysis Period: {start_date} to {end_date}")
+        lines.append(f"🔍 Duration: {(end_date - start_date).days + 1} days")
+        lines.append(f"📊 Generated: {get_display_timestamp()}")
+        lines.append("")
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Get all zero gallon runs with duration > 0 (actual irrigation attempts)
+            cursor.execute("""
+                SELECT 
+                    run_date,
+                    zone_name,
+                    actual_duration_minutes,
+                    status,
+                    failure_reason,
+                    abort_reason,
+                    raw_popup_text,
+                    current_ma
+                FROM actual_runs 
+                WHERE (actual_gallons = 0 OR actual_gallons IS NULL)
+                  AND actual_duration_minutes > 0
+                  AND run_date BETWEEN ? AND ?
+                ORDER BY run_date DESC, zone_name
+            """, (start_date, end_date))
+            
+            zero_gallon_runs = cursor.fetchall()
+            
+            if not zero_gallon_runs:
+                lines.append("✅ NO ZERO GALLON ISSUES DETECTED")
+                lines.append("   All irrigation runs that attempted watering successfully used water.")
+                lines.append("   This indicates healthy system operation during the analysis period.")
+                lines.append("")
+                lines.append("=" * 80)
+                return "\n".join(lines)
+            
+            # Organize data for analysis
+            zones_by_date = {}
+            zone_patterns = {}
+            failure_reasons = {}
+            
+            for run_date, zone_name, duration, status, failure_reason, abort_reason, popup_text, current_ma in zero_gallon_runs:
+                # Track by date
+                if run_date not in zones_by_date:
+                    zones_by_date[run_date] = []
+                zones_by_date[run_date].append({
+                    'zone_name': zone_name,
+                    'duration': duration,
+                    'status': status,
+                    'failure_reason': failure_reason,
+                    'abort_reason': abort_reason,
+                    'popup_text': popup_text,
+                    'current_ma': current_ma
+                })
+                
+                # Track patterns per zone
+                if zone_name not in zone_patterns:
+                    zone_patterns[zone_name] = {
+                        'count': 0, 
+                        'dates': [], 
+                        'total_duration': 0,
+                        'reasons': []
+                    }
+                zone_patterns[zone_name]['count'] += 1
+                zone_patterns[zone_name]['dates'].append(run_date)
+                zone_patterns[zone_name]['total_duration'] += duration
+                
+                # Determine and count failure reasons
+                reason = self._determine_zero_gallon_reason(
+                    status, failure_reason, abort_reason, popup_text, current_ma
+                )
+                if reason not in zone_patterns[zone_name]['reasons']:
+                    zone_patterns[zone_name]['reasons'].append(reason)
+                
+                failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+            
+            # Summary Statistics
+            total_affected_runs = len(zero_gallon_runs)
+            unique_zones = len(zone_patterns)
+            total_wasted_duration = sum(run[2] for run in zero_gallon_runs)
+            
+            lines.append("📊 SUMMARY STATISTICS:")
+            lines.append(f"   🚨 Total zero-gallon runs: {total_affected_runs}")
+            lines.append(f"   🏠 Unique zones affected: {unique_zones}")
+            lines.append(f"   ⏱️  Total wasted runtime: {total_wasted_duration} minutes ({total_wasted_duration/60:.1f} hours)")
+            lines.append(f"   📈 Average per affected zone: {total_affected_runs/unique_zones:.1f} incidents")
+            lines.append("")
+            
+            # Daily Breakdown
+            lines.append("📅 DAILY BREAKDOWN:")
+            lines.append("-" * 60)
+            
+            for run_date in sorted(zones_by_date.keys(), reverse=True):
+                zones = zones_by_date[run_date]
+                daily_duration = sum(zone['duration'] for zone in zones)
+                lines.append(f"📅 {run_date}: {len(zones)} zones affected ({daily_duration} min wasted)")
+                
+                for zone in sorted(zones, key=lambda x: x['zone_name']):
+                    reason = self._determine_zero_gallon_reason(
+                        zone['status'], zone['failure_reason'], 
+                        zone['abort_reason'], zone['popup_text'], zone['current_ma']
+                    )
+                    current_info = f" ({zone['current_ma']}mA)" if zone['current_ma'] else ""
+                    lines.append(f"   • {zone['zone_name']} - {zone['duration']} min - {reason}{current_info}")
+                lines.append("")
+            
+            # Zone Pattern Analysis
+            lines.append("🔍 ZONE PATTERN ANALYSIS:")
+            lines.append("-" * 60)
+            
+            # Sort zones by incident count
+            sorted_zones = sorted(zone_patterns.items(), key=lambda x: x[1]['count'], reverse=True)
+            
+            for zone_name, data in sorted_zones:
+                avg_duration = data['total_duration'] / data['count']
+                date_range = f"{min(data['dates'])} to {max(data['dates'])}" if len(data['dates']) > 1 else str(data['dates'][0])
+                reasons_str = ", ".join(set(data['reasons']))
+                
+                severity_icon = "🔥" if data['count'] >= 3 else "⚠️" if data['count'] >= 2 else "ℹ️"
+                
+                lines.append(f"{severity_icon} {zone_name}:")
+                lines.append(f"   📊 Incidents: {data['count']} ({date_range})")
+                lines.append(f"   ⏱️  Avg duration: {avg_duration:.1f} min")
+                lines.append(f"   🔍 Causes: {reasons_str}")
+                lines.append("")
+            
+            # Failure Reason Analysis
+            lines.append("📋 FAILURE CAUSE ANALYSIS:")
+            lines.append("-" * 60)
+            
+            sorted_reasons = sorted(failure_reasons.items(), key=lambda x: x[1], reverse=True)
+            
+            for reason, count in sorted_reasons:
+                percentage = (count / total_affected_runs) * 100
+                lines.append(f"• {reason}: {count} occurrences ({percentage:.1f}%)")
+            
+            lines.append("")
+            
+            # Priority Issues (zones with 3+ incidents)
+            high_priority = {zone: data for zone, data in zone_patterns.items() if data['count'] >= 3}
+            if high_priority:
+                lines.append("🔥 HIGH PRIORITY ZONES (3+ incidents):")
+                lines.append("-" * 60)
+                for zone, data in high_priority.items():
+                    total_wasted = data['total_duration']
+                    lines.append(f"🚨 {zone}: {data['count']} incidents, {total_wasted} min wasted")
+                    lines.append(f"   📅 Dates: {', '.join(data['dates'])}")
+                    lines.append(f"   🔍 Issues: {', '.join(set(data['reasons']))}")
+                lines.append("")
+            
+            # Recommendations
+            lines.append("💡 RECOMMENDATIONS:")
+            lines.append("-" * 60)
+            
+            if any('sensor' in reason.lower() for reason in failure_reasons.keys()):
+                sensor_count = sum(count for reason, count in failure_reasons.items() if 'sensor' in reason.lower())
+                lines.append(f"🔧 SENSOR ISSUES ({sensor_count} incidents):")
+                lines.append("   • Inspect flow sensors on affected zones")
+                lines.append("   • Verify sensor calibration and connections")
+                lines.append("   • Check for debris or mineral buildup")
+                lines.append("")
+            
+            if any('abort' in reason.lower() for reason in failure_reasons.keys()):
+                abort_count = sum(count for reason, count in failure_reasons.items() if 'abort' in reason.lower())
+                lines.append(f"⚠️ SYSTEM ABORTS ({abort_count} incidents):")
+                lines.append("   • Review system logs for abort triggers")
+                lines.append("   • Check rain sensor functionality")
+                lines.append("   • Verify pressure and flow thresholds")
+                lines.append("")
+            
+            if any('valve' in reason.lower() for reason in failure_reasons.keys()):
+                valve_count = sum(count for reason, count in failure_reasons.items() if 'valve' in reason.lower())
+                lines.append(f"🔧 VALVE ISSUES ({valve_count} incidents):")
+                lines.append("   • Inspect valve operation and sealing")
+                lines.append("   • Check for clogs or debris")
+                lines.append("   • Verify electrical connections")
+                lines.append("")
+            
+            if high_priority:
+                lines.append(f"🎯 IMMEDIATE ACTION NEEDED:")
+                lines.append(f"   • Priority inspection: {', '.join(high_priority.keys())}")
+                lines.append(f"   • These zones have consistent problems requiring urgent attention")
+                lines.append("")
+            
+            # Efficiency Impact
+            lines.append("📈 EFFICIENCY IMPACT:")
+            lines.append("-" * 60)
+            lines.append(f"⏱️  Total wasted irrigation time: {total_wasted_duration} minutes")
+            lines.append(f"💧 Estimated water loss: 0 gallons (no actual water waste)")
+            lines.append(f"⚡ Energy waste: {total_wasted_duration * 0.1:.1f} kWh (estimated)")
+            lines.append(f"🔄 System efficiency: {((total_affected_runs) / (total_affected_runs + 100)) * 100:.1f}% failed runs (estimated)")
+            
+        lines.append("")
+        lines.append("=" * 80)
+        return "\n".join(lines)
+    
+    def _determine_zero_gallon_reason(self, status, failure_reason, abort_reason, popup_text, current_ma):
+        """Enhanced reason determination with current reading analysis"""
+        # Check current reading first for sensor issues
+        if current_ma is not None:
+            if current_ma == 0:
+                return "No current detected (valve/wiring issue)"
+            elif current_ma < 100:
+                return "Low current reading (partial valve operation)"
+            elif current_ma > 1000:
+                return "High current reading (valve strain/blockage)"
+        
+        # Check for explicit reasons
+        if abort_reason:
+            if 'sensor' in abort_reason.lower():
+                return "Flow sensor abort"
+            elif 'rain' in abort_reason.lower():
+                return "Rain sensor abort"
+            elif 'pressure' in abort_reason.lower():
+                return "Pressure abort"
+            else:
+                return f"System abort: {abort_reason}"
+        
+        if failure_reason:
+            if 'sensor' in failure_reason.lower():
+                return "Sensor failure"
+            elif 'flow' in failure_reason.lower():
+                return "Flow detection failure"
+            else:
+                return f"System failure: {failure_reason}"
+        
+        # Check status for clues
+        if status and status != 'Normal watering cycle':
+            if 'abort' in status.lower():
+                return "Run aborted"
+            elif 'sensor' in status.lower():
+                return "Sensor issue"
+            elif 'flow' in status.lower():
+                return "Flow issue"
+            else:
+                return f"Status issue: {status}"
+        
+        # Check popup text for additional clues
+        if popup_text:
+            popup_lower = popup_text.lower()
+            if 'flow meter' in popup_lower or 'flow sensor' in popup_lower:
+                return "Flow meter malfunction"
+            elif 'valve' in popup_lower and 'stuck' in popup_lower:
+                return "Stuck valve"
+            elif 'valve' in popup_lower:
+                return "Valve malfunction"
+            elif 'rain' in popup_lower:
+                return "Rain sensor activation"
+            elif 'pressure' in popup_lower:
+                return "Pressure issue"
+            elif 'abort' in popup_lower:
+                return "System abort"
+            elif 'leak' in popup_lower:
+                return "Leak detection"
+        
+        return "Unknown cause"
 
 def main():
     """Test the analytics system"""

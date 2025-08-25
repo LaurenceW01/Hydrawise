@@ -464,6 +464,62 @@ def cmd_cost_report(args):
         traceback.print_exc()
         return 1
 
+def cmd_zero_gallons(args):
+    """Generate comprehensive zero gallon usage analysis and detection report"""
+    print_banner()
+    print("🚨 ZERO GALLON USAGE ANALYTICS")
+    print()
+    
+    try:
+        analytics = IrrigationAnalytics()
+        
+        # Parse date range
+        if args.start_date:
+            start_date = datetime.strptime(args.start_date, '%Y-%m-%d').date()
+            end_date = start_date
+            if args.end_date:
+                end_date = datetime.strptime(args.end_date, '%Y-%m-%d').date()
+        elif args.days:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=args.days)
+        else:
+            # Default to last 7 days
+            end_date = date.today()
+            start_date = end_date - timedelta(days=7)
+        
+        print(f"📅 Analyzing zero gallon usage from {start_date} to {end_date}")
+        print(f"   Period: {(end_date - start_date).days + 1} days")
+        print()
+        
+        # Generate zero gallon report
+        report = analytics.generate_zero_gallon_report(start_date, end_date)
+        print(report)
+        
+        # Save to file if requested
+        if args.save:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"reports/zero_gallon_analysis_{start_date}_{end_date}_{timestamp}.txt"
+            
+            # Ensure reports directory exists
+            os.makedirs("reports", exist_ok=True)
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(report)
+            
+            print(f"💾 Report saved to: {filename}")
+        
+        return 0
+        
+    except ValueError as e:
+        print(f"❌ Invalid date format: {e}")
+        print("   Use YYYY-MM-DD format")
+        return 1
+    except Exception as e:
+        print(f"❌ Zero gallon analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
 def main():
     """Main CLI entry point"""
     # Load environment variables
@@ -509,6 +565,12 @@ Examples:
   
   # Generate custom date range cost report
   python admin_irrigation_analytics.py cost-report --start-date 2025-08-20 --end-date 2025-08-23
+  
+  # Analyze zero gallon usage for last 7 days
+  python admin_irrigation_analytics.py zero-gallons --days 7
+  
+  # Analyze zero gallon usage for specific date range
+  python admin_irrigation_analytics.py zero-gallons --start-date 2025-08-20 --end-date 2025-08-23 --save
         """
     )
     
@@ -570,6 +632,14 @@ Examples:
     cost_report_parser.add_argument('--summary-only', action='store_true', help='Show only zone totals, no daily breakdown')
     cost_report_parser.add_argument('--save', action='store_true', help='Save report to file')
     cost_report_parser.set_defaults(func=cmd_cost_report)
+    
+    # Zero gallon analysis command
+    zero_gallons_parser = subparsers.add_parser('zero-gallons', help='Analyze zones with zero gallon water usage patterns')
+    zero_gallons_parser.add_argument('--days', type=int, help='Number of days back to analyze from today')
+    zero_gallons_parser.add_argument('--start-date', help='Start date (YYYY-MM-DD) for custom range')
+    zero_gallons_parser.add_argument('--end-date', help='End date (YYYY-MM-DD) for custom range')
+    zero_gallons_parser.add_argument('--save', action='store_true', help='Save report to file')
+    zero_gallons_parser.set_defaults(func=cmd_zero_gallons)
     
     # Parse arguments
     args = parser.parse_args()

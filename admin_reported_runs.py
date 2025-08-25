@@ -16,6 +16,8 @@ import argparse
 import sys
 import os
 from datetime import datetime, date, timedelta
+from typing import List
+import sqlite3
 from dotenv import load_dotenv
 
 # Add current directory to path
@@ -261,6 +263,9 @@ def cmd_yesterday(args):
                 # Legacy simple count
                 print(f"\n✅ Successfully collected yesterday's reported runs:")
                 print(f"   💾 {result.runs_stored} runs stored in database")
+            
+            # Analyze zero gallon usage after data collection
+            print_zero_gallon_analysis([target_date])
         
         return 0 if result.success else 1
         
@@ -310,6 +315,9 @@ def cmd_today(args):
                 print(f"   💾 {result.runs_stored} runs stored in database")
                 
             print(f"   💡 Latest irrigation status is now available for analysis")
+            
+            # Analyze zero gallon usage after data collection
+            print_zero_gallon_analysis([target_date])
         
         return 0 if result.success else 1
         
@@ -366,11 +374,226 @@ def cmd_catchup(args):
                 print(f"   ✓  Runs unchanged: {total_unchanged}")
                 print(f"   💾 Total database changes: {total_new + total_updated}")
                 print(f"   ✨ Irrigation data is now up-to-date for analysis!")
+                
+                # Analyze zero gallon usage after data collection
+                print_zero_gallon_analysis([yesterday, today])
         
         return 0 if total_success else 1
         
     except Exception as e:
         print(f"❌ Catch-up collection failed: {e}")
+        return 1
+
+def print_zero_gallon_analysis(analysis_dates: List[date]):
+    """Analyze and report zones with 0 gallon water usage for specified dates"""
+    print(f"\n🚨 ZERO GALLON USAGE ANALYSIS")
+    print("=" * 60)
+    
+    try:
+        # Import database manager for queries
+        from database.database_manager import DatabaseManager
+        
+        db_manager = DatabaseManager()
+        
+        # Query zero gallon runs for the specified dates
+        date_conditions = " OR ".join([f"run_date = '{d}'" for d in analysis_dates])
+        
+        with sqlite3.connect(db_manager.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Get all zero gallon runs with duration > 0 (actual irrigation attempts)
+            cursor.execute(f"""
+                SELECT 
+                    run_date,
+                    zone_name,
+                    actual_duration_minutes,
+                    status,
+                    failure_reason,
+                    abort_reason,
+                    raw_popup_text
+                FROM actual_runs 
+                WHERE (actual_gallons = 0 OR actual_gallons IS NULL)
+                  AND actual_duration_minutes > 0
+                  AND ({date_conditions})
+                ORDER BY run_date DESC, zone_name
+            """)
+            
+            zero_gallon_runs = cursor.fetchall()
+            
+            if not zero_gallon_runs:
+                print("✅ No zones reported 0 gallons during irrigation attempts")
+                return
+            
+            # Organize data for analysis
+            zones_by_date = {}
+            zone_patterns = {}
+            
+            for run_date, zone_name, duration, status, failure_reason, abort_reason, popup_text in zero_gallon_runs:
+                if run_date not in zones_by_date:
+                    zones_by_date[run_date] = []
+                zones_by_date[run_date].append({
+                    'zone_name': zone_name,
+                    'duration': duration,
+                    'status': status,
+                    'failure_reason': failure_reason,
+                    'abort_reason': abort_reason,
+                    'popup_text': popup_text
+                })
+                
+                # Track patterns per zone
+                if zone_name not in zone_patterns:
+                    zone_patterns[zone_name] = {'count': 0, 'dates': [], 'reasons': []}
+                zone_patterns[zone_name]['count'] += 1
+                zone_patterns[zone_name]['dates'].append(run_date)
+                
+                # Determine likely reason for zero gallons
+                reason = determine_zero_gallon_reason(status, failure_reason, abort_reason, popup_text)
+                if reason not in zone_patterns[zone_name]['reasons']:
+                    zone_patterns[zone_name]['reasons'].append(reason)
+            
+            # Print daily summary
+            total_zones_affected = 0
+            for run_date in sorted(zones_by_date.keys(), reverse=True):
+                zones = zones_by_date[run_date]
+                print(f"📅 {run_date}: {len(zones)} zones reported 0 gallons")
+                total_zones_affected += len(zones)
+                
+                for zone in zones:
+                    reason = determine_zero_gallon_reason(
+                        zone['status'], zone['failure_reason'], 
+                        zone['abort_reason'], zone['popup_text']
+                    )
+                    print(f"   • {zone['zone_name']} ({zone['duration']} min) - {reason}")
+            
+            print(f"\n📊 SUMMARY:")
+            print(f"   Total affected zones: {total_zones_affected}")
+            print(f"   Unique zones: {len(zone_patterns)}")
+            
+            # Pattern analysis
+            print(f"\n🔍 PATTERN ANALYSIS:")
+            
+            # Zones with multiple zero-gallon occurrences
+            repeat_offenders = {zone: data for zone, data in zone_patterns.items() if data['count'] > 1}
+            if repeat_offenders:
+                print(f"   🔄 Zones with repeated issues ({len(repeat_offenders)}):")
+                for zone, data in repeat_offenders.items():
+                    dates_str = ", ".join(data['dates'])
+                    reasons_str = ", ".join(set(data['reasons']))
+                    print(f"      • {zone}: {data['count']} times ({dates_str}) - {reasons_str}")
+            
+            # Common failure reasons
+            all_reasons = []
+            for data in zone_patterns.values():
+                all_reasons.extend(data['reasons'])
+            
+            reason_counts = {}
+            for reason in all_reasons:
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+            
+            print(f"   📋 Common causes:")
+            for reason, count in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True):
+                print(f"      • {reason}: {count} occurrences")
+            
+            # Recommendations
+            print(f"\n💡 RECOMMENDATIONS:")
+            if any('sensor' in reason.lower() for reason in reason_counts.keys()):
+                print("   • Check flow sensors on affected zones")
+            if any('abort' in reason.lower() for reason in reason_counts.keys()):
+                print("   • Investigate causes of irrigation aborts")
+            if any('valve' in reason.lower() for reason in reason_counts.keys()):
+                print("   • Inspect valves on problem zones")
+            if repeat_offenders:
+                print(f"   • Priority inspection needed for: {', '.join(repeat_offenders.keys())}")
+            
+    except Exception as e:
+        print(f"❌ Zero gallon analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+def determine_zero_gallon_reason(status, failure_reason, abort_reason, popup_text):
+    """Determine likely reason for zero gallon usage based on run data"""
+    # Check for explicit reasons first
+    if abort_reason:
+        if 'sensor' in abort_reason.lower():
+            return "Flow sensor issue"
+        elif 'rain' in abort_reason.lower():
+            return "Rain sensor abort"
+        else:
+            return f"Aborted: {abort_reason}"
+    
+    if failure_reason:
+        if 'sensor' in failure_reason.lower():
+            return "Sensor failure"
+        else:
+            return f"Failure: {failure_reason}"
+    
+    # Check status for clues
+    if status and status != 'Normal watering cycle':
+        if 'abort' in status.lower():
+            return "Run aborted"
+        elif 'sensor' in status.lower():
+            return "Sensor issue"
+        else:
+            return f"Status: {status}"
+    
+    # Check popup text for additional clues
+    if popup_text:
+        popup_lower = popup_text.lower()
+        if 'flow meter' in popup_lower or 'flow sensor' in popup_lower:
+            return "Flow meter/sensor issue"
+        elif 'valve' in popup_lower:
+            return "Valve malfunction"
+        elif 'rain' in popup_lower:
+            return "Rain sensor"
+        elif 'abort' in popup_lower:
+            return "System abort"
+    
+    return "Unknown cause"
+
+def cmd_zero_gallons(args):
+    """Analyze zero gallon water usage for specified date range"""
+    print_banner()
+    print("🚨 ZERO GALLON WATER USAGE ANALYSIS")
+    print()
+    
+    try:
+        # Parse date range
+        if args.days:
+            # Use days back from today
+            end_date = date.today()
+            start_date = end_date - timedelta(days=args.days)
+            analysis_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+        elif args.date:
+            # Specific date
+            if args.date == "yesterday":
+                analysis_dates = [date.today() - timedelta(days=1)]
+            elif args.date == "today":
+                analysis_dates = [date.today()]
+            else:
+                target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
+                analysis_dates = [target_date]
+        else:
+            # Default to yesterday
+            analysis_dates = [date.today() - timedelta(days=1)]
+        
+        print(f"📅 Analyzing zero gallon usage for: {len(analysis_dates)} date(s)")
+        if len(analysis_dates) == 1:
+            print(f"   Date: {analysis_dates[0]}")
+        else:
+            print(f"   Range: {analysis_dates[0]} to {analysis_dates[-1]}")
+        
+        # Run the analysis
+        print_zero_gallon_analysis(analysis_dates)
+        
+        return 0
+        
+    except ValueError:
+        print(f"❌ Invalid date format. Use YYYY-MM-DD, 'today', or 'yesterday'")
+        return 1
+    except Exception as e:
+        print(f"❌ Zero gallon analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 def main():
@@ -413,6 +636,15 @@ Examples:
   
   # Test the system
   python admin_reported_runs.py test
+  
+  # Analyze zero gallon usage for yesterday
+  python admin_reported_runs.py zero-gallons
+  
+  # Analyze zero gallon usage for specific date
+  python admin_reported_runs.py zero-gallons --date 2025-08-22
+  
+  # Analyze zero gallon usage for last 7 days
+  python admin_reported_runs.py zero-gallons --days 7
         """
     )
     
@@ -473,6 +705,12 @@ Examples:
     # Test
     test_parser = subparsers.add_parser('test', help='Test the system with small collection')
     test_parser.set_defaults(func=cmd_test)
+    
+    # Zero gallon analysis
+    zero_parser = subparsers.add_parser('zero-gallons', help='Analyze zones with 0 gallon water usage')
+    zero_parser.add_argument('--date', help='Date to analyze (YYYY-MM-DD, "today", or "yesterday")')
+    zero_parser.add_argument('--days', type=int, help='Number of days back to analyze from today')
+    zero_parser.set_defaults(func=cmd_zero_gallons)
     
     # Parse arguments
     args = parser.parse_args()
