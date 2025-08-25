@@ -71,7 +71,8 @@ class HydrawiseNavigationHelper:
         
         for selector in schedule_selectors:
             try:
-                schedule_element = self.wait.until(
+                # Use shorter wait for each selector to reduce total delay
+                schedule_element = WebDriverWait(self.driver, 2).until(
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 schedule_element.click()
@@ -85,7 +86,7 @@ class HydrawiseNavigationHelper:
         self.logger.error("❌ Could not find or click Schedule tab")
         return False
     
-    def navigate_to_reported_tab(self, wait_seconds: int = 4) -> bool:
+    def navigate_to_reported_tab(self, wait_seconds: int = 5) -> bool:
         """
         Navigate to Reported tab with robust clicking and waiting
         
@@ -97,18 +98,19 @@ class HydrawiseNavigationHelper:
         """
         self.logger.info("🔄 Navigating to Reported tab...")
         
-        # Multiple selector strategies
+        # Multiple selector strategies - most reliable first to minimize wait time
         reported_selectors = [
-            "//button[contains(text(), 'Reported')]",
+            "//div[contains(@class, 'reports-page__subtabs__tab') and contains(text(), 'Reported')]",  # This one works!
             "//div[@data-testid='sub-tab-reports.name.watering-reported']",
-            "//div[contains(@class, 'reports-page__subtabs__tab') and contains(text(), 'Reported')]",
+            "//button[contains(text(), 'Reported')]",
             "//*[contains(text(), 'Reported')]",
             "//button[@data-testid='reported-tab']"
         ]
         
         for selector in reported_selectors:
             try:
-                reported_element = self.wait.until(
+                # Use shorter wait for each selector to reduce total delay
+                reported_element = WebDriverWait(self.driver, 2).until(
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 reported_element.click()

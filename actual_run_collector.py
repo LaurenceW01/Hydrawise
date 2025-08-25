@@ -32,136 +32,28 @@ def extract_actual_runs(self, target_date: datetime) -> List:
     try:
         self.logger.info("Extracting actual runs...")
         
-        # FIRST: Click Reported button to load the reported view and make Day button appear
+        # FIRST: Navigate to Reported tab using shared navigation helper
         try:
-            # Try multiple selectors for the Reported tab based on actual HTML
-            reported_selectors = [
-                "//div[@data-testid='sub-tab-reports.name.watering-history']",
-                "//div[contains(@class, 'reports-page__subtabs__tab') and contains(text(), 'Reported')]",
-                "//button[contains(text(), 'Reported')]"
-            ]
+            from shared_navigation_helper import create_navigation_helper
+            nav_helper = create_navigation_helper(self)
             
-            reported_tab = None
-            for selector in reported_selectors:
-                try:
-                    reported_tab = self.wait.until(
-                        EC.element_to_be_clickable((By.XPATH, selector))
-                    )
-                    break
-                except:
-                    continue
-            
-            if not reported_tab:
-                raise Exception("Could not find Reported tab with any selector")
-            
-            reported_tab.click()
-            time.sleep(3)  # Wait for reported data to load
-            self.logger.info("Clicked Reported tab - waiting for data to load")
+            if not nav_helper.navigate_to_reported_tab():
+                self.logger.error("Failed to navigate to Reported tab")
+                return []
+                
         except Exception as e:
-            self.logger.error(f"Could not find or click Reported tab: {e}")
+            self.logger.error(f"Could not navigate to Reported tab: {e}")
             return []
         
-        # SECOND: CRITICAL - Must click Day button to get daily actual runs (not week view)
+        # SECOND: Switch to Day view using shared navigation helper
         try:
-            # Wait longer for Day button to appear after Reported tab loads (especially in headless mode)
-            # Increased wait time and add progressive waiting
-            time.sleep(5)  # Increased from 3 to 5 seconds
-            
-            # Multiple strategies to find the Day button with retry logic
-            day_button = None
-            max_retries = 3
-            
-            for retry_attempt in range(max_retries):
-                if day_button:
-                    break
-                    
-                if retry_attempt > 0:
-                    # Progressive wait - wait longer each retry
-                    wait_time = 3 + (retry_attempt * 2)  # 3, 5, 7 seconds
-                    self.logger.info(f"Day button not found, retry {retry_attempt + 1}/{max_retries} - waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                
-                # Strategy 1: Look for active day button with specific class
-                try:
-                    day_button = self.driver.find_element(By.CSS_SELECTOR, "button.rbc-active")
-                    if day_button.text.strip().lower() == 'day':
-                        self.logger.info(f"Found Day button using rbc-active class (attempt {retry_attempt + 1})")
-                    else:
-                        day_button = None
-                except:
-                    pass
-                
-                # Strategy 2: Look for any button with text "day"
-                if not day_button:
-                    try:
-                        all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                        for button in all_buttons:
-                            if button.text.strip().lower() == 'day':
-                                # Check if clickable instead of just displayed (better for headless)
-                                if button.is_enabled():
-                                    day_button = button
-                                    self.logger.info(f"Found Day button using text search (attempt {retry_attempt + 1})")
-                                    break
-                    except:
-                        pass
-                
-                # Strategy 3: Look in the rbc-btn-group container
-                if not day_button:
-                    try:
-                        btn_group = self.driver.find_element(By.CSS_SELECTOR, ".rbc-btn-group")
-                        buttons = btn_group.find_elements(By.TAG_NAME, "button")
-                        for button in buttons:
-                            if button.text.strip().lower() == 'day':
-                                day_button = button
-                                self.logger.info(f"Found Day button in rbc-btn-group (attempt {retry_attempt + 1})")
-                                break
-                    except:
-                        pass
-            
-            if day_button:
-                # Always click Day button to ensure we get daily view (not week view)
-                day_button.click()
-                time.sleep(3)  # Wait for day view to load
-                self.logger.info("Clicked Day button - switched to daily actual runs view")
+            if not nav_helper.switch_to_day_view():
+                self.logger.error("CRITICAL: Failed to switch to Day view - may be viewing week actuals instead of daily")
             else:
-                self.logger.error("CRITICAL: Could not find Day button - may be viewing week actuals instead of daily")
-                # Enhanced debugging for headless mode
-                try:
-                    # Log current page URL and source snippet
-                    current_url = self.driver.current_url
-                    self.logger.error(f"Current URL: {current_url}")
-                    
-                    # Log all buttons with more details
-                    all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                    self.logger.error(f"Total buttons found: {len(all_buttons)}")
-                    
-                    for i, btn in enumerate(all_buttons[:15]):  # Check first 15 buttons
-                        try:
-                            text = btn.text.strip()
-                            enabled = btn.is_enabled()
-                            displayed = btn.is_displayed()
-                            classes = btn.get_attribute("class") or ""
-                            self.logger.error(f"Button {i}: text='{text}', enabled={enabled}, displayed={displayed}, classes='{classes}'")
-                        except:
-                            pass
-                    
-                    # Try to find any element with "day" text (case insensitive)
-                    try:
-                        day_elements = self.driver.find_elements(By.XPATH, "//*[contains(translate(text(), 'DAY', 'day'), 'day')]")
-                        self.logger.error(f"Found {len(day_elements)} elements containing 'day' text")
-                        for elem in day_elements[:5]:
-                            try:
-                                self.logger.error(f"Day element: tag={elem.tag_name}, text='{elem.text.strip()}', classes='{elem.get_attribute('class')}'")
-                            except:
-                                pass
-                    except:
-                        pass
-                        
-                except Exception as debug_e:
-                    self.logger.error(f"Debug logging failed: {debug_e}")
+                self.logger.info("✅ Successfully switched to Day view for daily actual runs")
                 
         except Exception as e:
-            self.logger.error(f"CRITICAL: Failed to click Day button: {e}")
+            self.logger.error(f"CRITICAL: Failed to switch to Day view: {e}")
             self.logger.error("WARNING: May be extracting week actual runs instead of daily")
         
         actual_runs = []

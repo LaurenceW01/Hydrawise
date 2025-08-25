@@ -372,9 +372,9 @@ class ReportedRunsManager:
             logger.info("🗂️  Navigating to reports page...")
             scraper.navigate_to_reports()
             
-            # For previous day, use the working extract_previous_day_reported_runs method
+            # Use appropriate extraction method based on date
             if target_date < date.today():
-                logger.info(f"📋 Extracting previous day reported runs for {target_date}...")
+                logger.info(f"📋 Extracting reported runs for {target_date}...")
                 target_datetime = datetime.combine(target_date + timedelta(days=1), datetime.min.time())  # Reference date should be day after target
                 actual_runs = scraper.extract_previous_day_reported_runs(target_datetime)
             else:

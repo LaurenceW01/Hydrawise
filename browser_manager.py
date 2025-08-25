@@ -134,9 +134,9 @@ def navigate_to_reports(self):
             indicators = [
                 "//h1[contains(text(), 'Reports')]",
                 "//h2[contains(text(), 'Reports')]", 
+                "//div[contains(@class, 'reports')]",
                 "//*[contains(text(), 'Schedule')]",
-                "//*[contains(text(), 'Reported')]",
-                "//div[contains(@class, 'reports')]"
+                "//*[contains(text(), 'Reported')]"
             ]
             
             element_found = False
@@ -146,7 +146,7 @@ def navigate_to_reports(self):
                         EC.presence_of_element_located((By.XPATH, indicator))
                     )
                     if element:
-                        self.logger.info(f"Reports page loaded - {indicator.split('/')[-1]} found")
+                        self.logger.info(f"Reports page loaded successfully")
                         element_found = True
                         break
                 except:

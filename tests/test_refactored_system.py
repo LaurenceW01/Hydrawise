@@ -30,8 +30,8 @@ def test_imports():
         import actual_run_collector
         print("✅ actual_run_collector imported")
         
-        import navigation_helper
-        print("✅ navigation_helper imported")
+        import shared_navigation_helper
+        print("✅ shared_navigation_helper imported")
         
         import sensor_detector
         print("✅ sensor_detector imported")

@@ -11,7 +11,7 @@ Date: 2025
 
 import time
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -21,43 +21,22 @@ from selenium.webdriver.support import expected_conditions as EC
 def navigate_to_reported_tab(self):
     """Navigate to the Reported tab and ensure Day view is selected"""
     try:
-        self.logger.info("📍 Step 3: Navigating to Reported tab...")
+        self.logger.info("📍 Navigating to Reported tab with Day view...")
         
-        # Step 3: Click Reported tab to load the reported view
-        reported_selectors = [
-            "//div[@data-testid='sub-tab-reports.name.watering-history']",
-            "//div[contains(@class, 'reports-page__subtabs__tab') and contains(text(), 'Reported')]",
-            "//button[contains(text(), 'Reported')]"
-        ]
+        # Use shared navigation helper - same efficient approach as schedule collection
+        from shared_navigation_helper import create_navigation_helper
+        nav_helper = create_navigation_helper(self)
         
-        reported_tab = None
-        for selector in reported_selectors:
-            try:
-                reported_tab = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, selector))
-                )
-                break
-            except:
-                continue
+        # Navigate to Reported tab (includes built-in wait)
+        if not nav_helper.navigate_to_reported_tab():
+            self.logger.error("❌ Failed to navigate to Reported tab")
+            return False
         
-        if not reported_tab:
-            raise Exception("Could not find Reported tab with any selector")
+        # Switch to Day view (includes built-in wait)
+        if not nav_helper.switch_to_day_view():
+            self.logger.warning("⚠️ Failed to switch to Day view - may already be in daily view")
         
-        reported_tab.click()
-        self.logger.info("✅ Clicked Reported tab")
-        
-        # CRITICAL: Wait at least 3 seconds for data to populate (as specified)
-        self.logger.info("⏳ Waiting 3+ seconds for reported data to populate...")
-        time.sleep(4)  # Wait 4 seconds to be safe
-        
-        # Step 4: Click Day button which will show today's date
-        self.logger.info("📍 Step 4: Clicking Day button to show today's date...")
-        _click_day_button_for_reported(self)
-        
-        # Additional wait after Day button for view to stabilize
-        self.logger.info("⏳ Waiting for Day view to stabilize...")
-        time.sleep(2)
-        
+        self.logger.info("✅ Ready for data extraction")
         return True
         
     except Exception as e:
@@ -436,36 +415,24 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
 
 
 def extract_previous_day_reported_runs(self, reference_date: datetime = None) -> List:
-    """Extract reported runs from the previous day"""
+    """Extract reported runs for the target date (typically previous day from reference_date)"""
     try:
         if reference_date is None:
             reference_date = datetime.now()
             
-        self.logger.info("="*80)
-        self.logger.info("🔄 PREVIOUS DAY REPORTED DATA COLLECTION")
-        self.logger.info(f"📅 Reference date: {reference_date.strftime('%Y-%m-%d')}")
-        self.logger.info("📍 Following exact navigation sequence:")
-        self.logger.info("   1. ✅ Login (already completed)")
-        self.logger.info("   2. ✅ Navigate to reports URL (already completed)")
-        self.logger.info("   3. 🔄 Click Reported button + wait 3+ seconds")
-        self.logger.info("   4. 🔄 Click Day button (shows today's date)")
-        self.logger.info("   5. 🔄 Click Previous button")
-        self.logger.info("="*80)
+        # Navigate directly to target date using efficient shared navigation (matching schedule collection)
+        from shared_navigation_helper import create_navigation_helper
+        nav_helper = create_navigation_helper(self)
         
-        # Steps 3-4: Navigate to reported tab and ensure Day view
-        if not navigate_to_reported_tab(self):
+        # Calculate target date
+        target_date = (reference_date - timedelta(days=1)).date()
+        self.logger.info(f"📍 Navigating directly to {target_date} using efficient navigation...")
+        
+        if not nav_helper.navigate_to_date(target_date, "reported"):
+            self.logger.error(f"❌ Failed to navigate to {target_date}")
             return []
         
-        # Step 5: Click Previous button to go to previous day
-        self.logger.info("📍 Step 5: Clicking Previous button to navigate to previous day...")
-        import navigation_helper
-        if not navigation_helper.click_previous_button(self):
-            self.logger.error("❌ Failed to navigate to previous day")
-            return []
-        
-        # Wait for page to load after Previous button
-        self.logger.info("⏳ Waiting for previous day data to load...")
-        time.sleep(3)
+        self.logger.info(f"✅ Successfully navigated to {target_date} for reported data collection")
         
         # CRITICAL: Scroll to top to ensure we capture all zones (especially early morning ones)
         self.logger.info("📜 Scrolling to top of page to capture all zones...")
@@ -502,7 +469,6 @@ def extract_previous_day_reported_runs(self, reference_date: datetime = None) ->
             self.logger.info(f"📅 Now viewing: {current_date_label}")
         
         # Calculate previous day date
-        from datetime import timedelta
         previous_day = reference_date - timedelta(days=1)
         
         # Extract reported runs for previous day

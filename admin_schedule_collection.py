@@ -481,20 +481,50 @@ def main():
         import logging
         from datetime import datetime
         
+        # Generate timestamped filename with program name
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        program_name = 'schedule_collection'
+        
+        # If user provided a simple filename, add timestamp and program name
+        if '/' not in temp_args.log_file and '\\' not in temp_args.log_file:
+            # Simple filename - enhance it
+            base_name = temp_args.log_file.replace('.log', '')
+            enhanced_filename = f"{program_name}_{base_name}_{timestamp}.log"
+        else:
+            # Full path provided - use as is but ensure it's in logs if no directory
+            enhanced_filename = temp_args.log_file
+        
         # Create logs directory if it doesn't exist
-        log_dir = os.path.dirname(temp_args.log_file) if os.path.dirname(temp_args.log_file) else 'logs'
-        if log_dir and not os.path.exists(log_dir):
+        log_dir = os.path.dirname(enhanced_filename)
+        if not log_dir:  # If no directory specified, use logs folder
+            log_dir = 'logs'
+            enhanced_filename = os.path.join(log_dir, os.path.basename(enhanced_filename))
+        
+        if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        # Setup file logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(temp_args.log_file, mode='w'),
-                logging.StreamHandler(sys.stdout)  # Also print to console
-            ]
-        )
+        # Update the log file path
+        temp_args.log_file = enhanced_filename
+        
+        # Setup stdout redirection to capture all print() output
+        class TeeOutput:
+            def __init__(self, file1, file2):
+                self.file1 = file1
+                self.file2 = file2
+
+            def write(self, data):
+                self.file1.write(data)
+                self.file2.write(data)
+                self.file1.flush()
+                self.file2.flush()
+
+            def flush(self):
+                self.file1.flush()
+                self.file2.flush()
+        
+        # Open log file and setup tee output (with UTF-8 encoding for Unicode support)
+        log_file_handle = open(temp_args.log_file, 'w', encoding='utf-8')
+        sys.stdout = TeeOutput(sys.stdout, log_file_handle)
         
         print(f"📋 Logging output to: {temp_args.log_file}")
         print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -561,7 +591,7 @@ COMMAND TYPES:
     parser.add_argument('--headless', action='store_true',
                        help='Run browser in headless mode (default: visible)')
     parser.add_argument('--log-file', type=str,
-                       help='Save all output to specified log file (e.g., --log-file schedule_run.log)')
+                       help='Save all output to log file (e.g., --log-file test_run.log becomes schedule_collection_test_run_20250825_143022.log)')
     
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')

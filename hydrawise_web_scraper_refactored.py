@@ -31,7 +31,7 @@ import browser_manager
 import popup_extractor
 import schedule_collector
 import actual_run_collector
-import navigation_helper
+import shared_navigation_helper
 import sensor_detector
 
 @dataclass
@@ -152,30 +152,31 @@ class HydrawiseWebScraper:
         """Extract actual runs from the Reported tab"""
         return actual_run_collector.extract_actual_runs(self, target_date)
     
-    # ========== NAVIGATION (DELEGATED) ==========
-    def navigate_to_date(self, target_date: datetime) -> bool:
-        """Navigate to a specific date using the date navigation buttons"""
-        return navigation_helper.navigate_to_date(self, target_date)
-    
-    def _navigate_forward_days(self, days: int) -> bool:
-        """Navigate forward by specified number of days"""
-        return navigation_helper._navigate_forward_days(self, days)
-    
-    def _navigate_backward_days(self, days: int) -> bool:
-        """Navigate backward by specified number of days"""
-        return navigation_helper._navigate_backward_days(self, days)
-    
-    def _ensure_schedule_day_view(self) -> bool:
-        """Ensure we're in Schedule view with Day selected"""
-        return navigation_helper._ensure_schedule_day_view(self)
+    # ========== NAVIGATION (SHARED HELPER) ==========
+    def navigate_to_date(self, target_date: datetime, tab: str = "schedule") -> bool:
+        """Navigate to a specific date using intelligent hierarchical navigation"""
+        nav_helper = shared_navigation_helper.create_navigation_helper(self)
+        return nav_helper.navigate_to_date(target_date, tab)
     
     def get_current_displayed_date(self) -> Optional[str]:
         """Get the currently displayed date from the page"""
-        return navigation_helper.get_current_displayed_date(self)
+        nav_helper = shared_navigation_helper.create_navigation_helper(self)
+        return nav_helper.get_current_displayed_date()
+    
+    def navigate_to_schedule_tab(self) -> bool:
+        """Navigate to Schedule tab"""
+        nav_helper = shared_navigation_helper.create_navigation_helper(self)
+        return nav_helper.navigate_to_schedule_tab()
+    
+    def navigate_to_reported_tab(self) -> bool:
+        """Navigate to Reported tab"""
+        nav_helper = shared_navigation_helper.create_navigation_helper(self)
+        return nav_helper.navigate_to_reported_tab()
     
     def _debug_available_buttons(self):
         """Debug method to see what buttons are available on the page"""
-        return navigation_helper._debug_available_buttons(self)
+        nav_helper = shared_navigation_helper.create_navigation_helper(self)
+        return nav_helper._debug_available_buttons()
     
     # ========== SENSOR DETECTION (DELEGATED) ==========
     def check_rain_sensor_status(self) -> Dict[str, any]:
