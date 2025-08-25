@@ -41,11 +41,13 @@ def cmd_collect(args):
             target_date = date.today()
         elif args.date == "tomorrow":
             target_date = date.today() + timedelta(days=1)
+        elif args.date == "yesterday":
+            target_date = date.today() - timedelta(days=1)
         else:
             target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
     except ValueError:
         print(f"❌ Invalid date format: {args.date}")
-        print("   Use YYYY-MM-DD format, 'today', or 'tomorrow'")
+        print("   Use YYYY-MM-DD format, 'today', 'tomorrow', or 'yesterday'")
         return 1
     
     limit_text = f"first {args.limit} zones" if args.limit else "ALL zones"
@@ -89,7 +91,7 @@ def cmd_collect(args):
         
         # Initialize scraper
         print("🌐 Starting browser and logging in...")
-        scraper = HydrawiseWebScraper(username, password, headless=not args.visible)
+        scraper = HydrawiseWebScraper(username, password, headless=args.headless)
         
         scraper.start_browser()
         if not scraper.login():
@@ -98,10 +100,19 @@ def cmd_collect(args):
         print("📊 Navigating to reports...")
         scraper.navigate_to_reports()
         
-        # Collect scheduled runs
+        # Use new shared navigation system to navigate to specific date
+        print(f"📋 Navigating to {target_date} for schedule collection...")
+        from shared_navigation_helper import create_navigation_helper
+        nav_helper = create_navigation_helper(scraper)
+        
+        if not nav_helper.navigate_to_date(target_date, "schedule"):
+            raise Exception(f"Failed to navigate to {target_date}")
+        
+        # Collect scheduled runs from the navigated date
         print(f"📋 Collecting scheduled runs for {target_date}...")
         target_datetime = datetime.combine(target_date, datetime.min.time())
-        scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit)
+        # Skip schedule tab click since we already navigated there
+        scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True)
         
         scraper.stop_browser()
         
@@ -117,15 +128,34 @@ def cmd_collect(args):
         
         # Store in database
         print("💾 Storing runs in database...")
-        stored_count = storage.store_scheduled_runs_enhanced(scheduled_runs, target_date)
-        print(f"✅ Stored {stored_count} runs successfully")
+        storage_result = storage.store_scheduled_runs_enhanced(scheduled_runs, target_date)
+        
+        # Display detailed storage results
+        if isinstance(storage_result, dict):
+            new_runs = storage_result['new']
+            updated_runs = storage_result['updated'] 
+            unchanged_runs = storage_result['unchanged']
+            total_processed = storage_result['total']
+            
+            print(f"✅ Successfully processed {total_processed} scheduled runs:")
+            print(f"   🆕 {new_runs} new runs added to database")
+            print(f"   🔄 {updated_runs} existing runs updated")
+            print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
+            print(f"   💾 Total database changes: {new_runs + updated_runs}")
+        else:
+            # Fallback for old format
+            print(f"✅ Stored {storage_result} runs successfully")
         
         # Display summary
         print()
         print("📊 COLLECTION SUMMARY:")
         print(f"   Date: {target_date}")
         print(f"   Runs collected: {len(scheduled_runs)}")
-        print(f"   Runs stored: {stored_count}")
+        if isinstance(storage_result, dict):
+            print(f"   New runs stored: {storage_result['new']}")
+            print(f"   Runs unchanged: {storage_result['unchanged']}")
+        else:
+            print(f"   Runs stored: {storage_result}")
         if args.limit:
             print(f"   Zone limit: {args.limit}")
         else:
@@ -268,51 +298,292 @@ def cmd_clear(args):
         print(f"❌ Clear operation failed: {e}")
         return 1
 
+def cmd_collect_range(args):
+    """Execute schedule collection for a date range"""
+    print_banner()
+    
+    # Parse date range
+    try:
+        if args.start_date == "today":
+            start_date = date.today()
+        elif args.start_date == "tomorrow":
+            start_date = date.today() + timedelta(days=1)
+        elif args.start_date == "yesterday":
+            start_date = date.today() - timedelta(days=1)
+        else:
+            start_date = datetime.strptime(args.start_date, '%Y-%m-%d').date()
+            
+        if args.end_date == "today":
+            end_date = date.today()
+        elif args.end_date == "tomorrow":
+            end_date = date.today() + timedelta(days=1)
+        elif args.end_date == "yesterday":
+            end_date = date.today() - timedelta(days=1)
+        else:
+            end_date = datetime.strptime(args.end_date, '%Y-%m-%d').date()
+            
+    except ValueError:
+        print(f"❌ Invalid date format")
+        print("   Use YYYY-MM-DD format, 'today', 'tomorrow', or 'yesterday'")
+        return 1
+    
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+        print(f"ℹ️  Swapped dates: collecting from {start_date} to {end_date}")
+    
+    date_count = (end_date - start_date).days + 1
+    limit_text = f"first {args.limit} zones" if args.limit else "ALL zones"
+    print(f"🔄 COLLECTING SCHEDULED RUNS - DATE RANGE")
+    print(f"📅 Date range: {start_date} to {end_date} ({date_count} days)")
+    print(f"📊 Collection scope: {limit_text}")
+    print()
+    
+    # Load credentials
+    load_dotenv()
+    username = os.getenv('HYDRAWISE_USER')
+    password = os.getenv('HYDRAWISE_PASSWORD')
+    
+    if not username or password:
+        print("❌ Missing credentials in .env file")
+        print("   Required: HYDRAWISE_USER and HYDRAWISE_PASSWORD")
+        return 1
+    
+    try:
+        # Initialize database
+        storage = IntelligentDataStorage("database/irrigation_data.db")
+        
+        # Clear existing data if requested
+        if args.clear:
+            print("🗑️  Clearing existing scheduled runs for date range...")
+            with sqlite3.connect(storage.db_path) as conn:
+                cursor = conn.cursor()
+                current_date = start_date
+                total_deleted = 0
+                while current_date <= end_date:
+                    cursor.execute('DELETE FROM scheduled_runs WHERE schedule_date = ?', (current_date,))
+                    total_deleted += cursor.rowcount
+                    current_date += timedelta(days=1)
+                conn.commit()
+                print(f"   Cleared {total_deleted} existing records from {date_count} days")
+        
+        # Initialize scraper
+        print("🌐 Starting browser and logging in...")
+        scraper = HydrawiseWebScraper(username, password, headless=args.headless)
+        
+        scraper.start_browser()
+        if not scraper.login():
+            raise Exception("Login failed - check credentials")
+        
+        print("📊 Navigating to reports...")
+        scraper.navigate_to_reports()
+        
+        # Use shared navigation system to collect date range
+        print(f"📋 Navigating through date range for schedule collection...")
+        from shared_navigation_helper import create_navigation_helper
+        nav_helper = create_navigation_helper(scraper)
+        
+        all_scheduled_runs = []
+        collected_dates = []
+        
+        # Navigate through each date in the range
+        current_date = start_date
+        first_navigation = True
+        
+        while current_date <= end_date:
+            print(f"\n📅 Collecting schedules for {current_date}...")
+            
+            if first_navigation:
+                # Navigate to first date
+                if not nav_helper.navigate_to_date(current_date, "schedule"):
+                    print(f"❌ Failed to navigate to {current_date}")
+                    current_date += timedelta(days=1)
+                    continue
+                first_navigation = False
+            else:
+                # Use Next button for subsequent dates
+                if not nav_helper.click_next_button():
+                    print(f"❌ Failed to navigate to {current_date}")
+                    current_date += timedelta(days=1)
+                    continue
+            
+            # Collect scheduled runs for current date
+            target_datetime = datetime.combine(current_date, datetime.min.time())
+            scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True)
+            
+            if scheduled_runs:
+                print(f"✅ Collected {len(scheduled_runs)} runs for {current_date}")
+                all_scheduled_runs.extend(scheduled_runs)
+                collected_dates.append(current_date)
+                
+                # Store runs for this date
+                storage_result = storage.store_scheduled_runs_enhanced(scheduled_runs, current_date)
+                if isinstance(storage_result, dict):
+                    new_runs = storage_result['new']
+                    unchanged_runs = storage_result['unchanged']
+                    print(f"💾 Stored {new_runs} new runs, {unchanged_runs} unchanged for {current_date}")
+                else:
+                    print(f"💾 Stored {storage_result} runs for {current_date}")
+            else:
+                print(f"⚠️  No scheduled runs found for {current_date}")
+            
+            current_date += timedelta(days=1)
+        
+        scraper.stop_browser()
+        
+        # Display summary
+        print()
+        print("📊 COLLECTION SUMMARY:")
+        print(f"   Date range: {start_date} to {end_date}")
+        print(f"   Days processed: {date_count}")
+        print(f"   Days with data: {len(collected_dates)}")
+        print(f"   Total runs collected: {len(all_scheduled_runs)}")
+        if args.limit:
+            print(f"   Zone limit per day: {args.limit}")
+        else:
+            print(f"   Zone limit: None (all zones)")
+        
+        if collected_dates:
+            print(f"   Successful dates: {', '.join(str(d) for d in collected_dates[:5])}")
+            if len(collected_dates) > 5:
+                print(f"                     ... and {len(collected_dates) - 5} more")
+        
+        return 0 if collected_dates else 1
+        
+    except Exception as e:
+        print(f"❌ Range collection failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Cleanup browser
+        try:
+            if 'scraper' in locals():
+                scraper.stop_browser()
+        except:
+            pass
+        
+        return 1
+
 def main():
     """Main CLI entry point"""
     # Load environment variables
     load_dotenv()
+    
+    # Parse arguments first to check for log file
+    import sys
+    
+    # Quick parse to get log file argument
+    temp_parser = argparse.ArgumentParser(add_help=False)
+    temp_parser.add_argument('--log-file', type=str)
+    temp_args, _ = temp_parser.parse_known_args()
+    
+    # Setup logging to file if specified
+    if temp_args.log_file:
+        import logging
+        from datetime import datetime
+        
+        # Create logs directory if it doesn't exist
+        log_dir = os.path.dirname(temp_args.log_file) if os.path.dirname(temp_args.log_file) else 'logs'
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Setup file logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(temp_args.log_file, mode='w'),
+                logging.StreamHandler(sys.stdout)  # Also print to console
+            ]
+        )
+        
+        print(f"📋 Logging output to: {temp_args.log_file}")
+        print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("-" * 50)
     
     parser = argparse.ArgumentParser(
         description="Admin CLI for Hydrawise Schedule Collection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Collect all scheduled runs for today
+  # BASIC COLLECTION:
+  # Collect all scheduled runs for today (browser visible by default)
   python admin_schedule_collection.py collect today
   
-  # Collect first 5 zones for testing
+  # Collect yesterday's schedule 
+  python admin_schedule_collection.py collect yesterday
+  
+  # Collect specific date
+  python admin_schedule_collection.py collect 2025-08-20
+  
+  # TESTING AND LIMITS:
+  # Collect first 5 zones only (for testing)
   python admin_schedule_collection.py collect today --limit 5
   
-  # Clear existing data and collect all runs
+  # Run in headless mode (no browser window)
+  python admin_schedule_collection.py collect today --headless
+  
+  # OVERWRITING EXISTING DATA:
+  # Delete existing data for today, then collect fresh data
   python admin_schedule_collection.py collect today --clear
   
-  # Collect tomorrow's schedule
-  python admin_schedule_collection.py collect tomorrow
+  # DATE RANGES:
+  # Collect schedules for multiple days
+  python admin_schedule_collection.py collect-range yesterday today
   
-  # Check database status
+  # Collect week of schedules (with testing limit)
+  python admin_schedule_collection.py collect-range 2025-08-20 2025-08-26 --limit 3
+  
+  # DATABASE MANAGEMENT:
+  # Check what's in the database
   python admin_schedule_collection.py status
   
-  # Clear scheduled runs for specific date
+  # Delete scheduled runs for a specific date (asks for confirmation)
+  python admin_schedule_collection.py clear today
+  
+  # Delete scheduled runs immediately (no confirmation)
   python admin_schedule_collection.py clear today --force
+
+OPTION EXPLANATIONS:
+  --limit N     : Only collect first N zones (useful for testing)
+  --clear       : Delete existing data before collecting (in collect commands)
+  --force       : Skip confirmation prompts (in clear command)
+  --headless    : Hide browser window during collection
+  
+COMMAND TYPES:
+  collect       : Collect schedule data for one date
+  collect-range : Collect schedule data for multiple dates
+  clear         : Delete existing schedule data from database
+  status        : Show what data is currently in database
         """
     )
     
     # Global options
-    parser.add_argument('--visible', action='store_true',
-                       help='Run browser in visible mode (default: headless)')
+    parser.add_argument('--headless', action='store_true',
+                       help='Run browser in headless mode (default: visible)')
+    parser.add_argument('--log-file', type=str,
+                       help='Save all output to specified log file (e.g., --log-file schedule_run.log)')
     
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Collect command
     collect_parser = subparsers.add_parser('collect', help='Collect scheduled runs')
-    collect_parser.add_argument('date', help='Date to collect (YYYY-MM-DD, "today", or "tomorrow")')
+    collect_parser.add_argument('date', help='Date to collect (YYYY-MM-DD, "today", "tomorrow", or "yesterday")')
     collect_parser.add_argument('--limit', type=int,
-                               help='Limit number of zones to collect (default: all)')
+                               help='Limit collection to first N zones for testing (default: all zones)')
     collect_parser.add_argument('--clear', action='store_true',
-                               help='Clear existing data before collection')
+                               help='Delete existing scheduled runs for this date before collecting new data')
     collect_parser.set_defaults(func=cmd_collect)
+    
+    # Collect range command
+    collect_range_parser = subparsers.add_parser('collect-range', help='Collect scheduled runs for date range')
+    collect_range_parser.add_argument('start_date', help='Start date (YYYY-MM-DD, "today", "tomorrow", or "yesterday")')
+    collect_range_parser.add_argument('end_date', help='End date (YYYY-MM-DD, "today", "tomorrow", or "yesterday")')
+    collect_range_parser.add_argument('--limit', type=int,
+                                    help='Limit collection to first N zones per day for testing (default: all zones)')
+    collect_range_parser.add_argument('--clear', action='store_true',
+                                    help='Delete existing scheduled runs for entire date range before collecting new data')
+    collect_range_parser.set_defaults(func=cmd_collect_range)
     
     # Status command
     status_parser = subparsers.add_parser('status', help='Show database status')
@@ -322,7 +593,7 @@ Examples:
     clear_parser = subparsers.add_parser('clear', help='Clear scheduled runs for date')
     clear_parser.add_argument('date', help='Date to clear (YYYY-MM-DD, "today", or "tomorrow")')
     clear_parser.add_argument('--force', action='store_true',
-                             help='Skip confirmation prompt')
+                             help='Skip "Are you sure?" confirmation prompt and delete immediately')
     clear_parser.set_defaults(func=cmd_clear)
     
     # Parse arguments

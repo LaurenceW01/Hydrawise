@@ -601,6 +601,38 @@ def main():
     # Load environment variables
     load_dotenv()
     
+    # Parse arguments first to check for log file
+    import sys
+    
+    # Quick parse to get log file argument
+    temp_parser = argparse.ArgumentParser(add_help=False)
+    temp_parser.add_argument('--log-file', type=str)
+    temp_args, _ = temp_parser.parse_known_args()
+    
+    # Setup logging to file if specified
+    if temp_args.log_file:
+        import logging
+        from datetime import datetime
+        
+        # Create logs directory if it doesn't exist
+        log_dir = os.path.dirname(temp_args.log_file) if os.path.dirname(temp_args.log_file) else 'logs'
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Setup file logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(temp_args.log_file, mode='w'),
+                logging.StreamHandler(sys.stdout)  # Also print to console
+            ]
+        )
+        
+        print(f"📋 Logging output to: {temp_args.log_file}")
+        print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("-" * 50)
+    
     parser = argparse.ArgumentParser(
         description="Admin CLI for Hydrawise Reported Runs Collection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -651,6 +683,8 @@ Examples:
     # Global options
     parser.add_argument('--headless', action='store_true', 
                        help='Run browser in headless mode (default: visible)')
+    parser.add_argument('--log-file', type=str,
+                       help='Save all output to specified log file (e.g., --log-file reported_run.log)')
     
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')

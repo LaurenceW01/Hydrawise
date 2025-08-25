@@ -22,21 +22,21 @@ logger = logging.getLogger(__name__)
 class IntelligentDataStorage(DatabaseManager):
     """Enhanced database manager with intelligent data storage capabilities"""
     
-    def store_scheduled_runs_enhanced(self, scheduled_runs: List, collection_date: date = None) -> int:
+    def store_scheduled_runs_enhanced(self, scheduled_runs: List, collection_date: date = None) -> Dict[str, int]:
         """
-        Store scheduled runs with enhanced popup data extraction
+        Store scheduled runs with enhanced popup data extraction and intelligent duplicate detection
         
         Args:
             scheduled_runs: List of ScheduledRun objects with popup data
             collection_date: Date the schedule was collected for
             
         Returns:
-            Number of runs successfully stored
+            Dictionary with counts: {'new': int, 'updated': int, 'unchanged': int, 'total': int}
         """
         if collection_date is None:
             collection_date = date.today()
             
-        stored_count = 0
+        counts = {'new': 0, 'updated': 0, 'unchanged': 0, 'total': len(scheduled_runs)}
         
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -53,15 +53,18 @@ class IntelligentDataStorage(DatabaseManager):
                     if not expected_gallons and zone_id:
                         expected_gallons = self._calculate_expected_gallons(zone_id, run.duration_minutes)
                     
+                    # Check if this exact run already exists
                     cursor.execute("""
-                        INSERT OR REPLACE INTO scheduled_runs 
-                        (zone_id, zone_name, schedule_date, scheduled_start_time, 
-                         scheduled_duration_minutes, expected_gallons, notes,
-                         raw_popup_text, popup_lines_json, parsed_summary,
-                         is_rain_cancelled, rain_sensor_status, popup_status,
-                         created_at, scraped_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
+                        SELECT zone_id, scheduled_duration_minutes, expected_gallons, 
+                               raw_popup_text, parsed_summary
+                        FROM scheduled_runs 
+                        WHERE zone_id = ? AND schedule_date = ? AND scheduled_start_time = ?
+                    """, (zone_id, collection_date, run.start_time))
+                    
+                    existing_run = cursor.fetchone()
+                    
+                    # New data to be stored
+                    new_data = (
                         zone_id,
                         run.zone_name,
                         collection_date,
@@ -77,18 +80,71 @@ class IntelligentDataStorage(DatabaseManager):
                         popup_analysis.get('status'),
                         get_database_timestamp(),  # Houston time for created_at
                         get_database_timestamp()   # Houston time for scraped_at
-                    ))
+                    )
                     
-                    stored_count += 1
-                    logger.info(f"Stored scheduled run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')}")
+                    if existing_run is None:
+                        # New run - insert
+                        cursor.execute("""
+                            INSERT INTO scheduled_runs 
+                            (zone_id, zone_name, schedule_date, scheduled_start_time, 
+                             scheduled_duration_minutes, expected_gallons, notes,
+                             raw_popup_text, popup_lines_json, parsed_summary,
+                             is_rain_cancelled, rain_sensor_status, popup_status,
+                             created_at, scraped_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, new_data)
+                        
+                        counts['new'] += 1
+                        logger.info(f"NEW scheduled run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')}")
+                        
+                    else:
+                        # Run exists - check if data has changed
+                        existing_zone_id, existing_duration, existing_gallons, existing_popup, existing_summary = existing_run
+                        
+                        new_duration = popup_analysis.get('duration_minutes', run.duration_minutes)
+                        new_popup = popup_analysis.get('raw_popup_text')
+                        new_summary = popup_analysis.get('parsed_summary')
+                        
+                        # Check if any important data has changed
+                        data_changed = (
+                            existing_duration != new_duration or
+                            existing_gallons != expected_gallons or
+                            existing_popup != new_popup or
+                            existing_summary != new_summary
+                        )
+                        
+                        if data_changed:
+                            # Update existing run
+                            cursor.execute("""
+                                UPDATE scheduled_runs 
+                                SET scheduled_duration_minutes=?, expected_gallons=?, notes=?,
+                                    raw_popup_text=?, popup_lines_json=?, parsed_summary=?,
+                                    is_rain_cancelled=?, rain_sensor_status=?, popup_status=?,
+                                    scraped_at=?
+                                WHERE zone_id=? AND schedule_date=? AND scheduled_start_time=?
+                            """, (
+                                new_duration, expected_gallons, run.notes or "",
+                                new_popup, popup_analysis.get('popup_lines_json'),
+                                new_summary, popup_analysis.get('is_rain_cancelled', False),
+                                popup_analysis.get('rain_sensor_status'), popup_analysis.get('status'),
+                                get_database_timestamp(),  # Updated scraped_at time
+                                zone_id, collection_date, run.start_time
+                            ))
+                            
+                            counts['updated'] += 1
+                            logger.info(f"UPDATED scheduled run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')}")
+                        else:
+                            # No changes
+                            counts['unchanged'] += 1
+                            logger.debug(f"UNCHANGED scheduled run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')}")
                     
                 except Exception as e:
                     logger.error(f"Failed to store scheduled run for {run.zone_name}: {e}")
                     
             conn.commit()
             
-        logger.info(f"Stored {stored_count}/{len(scheduled_runs)} scheduled runs for {collection_date}")
-        return stored_count
+        logger.info(f"Stored scheduled runs for {collection_date}: {counts['new']} new, {counts['updated']} updated, {counts['unchanged']} unchanged")
+        return counts
         
     def store_actual_runs_enhanced(self, actual_runs: List, collection_date: date = None) -> Dict[str, int]:
         """
