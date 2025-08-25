@@ -143,7 +143,7 @@ class ReportedRunsManager:
             if previous_runs:
                 stored_prev = self.db.write_actual_runs(previous_runs, previous_date)
                 logger.info(f"   Stored {stored_prev} runs for {previous_date}")
-                result.runs_stored += stored_prev
+                result.runs_stored += stored_prev.get('total', 0) if isinstance(stored_prev, dict) else stored_prev
             
             # Collect current day's reported runs (partial data)
             logger.info(f"📅 Collecting current day runs ({collection_date})")
@@ -155,7 +155,7 @@ class ReportedRunsManager:
             if current_runs:
                 stored_curr = self.db.write_actual_runs(current_runs, collection_date)
                 logger.info(f"   Stored {stored_curr} runs for {collection_date}")
-                result.runs_stored += stored_curr
+                result.runs_stored += stored_curr.get('total', 0) if isinstance(stored_curr, dict) else stored_curr
             
             result.runs_collected = len(previous_runs) + len(current_runs)
             result.success = True

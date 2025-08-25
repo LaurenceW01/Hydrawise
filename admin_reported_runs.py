@@ -601,31 +601,137 @@ def main():
     # Load environment variables
     load_dotenv()
     
-    # Parse arguments first to check for log file
+    # Parse arguments first
     import sys
     
-    # Quick parse to get log file argument
-    temp_parser = argparse.ArgumentParser(add_help=False)
-    temp_parser.add_argument('--log-file', type=str)
-    temp_args, _ = temp_parser.parse_known_args()
+    # Create argument parser
+    parser = argparse.ArgumentParser(
+        description="Admin CLI for Hydrawise Reported Runs Collection",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Show current status
+  python admin_reported_runs.py --status
+
+  # Collect yesterday's runs (recommended daily task)
+  python admin_reported_runs.py --yesterday
+
+  # Collect today's runs
+  python admin_reported_runs.py --today
+
+  # Catch-up collection (yesterday + today)
+  python admin_reported_runs.py --catchup
+
+  # Update current day's reported runs (refresh latest data)
+  python admin_reported_runs.py --update
+
+  # Run daily collection (previous day + current day)
+  python admin_reported_runs.py --daily
+
+  # Run periodic collection (current day deltas)
+  python admin_reported_runs.py --periodic
+
+  # Admin collection for specific date (browser visible by default)
+  python admin_reported_runs.py --admin yesterday
+  python admin_reported_runs.py --admin 2025-08-22
+
+  # Run in headless mode (no browser window) - options can be in any order
+  python admin_reported_runs.py --update --headless
+  python admin_reported_runs.py --headless --update
+
+  # Test the system
+  python admin_reported_runs.py --test
+
+  # Analyze zero gallon usage with auto-generated log file
+  python admin_reported_runs.py --zero-gallons --log-file
+
+  # Analyze zero gallon usage for specific date
+  python admin_reported_runs.py --zero-gallons --date 2025-08-22
+
+  # Analyze zero gallon usage for last 7 days
+  python admin_reported_runs.py --zero-gallons --days 7
+
+  # Force collection with logging (all options work together)
+  python admin_reported_runs.py --daily --force --log-file --headless
+        """
+    )
     
-    # Setup logging to file if specified
-    if temp_args.log_file:
-        import logging
+    # Global options
+    parser.add_argument('--headless', action='store_true', 
+                       help='Run browser in headless mode (default: visible)')
+    parser.add_argument('--log-file', nargs='?', const='', type=str,
+                       help='Save all output to log file with auto-generated name (reported_runs_[command]_YYYYMMDD_HHMMSS.log)')
+    
+    # Action arguments (all with double dashes - can be specified in any order)
+    parser.add_argument('--daily', action='store_true',
+                       help='Run daily collection (previous day + current day)')
+    parser.add_argument('--periodic', action='store_true', 
+                       help='Run periodic collection (current day deltas)')
+    parser.add_argument('--admin', type=str, metavar='DATE',
+                       help='Run admin collection for specific date (YYYY-MM-DD, "today", or "yesterday")')
+    parser.add_argument('--update', action='store_true',
+                       help='Update/refresh current day reported runs')
+    parser.add_argument('--yesterday', action='store_true',
+                       help='Collect yesterday\'s reported runs')
+    parser.add_argument('--today', action='store_true',
+                       help='Collect today\'s reported runs')
+    parser.add_argument('--catchup', action='store_true',
+                       help='Collect both yesterday and today\'s runs for complete coverage')
+    parser.add_argument('--status', action='store_true',
+                       help='Show collection status and recent runs')
+    parser.add_argument('--test', action='store_true',
+                       help='Test collection with single zone')
+    parser.add_argument('--zero-gallons', action='store_true',
+                       help='Analyze zones with 0 gallon water usage')
+    
+    # Additional options (work with any action)
+    parser.add_argument('--force', action='store_true',
+                       help='Force collection even if already done today')
+    parser.add_argument('--limit', type=int,
+                       help='Limit number of zones to process (for testing)')
+    parser.add_argument('--interval', type=int, default=30,
+                       help='Minimum interval in minutes between collections (for --periodic)')
+    parser.add_argument('--date', type=str,
+                       help='Specific date to use (for --admin, --test, --zero-gallons)')
+    parser.add_argument('--days', type=int, default=7,
+                       help='Number of days to show/analyze (for --status, --zero-gallons)')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Setup logging if --log-file was specified
+    if args.log_file is not None:
         from datetime import datetime
         
-        # Generate timestamped filename with program name
+        # Generate timestamped filename with program name and command
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         program_name = 'reported_runs'
         
-        # If user provided a simple filename, add timestamp and program name
-        if '/' not in temp_args.log_file and '\\' not in temp_args.log_file:
-            # Simple filename - enhance it
-            base_name = temp_args.log_file.replace('.log', '')
-            enhanced_filename = f"{program_name}_{base_name}_{timestamp}.log"
+        # Determine which command is being run
+        command = 'default'
+        if args.daily: command = 'daily'
+        elif args.periodic: command = 'periodic'
+        elif args.admin: command = 'admin'
+        elif args.update: command = 'update'
+        elif args.yesterday: command = 'yesterday'
+        elif args.today: command = 'today'
+        elif args.catchup: command = 'catchup'
+        elif args.status: command = 'status'
+        elif args.test: command = 'test'
+        elif getattr(args, 'zero_gallons', False): command = 'zero_gallons'
+        
+        # Auto-generate filename if none provided or simple filename given
+        if not args.log_file or ('/' not in args.log_file and '\\' not in args.log_file):
+            if args.log_file:
+                # Simple filename provided - enhance it
+                base_name = args.log_file.replace('.log', '')
+                enhanced_filename = f"{program_name}_{command}_{base_name}_{timestamp}.log"
+            else:
+                # No filename provided - auto-generate
+                enhanced_filename = f"{program_name}_{command}_{timestamp}.log"
         else:
-            # Full path provided - use as is but ensure it's in logs if no directory
-            enhanced_filename = temp_args.log_file
+            # Full path provided - use as is
+            enhanced_filename = args.log_file
         
         # Create logs directory if it doesn't exist
         log_dir = os.path.dirname(enhanced_filename)
@@ -635,9 +741,6 @@ def main():
         
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        
-        # Update the log file path
-        temp_args.log_file = enhanced_filename
         
         # Setup stdout redirection to capture all print() output
         class TeeOutput:
@@ -656,136 +759,51 @@ def main():
                 self.file2.flush()
         
         # Open log file and setup tee output (with UTF-8 encoding for Unicode support)
-        log_file_handle = open(temp_args.log_file, 'w', encoding='utf-8')
+        log_file_handle = open(enhanced_filename, 'w', encoding='utf-8')
         sys.stdout = TeeOutput(sys.stdout, log_file_handle)
         
-        print(f"📋 Logging output to: {temp_args.log_file}")
+        print(f"📋 Logging output to: {enhanced_filename}")
         print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("-" * 50)
     
-    parser = argparse.ArgumentParser(
-        description="Admin CLI for Hydrawise Reported Runs Collection",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Show current status
-  python admin_reported_runs.py status
-  
-  # Collect yesterday's runs (recommended daily task)
-  python admin_reported_runs.py yesterday
-  
-  # Collect today's runs
-  python admin_reported_runs.py today
-  
-  # Catch-up collection (yesterday + today)
-  python admin_reported_runs.py catchup
-  
-  # Update current day's reported runs (refresh latest data)
-  python admin_reported_runs.py update
-  
-  # Run daily collection (previous day + current day)
-  python admin_reported_runs.py daily
-  
-  # Run periodic collection (current day deltas)
-  python admin_reported_runs.py periodic
-  
-  # Admin collection for specific date (browser visible by default)
-  python admin_reported_runs.py admin yesterday
-  python admin_reported_runs.py admin 2025-08-22
-  
-  # Run in headless mode (no browser window)
-  python admin_reported_runs.py update --headless
-  
-  # Test the system
-  python admin_reported_runs.py test
-  
-  # Analyze zero gallon usage for yesterday
-  python admin_reported_runs.py zero-gallons
-  
-  # Analyze zero gallon usage for specific date
-  python admin_reported_runs.py zero-gallons --date 2025-08-22
-  
-  # Analyze zero gallon usage for last 7 days
-  python admin_reported_runs.py zero-gallons --days 7
-        """
-    )
+    # Determine which command to execute
+    command_count = sum([
+        args.daily, args.periodic, bool(args.admin), args.update,
+        args.yesterday, args.today, args.catchup, args.status,
+        args.test, getattr(args, 'zero_gallons', False)
+    ])
     
-    # Global options
-    parser.add_argument('--headless', action='store_true', 
-                       help='Run browser in headless mode (default: visible)')
-    parser.add_argument('--log-file', type=str,
-                       help='Save all output to log file (e.g., --log-file yesterday.log becomes reported_runs_yesterday_20250825_143022.log)')
-    
-    # Subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
-    # Daily collection
-    daily_parser = subparsers.add_parser('daily', help='Run daily collection (previous day + current day)')
-    daily_parser.add_argument('--force', action='store_true',
-                             help='Force collection even if already done today')
-    daily_parser.set_defaults(func=cmd_daily)
-    
-    # Periodic collection
-    periodic_parser = subparsers.add_parser('periodic', help='Run periodic collection (current day deltas)')
-    periodic_parser.add_argument('--interval', type=int, default=30,
-                                help='Minimum interval in minutes between collections (default: 30)')
-    periodic_parser.set_defaults(func=cmd_periodic)
-    
-    # Admin collection
-    admin_parser = subparsers.add_parser('admin', help='Run admin collection for specific date')
-    admin_parser.add_argument('date', help='Date to collect (YYYY-MM-DD, "today", or "yesterday")')
-    admin_parser.add_argument('--limit', type=int,
-                             help='Limit number of zones to process (for testing)')
-    admin_parser.set_defaults(func=cmd_admin)
-    
-    # Update current day
-    update_parser = subparsers.add_parser('update', help='Update/refresh current day reported runs')
-    update_parser.add_argument('--limit', type=int,
-                              help='Limit number of zones to process (for testing)')
-    update_parser.set_defaults(func=cmd_update)
-    
-    # Yesterday collection
-    yesterday_parser = subparsers.add_parser('yesterday', help='Collect yesterday\'s reported runs')
-    yesterday_parser.add_argument('--limit', type=int,
-                                 help='Limit number of zones to process (for testing)')
-    yesterday_parser.set_defaults(func=cmd_yesterday)
-    
-    # Today collection
-    today_parser = subparsers.add_parser('today', help='Collect today\'s reported runs')
-    today_parser.add_argument('--limit', type=int,
-                             help='Limit number of zones to process (for testing)')
-    today_parser.set_defaults(func=cmd_today)
-    
-    # Catch-up collection (yesterday + today)
-    catchup_parser = subparsers.add_parser('catchup', help='Collect both yesterday and today\'s runs for complete coverage')
-    catchup_parser.add_argument('--limit', type=int,
-                               help='Limit number of zones to process (for testing)')
-    catchup_parser.set_defaults(func=cmd_catchup)
-    
-    # Status
-    status_parser = subparsers.add_parser('status', help='Show collection status')
-    status_parser.set_defaults(func=cmd_status)
-    
-    # Test
-    test_parser = subparsers.add_parser('test', help='Test the system with small collection')
-    test_parser.set_defaults(func=cmd_test)
-    
-    # Zero gallon analysis
-    zero_parser = subparsers.add_parser('zero-gallons', help='Analyze zones with 0 gallon water usage')
-    zero_parser.add_argument('--date', help='Date to analyze (YYYY-MM-DD, "today", or "yesterday")')
-    zero_parser.add_argument('--days', type=int, help='Number of days back to analyze from today')
-    zero_parser.set_defaults(func=cmd_zero_gallons)
-    
-    # Parse arguments
-    args = parser.parse_args()
-    
-    if not args.command:
+    if command_count == 0:
         parser.print_help()
         return 1
+    elif command_count > 1:
+        print("❌ Error: Multiple commands specified. Please specify only one action.")
+        return 1
     
-    # Execute command
+    # Execute the specified command
     try:
-        return args.func(args)
+        if args.daily:
+            return cmd_daily(args)
+        elif args.periodic:
+            return cmd_periodic(args)
+        elif args.admin:
+            # Set the date for admin command
+            args.date = args.admin
+            return cmd_admin(args)
+        elif args.update:
+            return cmd_update(args)
+        elif args.yesterday:
+            return cmd_yesterday(args)
+        elif args.today:
+            return cmd_today(args)
+        elif args.catchup:
+            return cmd_catchup(args)
+        elif args.status:
+            return cmd_status(args)
+        elif args.test:
+            return cmd_test(args)
+        elif getattr(args, 'zero_gallons', False):
+            return cmd_zero_gallons(args)
     except KeyboardInterrupt:
         print("\n\n⏹️  Operation cancelled by user")
         return 1

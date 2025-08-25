@@ -343,7 +343,7 @@ def cmd_collect_range(args):
     username = os.getenv('HYDRAWISE_USER')
     password = os.getenv('HYDRAWISE_PASSWORD')
     
-    if not username or password:
+    if not username or not password:
         print("❌ Missing credentials in .env file")
         print("   Required: HYDRAWISE_USER and HYDRAWISE_PASSWORD")
         return 1
@@ -468,68 +468,10 @@ def main():
     # Load environment variables
     load_dotenv()
     
-    # Parse arguments first to check for log file
+    # Parse arguments first
     import sys
     
-    # Quick parse to get log file argument
-    temp_parser = argparse.ArgumentParser(add_help=False)
-    temp_parser.add_argument('--log-file', type=str)
-    temp_args, _ = temp_parser.parse_known_args()
-    
-    # Setup logging to file if specified
-    if temp_args.log_file:
-        import logging
-        from datetime import datetime
-        
-        # Generate timestamped filename with program name
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        program_name = 'schedule_collection'
-        
-        # If user provided a simple filename, add timestamp and program name
-        if '/' not in temp_args.log_file and '\\' not in temp_args.log_file:
-            # Simple filename - enhance it
-            base_name = temp_args.log_file.replace('.log', '')
-            enhanced_filename = f"{program_name}_{base_name}_{timestamp}.log"
-        else:
-            # Full path provided - use as is but ensure it's in logs if no directory
-            enhanced_filename = temp_args.log_file
-        
-        # Create logs directory if it doesn't exist
-        log_dir = os.path.dirname(enhanced_filename)
-        if not log_dir:  # If no directory specified, use logs folder
-            log_dir = 'logs'
-            enhanced_filename = os.path.join(log_dir, os.path.basename(enhanced_filename))
-        
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        
-        # Update the log file path
-        temp_args.log_file = enhanced_filename
-        
-        # Setup stdout redirection to capture all print() output
-        class TeeOutput:
-            def __init__(self, file1, file2):
-                self.file1 = file1
-                self.file2 = file2
-
-            def write(self, data):
-                self.file1.write(data)
-                self.file2.write(data)
-                self.file1.flush()
-                self.file2.flush()
-
-            def flush(self):
-                self.file1.flush()
-                self.file2.flush()
-        
-        # Open log file and setup tee output (with UTF-8 encoding for Unicode support)
-        log_file_handle = open(temp_args.log_file, 'w', encoding='utf-8')
-        sys.stdout = TeeOutput(sys.stdout, log_file_handle)
-        
-        print(f"📋 Logging output to: {temp_args.log_file}")
-        print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("-" * 50)
-    
+    # Create argument parser
     parser = argparse.ArgumentParser(
         description="Admin CLI for Hydrawise Schedule Collection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -590,8 +532,8 @@ COMMAND TYPES:
     # Global options
     parser.add_argument('--headless', action='store_true',
                        help='Run browser in headless mode (default: visible)')
-    parser.add_argument('--log-file', type=str,
-                       help='Save all output to log file (e.g., --log-file test_run.log becomes schedule_collection_test_run_20250825_143022.log)')
+    parser.add_argument('--log-file', nargs='?', const='', type=str,
+                       help='Save all output to log file with auto-generated name (schedule_collection_[command]_YYYYMMDD_HHMMSS.log)')
     
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -628,6 +570,61 @@ COMMAND TYPES:
     
     # Parse arguments
     args = parser.parse_args()
+    
+    # Setup logging if --log-file was specified
+    if args.log_file is not None:
+        from datetime import datetime
+        
+        # Generate timestamped filename with program name and command
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        program_name = 'schedule_collection'
+        command = args.command or 'default'
+        
+        # Auto-generate filename if none provided or simple filename given
+        if not args.log_file or ('/' not in args.log_file and '\\' not in args.log_file):
+            if args.log_file:
+                # Simple filename provided - enhance it
+                base_name = args.log_file.replace('.log', '')
+                enhanced_filename = f"{program_name}_{command}_{base_name}_{timestamp}.log"
+            else:
+                # No filename provided - auto-generate
+                enhanced_filename = f"{program_name}_{command}_{timestamp}.log"
+        else:
+            # Full path provided - use as is
+            enhanced_filename = args.log_file
+        
+        # Create logs directory if it doesn't exist
+        log_dir = os.path.dirname(enhanced_filename)
+        if not log_dir:  # If no directory specified, use logs folder
+            log_dir = 'logs'
+            enhanced_filename = os.path.join(log_dir, os.path.basename(enhanced_filename))
+        
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Setup stdout redirection to capture all print() output
+        class TeeOutput:
+            def __init__(self, file1, file2):
+                self.file1 = file1
+                self.file2 = file2
+
+            def write(self, data):
+                self.file1.write(data)
+                self.file2.write(data)
+                self.file1.flush()
+                self.file2.flush()
+
+            def flush(self):
+                self.file1.flush()
+                self.file2.flush()
+        
+        # Open log file and setup tee output (with UTF-8 encoding for Unicode support)
+        log_file_handle = open(enhanced_filename, 'w', encoding='utf-8')
+        sys.stdout = TeeOutput(sys.stdout, log_file_handle)
+        
+        print(f"📋 Logging output to: {enhanced_filename}")
+        print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("-" * 50)
     
     if not args.command:
         parser.print_help()
