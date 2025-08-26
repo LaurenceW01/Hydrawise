@@ -1,0 +1,267 @@
+{
+  "billing_config": {
+    "billing_period_start_day": 1,
+    "manual_watering_gallons_per_day": 45,
+    "effective_date": "2025-01-01",
+    "description": "City of Houston water and wastewater rates"
+  },
+  "basic_service_charge": {
+    "water": 8.09,
+    "wastewater": 16.05,
+    "total": 24.14,
+    "description": "Fixed monthly charges regardless of usage"
+  },
+  "usage_charge_tiers": [
+    {
+      "tier": 1,
+      "usage_min": 0,
+      "usage_max": 1000,
+      "water_cost": 1.84,
+      "wastewater_cost": 7.27,
+      "total_cost": 9.11,
+      "water_rate_per_gallon": 0.00184,
+      "wastewater_rate_per_gallon": 0.00727
+    },
+    {
+      "tier": 2,
+      "usage_min": 1001,
+      "usage_max": 2000,
+      "water_cost": 3.68,
+      "wastewater_cost": 14.54,
+      "total_cost": 18.22,
+      "water_rate_per_gallon": 0.00184,
+      "wastewater_rate_per_gallon": 0.00727
+    },
+    {
+      "tier": 3,
+      "usage_min": 2001,
+      "usage_max": 3000,
+      "water_cost": 5.52,
+      "wastewater_cost": 21.81,
+      "total_cost": 27.33,
+      "water_rate_per_gallon": 0.00184,
+      "wastewater_rate_per_gallon": 0.00727
+    },
+    {
+      "tier": 4,
+      "usage_min": 3001,
+      "usage_max": 4000,
+      "water_cost": 33.88,
+      "wastewater_cost": 36.11,
+      "total_cost": 69.99,
+      "water_rate_per_gallon": 0.00847,
+      "wastewater_rate_per_gallon": 0.009027
+    },
+    {
+      "tier": 5,
+      "usage_min": 4001,
+      "usage_max": 5000,
+      "water_cost": 42.35,
+      "wastewater_cost": 50.41,
+      "total_cost": 92.76,
+      "water_rate_per_gallon": 0.00847,
+      "wastewater_rate_per_gallon": 0.01008
+    },
+    {
+      "tier": 6,
+      "usage_min": 5001,
+      "usage_max": 6000,
+      "water_cost": 50.82,
+      "wastewater_cost": 64.71,
+      "total_cost": 115.53,
+      "water_rate_per_gallon": 0.00847,
+      "wastewater_rate_per_gallon": 0.01071
+    },
+    {
+      "tier": 7,
+      "usage_min": 6001,
+      "usage_max": 7000,
+      "water_cost": 62.49,
+      "wastewater_cost": 79.01,
+      "total_cost": 141.5,
+      "water_rate_per_gallon": 0.008927,
+      "wastewater_rate_per_gallon": 0.011287
+    },
+    {
+      "tier": 8,
+      "usage_min": 7001,
+      "usage_max": 8000,
+      "water_cost": 74.16,
+      "wastewater_cost": 93.31,
+      "total_cost": 167.47,
+      "water_rate_per_gallon": 0.00927,
+      "wastewater_rate_per_gallon": 0.0116637
+    },
+    {
+      "tier": 9,
+      "usage_min": 8001,
+      "usage_max": 9000,
+      "water_cost": 85.83,
+      "wastewater_cost": 107.61,
+      "total_cost": 193.44,
+      "water_rate_per_gallon": 0.009536,
+      "wastewater_rate_per_gallon": 0.011956
+    },
+    {
+      "tier": 10,
+      "usage_min": 9001,
+      "usage_max": 10000,
+      "water_cost": 97.5,
+      "wastewater_cost": 121.91,
+      "total_cost": 219.41,
+      "water_rate_per_gallon": 0.00975,
+      "wastewater_rate_per_gallon": 0.012191
+    },
+    {
+      "tier": 11,
+      "usage_min": 10001,
+      "usage_max": 11000,
+      "water_cost": 109.17,
+      "wastewater_cost": 136.21,
+      "total_cost": 245.38,
+      "water_rate_per_gallon": 0.009924,
+      "wastewater_rate_per_gallon": 0.012382
+    },
+    {
+      "tier": 12,
+      "usage_min": 11001,
+      "usage_max": 12000,
+      "water_cost": 120.84,
+      "wastewater_cost": 150.51,
+      "total_cost": 271.35,
+      "water_rate_per_gallon": 0.01007,
+      "wastewater_rate_per_gallon": 0.012542
+    },
+    {
+      "tier": 13,
+      "usage_min": 12001,
+      "usage_max": 13000,
+      "water_cost": 135.96,
+      "wastewater_cost": 164.81,
+      "total_cost": 300.77,
+      "water_rate_per_gallon": 0.010458,
+      "wastewater_rate_per_gallon": 0.012677
+    },
+    {
+      "tier": 14,
+      "usage_min": 13001,
+      "usage_max": 14000,
+      "water_cost": 151.08,
+      "wastewater_cost": 179.11,
+      "total_cost": 330.19,
+      "water_rate_per_gallon": 0.01079,
+      "wastewater_rate_per_gallon": 0.012794
+    },
+    {
+      "tier": 15,
+      "usage_min": 14001,
+      "usage_max": 15000,
+      "water_cost": 165.2,
+      "wastewater_cost": 193.41,
+      "total_cost": 358.61,
+      "water_rate_per_gallon": 0.01101,
+      "wastewater_rate_per_gallon": 0.012894
+    },
+    {
+      "tier": 16,
+      "usage_min": 15001,
+      "usage_max": 16000,
+      "water_cost": 181.32,
+      "wastewater_cost": 207.71,
+      "total_cost": 389.03,
+      "water_rate_per_gallon": 0.011333,
+      "wastewater_rate_per_gallon": 0.012982
+    },
+    {
+      "tier": 17,
+      "usage_min": 16001,
+      "usage_max": 17000,
+      "water_cost": 196.44,
+      "wastewater_cost": 222.01,
+      "total_cost": 418.45,
+      "water_rate_per_gallon": 0.011555,
+      "wastewater_rate_per_gallon": 0.013059
+    },
+    {
+      "tier": 18,
+      "usage_min": 17001,
+      "usage_max": 18000,
+      "water_cost": 211.56,
+      "wastewater_cost": 236.31,
+      "total_cost": 447.87,
+      "water_rate_per_gallon": 0.011753,
+      "wastewater_rate_per_gallon": 0.013128
+    },
+    {
+      "tier": 19,
+      "usage_min": 18001,
+      "usage_max": 19000,
+      "water_cost": 226.68,
+      "wastewater_cost": 250.61,
+      "total_cost": 477.29,
+      "water_rate_per_gallon": 0.011930,
+      "wastewater_rate_per_gallon": 0.01319
+    },
+    {
+      "tier": 20,
+      "usage_min": 19001,
+      "usage_max": 20000,
+      "water_cost": 241.8,
+      "wastewater_cost": 264.91,
+      "total_cost": 506.71,
+      "water_rate_per_gallon": 0.01209,
+      "wastewater_rate_per_gallon": 0.01325
+    },
+    {
+      "tier": 21,
+      "usage_min": 20001,
+      "usage_max": 21000,
+      "water_cost": 261.23,
+      "wastewater_cost": 279.21,
+      "total_cost": 540.44,
+      "water_rate_per_gallon": 0.012439,
+      "wastewater_rate_per_gallon": 0.013296
+    },
+    {
+      "tier": 22,
+      "usage_min": 21001,
+      "usage_max": 22000,
+      "water_cost": 280.66,
+      "wastewater_cost": 293.51,
+      "total_cost": 574.17,
+      "water_rate_per_gallon": 0.012757,
+      "wastewater_rate_per_gallon": 0.013341
+    },
+    {
+      "tier": 23,
+      "usage_min": 22001,
+      "usage_max": 23000,
+      "water_cost": 300.09,
+      "wastewater_cost": 307.81,
+      "total_cost": 607.9,
+      "water_rate_per_gallon": 0.013047,
+      "wastewater_rate_per_gallon": 0.013383
+    },
+    {
+      "tier": 24,
+      "usage_min": 23001,
+      "usage_max": 24000,
+      "water_cost": 319.52,
+      "wastewater_cost": 322.11,
+      "total_cost": 641.63,
+      "water_rate_per_gallon": 0.013313,
+      "wastewater_rate_per_gallon": 0.013421
+    },
+    {
+      "tier": 25,
+      "usage_min": 24001,
+      "usage_max": 999999,
+      "water_cost": 338.95,
+      "wastewater_cost": 336.41,
+      "total_cost": 675.36,
+      "water_rate_per_gallon": 0.01356,
+      "wastewater_rate_per_gallon": 0.013456,
+      "description": "Highest tier for usage above 25,000 gallons"
+    }
+  ]
+}

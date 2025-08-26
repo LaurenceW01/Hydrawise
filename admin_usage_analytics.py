@@ -410,54 +410,203 @@ def cmd_reset(args):
         return 1
 
 def cmd_cost_report(args):
-    """Generate cost reports for various time periods"""
+    """Generate Houston water bill cost reports with zone-by-zone breakdown"""
     print_banner()
-    print("💰 IRRIGATION COST REPORT")
+    print("💰 HOUSTON WATER BILL COST REPORT")
     print()
     
     try:
-        analytics = IrrigationAnalytics()
+        # Import the Houston water cost calculator
+        from database.water_cost_calculator import WaterCostCalculator
+        import sqlite3
         
-        if args.period:
-            # Predefined period
-            report = analytics.generate_cost_report_for_period(args.period)
-        elif args.start_date:
-            # Custom date range
-            start_date = datetime.strptime(args.start_date, '%Y-%m-%d').date()
-            end_date = start_date
-            if args.end_date:
-                end_date = datetime.strptime(args.end_date, '%Y-%m-%d').date()
+        calculator = WaterCostCalculator()
+        
+        # Get current billing period cost analysis
+        cost_result = calculator.calculate_period_cost()
+        
+        # Get billing period dates
+        billing_start = cost_result['billing_period']['start_date']
+        billing_end = cost_result['billing_period']['end_date']
+        
+        print(f"📅 BILLING PERIOD: {billing_start} to {billing_end}")
+        print(f"📊 Analysis Date: {cost_result['calculation_date']} ({cost_result['billing_period']['percent_complete']}% complete)")
+        print()
+        
+        # Display overall cost summary
+        usage = cost_result['usage']
+        costs = cost_result['costs']
+        
+        print(f"💧 TOTAL WATER USAGE:")
+        print(f"   🚿 Irrigation:      {usage['irrigation_gallons']:8.1f} gallons")
+        print(f"   🏡 Manual watering: {usage['manual_watering_gallons']:8.1f} gallons")
+        print(f"   📊 Total usage:     {usage['total_gallons']:8.1f} gallons")
+        print()
+        
+        print(f"💰 TOTAL ESTIMATED COST: ${costs['estimated_total_cost']:.2f}")
+        print(f"   🏠 Basic service:    ${costs['basic_service_charge']:7.2f}")
+        print(f"   💧 Usage cost:       ${costs['total_usage_cost']:7.2f}")
+        print()
+        
+        # Get zone-by-zone usage breakdown
+        with sqlite3.connect(calculator.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT ar.zone_name, 
+                       COUNT(*) as run_count,
+                       SUM(ar.actual_gallons) as total_gallons,
+                       AVG(ar.actual_gallons) as avg_gallons_per_run,
+                       SUM(ar.actual_duration_minutes) as total_minutes,
+                       AVG(ar.actual_duration_minutes) as avg_minutes_per_run
+                FROM actual_runs ar
+                WHERE ar.run_date BETWEEN ? AND ?
+                AND ar.actual_gallons IS NOT NULL
+                AND ar.actual_gallons > 0
+                GROUP BY ar.zone_name
+                ORDER BY total_gallons DESC
+            """, (billing_start, cost_result['calculation_date']))
             
-            report = analytics.generate_daily_cost_report(start_date, end_date)
-        else:
-            # Default to today
-            report = analytics.generate_cost_report_for_period('today')
+            zone_data = cursor.fetchall()
         
-        # Format and display report
-        show_daily = not args.summary_only
-        formatted_report = analytics.format_cost_report(report, show_daily_detail=show_daily)
-        print(formatted_report)
+        if zone_data:
+            print("🎯 COST BY IRRIGATION ZONE:")
+            print("-" * 110)
+            print(f"{'Zone Name':<35} {'Runs':<6} {'Gallons':<10} {'Avg/Run':<9} {'% of Total':<10} {'Est. Cost':<10}")
+            print("-" * 110)
+            
+            total_irrigation = usage['irrigation_gallons']
+            total_usage_cost = costs['total_usage_cost']
+            
+            zone_costs = []
+            
+            for zone_name, run_count, total_gallons, avg_gallons, total_minutes, avg_minutes in zone_data:
+                # Calculate zone's percentage of total irrigation usage
+                if total_irrigation > 0:
+                    irrigation_percentage = (total_gallons / total_irrigation) * 100
+                    # Calculate zone's share of the total usage cost (irrigation only, not basic service)
+                    zone_cost = (total_gallons / total_irrigation) * total_usage_cost
+                else:
+                    irrigation_percentage = 0
+                    zone_cost = 0
+                
+                zone_costs.append((zone_name, total_gallons, zone_cost, irrigation_percentage))
+                
+                print(f"{zone_name[:35]:<35} "
+                      f"{run_count:<6} "
+                      f"{total_gallons:>8.1f}g "
+                      f"{avg_gallons:>7.1f}g "
+                      f"{irrigation_percentage:>8.1f}% "
+                      f"${zone_cost:>8.2f}")
+            
+            print("-" * 110)
+            print(f"{'IRRIGATION TOTAL':<35} "
+                  f"{sum(row[1] for row in zone_data):<6} "
+                  f"{total_irrigation:>8.1f}g "
+                  f"{'':>9} "
+                  f"{'100.0%':>9} "
+                  f"${total_usage_cost:>8.2f}")
+            print()
+            
+            # Show top cost contributors
+            if len(zone_costs) > 1:
+                print("💸 TOP COST CONTRIBUTORS:")
+                top_zones = sorted(zone_costs, key=lambda x: x[2], reverse=True)[:5]
+                for i, (zone_name, gallons, cost, percentage) in enumerate(top_zones, 1):
+                    print(f"   {i}. {zone_name[:40]:<40} ${cost:6.2f} ({percentage:4.1f}%)")
+                print()
+            
+            # Show efficiency metrics
+            print("⚡ EFFICIENCY METRICS:")
+            cursor.execute("""
+                SELECT ar.zone_name,
+                       AVG(ar.actual_gallons / ar.actual_duration_minutes) as avg_gpm,
+                       COUNT(*) as run_count
+                FROM actual_runs ar
+                WHERE ar.run_date BETWEEN ? AND ?
+                AND ar.actual_gallons IS NOT NULL 
+                AND ar.actual_gallons > 0
+                AND ar.actual_duration_minutes > 0
+                GROUP BY ar.zone_name
+                HAVING run_count >= 2
+                ORDER BY avg_gpm DESC
+            """, (billing_start, cost_result['calculation_date']))
+            
+            efficiency_data = cursor.fetchall()
+            if efficiency_data:
+                print("-" * 70)
+                print(f"{'Zone Name':<35} {'Avg GPM':<10} {'Runs':<8} {'Cost/GPM':<12}")
+                print("-" * 70)
+                
+                for zone_name, avg_gpm, run_count in efficiency_data:
+                    # Find the cost for this zone
+                    zone_cost = next((cost for name, gallons, cost, pct in zone_costs if name == zone_name), 0)
+                    cost_per_gpm = zone_cost / avg_gpm if avg_gpm > 0 else 0
+                    
+                    print(f"{zone_name[:35]:<35} "
+                          f"{avg_gpm:>8.2f} "
+                          f"{run_count:<8} "
+                          f"${cost_per_gpm:>10.2f}")
+                print("-" * 70)
+        
+        else:
+            print("❌ No irrigation usage data found for this billing period")
+        
+        # Show projections if available
+        if 'projections' in cost_result and cost_result['projections']:
+            proj = cost_result['projections']
+            print(f"\n📈 FULL PERIOD PROJECTION:")
+            print(f"   🚿 Projected irrigation: {proj['projected_irrigation_gallons']:8.1f} gallons")
+            print(f"   💰 Projected total cost: ${proj['projected_total_cost']:8.2f}")
+            
+            # Calculate projected zone costs
+            if zone_data and total_irrigation > 0:
+                print(f"\n🔮 PROJECTED ZONE COSTS (Full Period):")
+                projected_irrigation = proj['projected_irrigation_gallons']
+                projection_multiplier = projected_irrigation / total_irrigation if total_irrigation > 0 else 1
+                
+                print("-" * 60)
+                print(f"{'Zone Name':<35} {'Projected Gallons':<18} {'Projected Cost':<12}")
+                print("-" * 60)
+                
+                for zone_name, gallons, cost, percentage in sorted(zone_costs, key=lambda x: x[2], reverse=True)[:10]:
+                    projected_zone_gallons = gallons * projection_multiplier
+                    projected_zone_cost = cost * projection_multiplier
+                    
+                    print(f"{zone_name[:35]:<35} "
+                          f"{projected_zone_gallons:>15.1f}g "
+                          f"${projected_zone_cost:>10.2f}")
+                print("-" * 60)
         
         # Save to file if requested
         if args.save:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            period_name = args.period or f"{report.period_start}_{report.period_end}"
-            filename = f"reports/irrigation_cost_report_{period_name}_{timestamp}.txt"
+            filename = f"reports/houston_water_cost_report_{billing_start}_{timestamp}.txt"
             
             # Ensure reports directory exists
             os.makedirs("reports", exist_ok=True)
             
+            # Generate text report (simplified version)
             with open(filename, 'w', encoding='utf-8') as f:
-                f.write(formatted_report)
+                f.write(f"HOUSTON WATER BILL COST REPORT\n")
+                f.write(f"Billing Period: {billing_start} to {billing_end}\n")
+                f.write(f"Analysis Date: {cost_result['calculation_date']}\n\n")
+                
+                f.write(f"Total Usage: {usage['total_gallons']:.1f} gallons\n")
+                f.write(f"Irrigation: {usage['irrigation_gallons']:.1f} gallons\n")
+                f.write(f"Manual Watering: {usage['manual_watering_gallons']:.1f} gallons\n\n")
+                
+                f.write(f"Total Cost: ${costs['estimated_total_cost']:.2f}\n")
+                f.write(f"Basic Service: ${costs['basic_service_charge']:.2f}\n")
+                f.write(f"Usage Cost: ${costs['total_usage_cost']:.2f}\n\n")
+                
+                f.write("Zone Breakdown:\n")
+                for zone_name, gallons, cost, percentage in sorted(zone_costs, key=lambda x: x[2], reverse=True):
+                    f.write(f"{zone_name}: {gallons:.1f} gallons, ${cost:.2f} ({percentage:.1f}%)\n")
             
             print(f"💾 Report saved to: {filename}")
         
         return 0
         
-    except ValueError as e:
-        print(f"❌ Invalid date format: {e}")
-        print("   Use YYYY-MM-DD format")
-        return 1
     except Exception as e:
         print(f"❌ Cost report generation failed: {e}")
         import traceback

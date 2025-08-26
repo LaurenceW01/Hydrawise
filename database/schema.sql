@@ -220,6 +220,128 @@ CREATE TABLE system_status (
 );
 
 -- =====================================================
+-- COST TRACKING: Water Bill Analysis
+-- =====================================================
+
+-- Water rate configurations: Track Houston rate changes over time
+CREATE TABLE water_rate_configs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    effective_date DATE NOT NULL,
+    billing_period_start_day INTEGER DEFAULT 1,
+    manual_watering_gallons_per_day REAL DEFAULT 45.0,
+    basic_service_water REAL NOT NULL,
+    basic_service_wastewater REAL NOT NULL,
+    basic_service_total REAL NOT NULL,
+    config_json TEXT NOT NULL,  -- Complete rate tier structure as JSON
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(effective_date)
+);
+
+-- Billing period cost calculations: Track estimated costs per period
+CREATE TABLE billing_period_costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    billing_period_start DATE NOT NULL,
+    billing_period_end DATE NOT NULL,
+    calculation_date DATE NOT NULL,  -- Date the calculation was performed
+    
+    -- Usage data
+    irrigation_gallons REAL DEFAULT 0,
+    manual_watering_gallons REAL DEFAULT 0,
+    total_gallons REAL NOT NULL,
+    
+    -- Tier information
+    usage_tier INTEGER NOT NULL,
+    tier_range_min INTEGER NOT NULL,
+    tier_range_max INTEGER NOT NULL,
+    water_rate_per_gallon REAL NOT NULL,
+    wastewater_rate_per_gallon REAL NOT NULL,
+    
+    -- Cost breakdown
+    basic_service_charge REAL NOT NULL,
+    water_usage_cost REAL NOT NULL,
+    wastewater_usage_cost REAL NOT NULL,
+    total_usage_cost REAL NOT NULL,
+    estimated_total_cost REAL NOT NULL,
+    
+    -- Billing period progress
+    days_elapsed INTEGER NOT NULL,
+    total_days_in_period INTEGER NOT NULL,
+    percent_complete REAL NOT NULL,
+    
+    -- Projections (for partial periods)
+    projected_irrigation_gallons REAL,
+    projected_manual_gallons REAL,
+    projected_total_gallons REAL,
+    projected_tier INTEGER,
+    projected_total_cost REAL,
+    daily_irrigation_average REAL,
+    
+    -- Reference to rate config used
+    rate_config_id INTEGER,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (rate_config_id) REFERENCES water_rate_configs(id),
+    UNIQUE(billing_period_start, calculation_date)
+);
+
+-- Daily cost snapshots: Track cost progression throughout billing period
+CREATE TABLE daily_cost_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_date DATE NOT NULL,
+    billing_period_start DATE NOT NULL,
+    billing_period_end DATE NOT NULL,
+    
+    -- Cumulative usage to date
+    irrigation_gallons_to_date REAL DEFAULT 0,
+    manual_watering_gallons_to_date REAL DEFAULT 0,
+    total_gallons_to_date REAL NOT NULL,
+    
+    -- Current cost
+    estimated_cost_to_date REAL NOT NULL,
+    usage_tier INTEGER NOT NULL,
+    
+    -- Daily increments
+    daily_irrigation_gallons REAL DEFAULT 0,
+    daily_manual_watering_gallons REAL DEFAULT 0,
+    daily_cost_increase REAL DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(snapshot_date, billing_period_start)
+);
+
+-- Cost analysis events: Track significant cost events and milestones
+CREATE TABLE cost_analysis_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_date DATE NOT NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN (
+        'TIER_CHANGE', 'COST_MILESTONE', 'USAGE_ALERT', 'BILLING_PERIOD_END', 
+        'PROJECTION_UPDATE', 'RATE_CHANGE'
+    )),
+    billing_period_start DATE NOT NULL,
+    
+    -- Event details
+    event_description TEXT NOT NULL,
+    previous_value REAL,
+    current_value REAL,
+    threshold_value REAL,
+    
+    -- Cost context
+    total_usage_at_event REAL,
+    estimated_cost_at_event REAL,
+    tier_at_event INTEGER,
+    
+    severity TEXT CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL')) DEFAULT 'INFO',
+    automated BOOLEAN DEFAULT TRUE,
+    notes TEXT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =====================================================
 -- HISTORICAL INTEGRATION: Excel Data Import
 -- =====================================================
 
@@ -279,6 +401,15 @@ CREATE INDEX idx_failure_events_detected_at ON failure_events(detected_at);
 -- Status and monitoring indexes
 CREATE INDEX idx_collection_log_date_status ON collection_log(collection_date, status);
 CREATE INDEX idx_system_status_date ON system_status(status_date);
+
+-- Cost tracking indexes
+CREATE INDEX idx_water_rate_configs_effective_date ON water_rate_configs(effective_date);
+CREATE INDEX idx_billing_period_costs_period ON billing_period_costs(billing_period_start, billing_period_end);
+CREATE INDEX idx_billing_period_costs_calc_date ON billing_period_costs(calculation_date);
+CREATE INDEX idx_daily_cost_snapshots_date ON daily_cost_snapshots(snapshot_date);
+CREATE INDEX idx_daily_cost_snapshots_period ON daily_cost_snapshots(billing_period_start, snapshot_date);
+CREATE INDEX idx_cost_analysis_events_date_type ON cost_analysis_events(event_date, event_type);
+CREATE INDEX idx_cost_analysis_events_period ON cost_analysis_events(billing_period_start, event_date);
 
 -- =====================================================
 -- VIEWS: Simplified data access for analysis

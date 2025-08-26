@@ -142,6 +142,119 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE actual_runs ADD COLUMN usage REAL")  # Contains either actual_gallons or estimated value
             cursor.execute("ALTER TABLE actual_runs ADD COLUMN usage_flag TEXT CHECK (usage_flag IN ('normal', 'too_high', 'too_low', 'zero_reported')) DEFAULT 'normal'")
         
+        # Add cost tracking tables for Houston water bill analysis
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='water_rate_configs'")
+        if not cursor.fetchone():
+            logger.info("Adding cost tracking tables for water bill analysis")
+            
+            # Create water rate configs table
+            cursor.execute("""
+                CREATE TABLE water_rate_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    effective_date DATE NOT NULL,
+                    billing_period_start_day INTEGER DEFAULT 1,
+                    manual_watering_gallons_per_day REAL DEFAULT 45.0,
+                    basic_service_water REAL NOT NULL,
+                    basic_service_wastewater REAL NOT NULL,
+                    basic_service_total REAL NOT NULL,
+                    config_json TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(effective_date)
+                )
+            """)
+            
+            # Create billing period costs table
+            cursor.execute("""
+                CREATE TABLE billing_period_costs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    billing_period_start DATE NOT NULL,
+                    billing_period_end DATE NOT NULL,
+                    calculation_date DATE NOT NULL,
+                    irrigation_gallons REAL DEFAULT 0,
+                    manual_watering_gallons REAL DEFAULT 0,
+                    total_gallons REAL NOT NULL,
+                    usage_tier INTEGER NOT NULL,
+                    tier_range_min INTEGER NOT NULL,
+                    tier_range_max INTEGER NOT NULL,
+                    water_rate_per_gallon REAL NOT NULL,
+                    wastewater_rate_per_gallon REAL NOT NULL,
+                    basic_service_charge REAL NOT NULL,
+                    water_usage_cost REAL NOT NULL,
+                    wastewater_usage_cost REAL NOT NULL,
+                    total_usage_cost REAL NOT NULL,
+                    estimated_total_cost REAL NOT NULL,
+                    days_elapsed INTEGER NOT NULL,
+                    total_days_in_period INTEGER NOT NULL,
+                    percent_complete REAL NOT NULL,
+                    projected_irrigation_gallons REAL,
+                    projected_manual_gallons REAL,
+                    projected_total_gallons REAL,
+                    projected_tier INTEGER,
+                    projected_total_cost REAL,
+                    daily_irrigation_average REAL,
+                    rate_config_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (rate_config_id) REFERENCES water_rate_configs(id),
+                    UNIQUE(billing_period_start, calculation_date)
+                )
+            """)
+            
+            # Create daily cost snapshots table
+            cursor.execute("""
+                CREATE TABLE daily_cost_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    snapshot_date DATE NOT NULL,
+                    billing_period_start DATE NOT NULL,
+                    billing_period_end DATE NOT NULL,
+                    irrigation_gallons_to_date REAL DEFAULT 0,
+                    manual_watering_gallons_to_date REAL DEFAULT 0,
+                    total_gallons_to_date REAL NOT NULL,
+                    estimated_cost_to_date REAL NOT NULL,
+                    usage_tier INTEGER NOT NULL,
+                    daily_irrigation_gallons REAL DEFAULT 0,
+                    daily_manual_watering_gallons REAL DEFAULT 0,
+                    daily_cost_increase REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(snapshot_date, billing_period_start)
+                )
+            """)
+            
+            # Create cost analysis events table
+            cursor.execute("""
+                CREATE TABLE cost_analysis_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_date DATE NOT NULL,
+                    event_type TEXT NOT NULL CHECK (event_type IN (
+                        'TIER_CHANGE', 'COST_MILESTONE', 'USAGE_ALERT', 'BILLING_PERIOD_END', 
+                        'PROJECTION_UPDATE', 'RATE_CHANGE'
+                    )),
+                    billing_period_start DATE NOT NULL,
+                    event_description TEXT NOT NULL,
+                    previous_value REAL,
+                    current_value REAL,
+                    threshold_value REAL,
+                    total_usage_at_event REAL,
+                    estimated_cost_at_event REAL,
+                    tier_at_event INTEGER,
+                    severity TEXT CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL')) DEFAULT 'INFO',
+                    automated BOOLEAN DEFAULT TRUE,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create indexes for cost tracking tables
+            cursor.execute("CREATE INDEX idx_water_rate_configs_effective_date ON water_rate_configs(effective_date)")
+            cursor.execute("CREATE INDEX idx_billing_period_costs_period ON billing_period_costs(billing_period_start, billing_period_end)")
+            cursor.execute("CREATE INDEX idx_billing_period_costs_calc_date ON billing_period_costs(calculation_date)")
+            cursor.execute("CREATE INDEX idx_daily_cost_snapshots_date ON daily_cost_snapshots(snapshot_date)")
+            cursor.execute("CREATE INDEX idx_daily_cost_snapshots_period ON daily_cost_snapshots(billing_period_start, snapshot_date)")
+            cursor.execute("CREATE INDEX idx_cost_analysis_events_date_type ON cost_analysis_events(event_date, event_type)")
+            cursor.execute("CREATE INDEX idx_cost_analysis_events_period ON cost_analysis_events(billing_period_start, event_date)")
+            
+            logger.info("Cost tracking tables created successfully")
+        
         # Migrate actual_duration_minutes from INTEGER to REAL for fractional minutes
         # Check if we need to migrate the column type
         cursor.execute("PRAGMA table_info(actual_runs)")
