@@ -480,18 +480,18 @@ if __name__ == "__main__":
     
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     if not api_key:
-        print("❌ No API key found. Please set HUNTER_HYDRAWISE_API_KEY in .env file")
+        print("[ERROR] No API key found. Please set HUNTER_HYDRAWISE_API_KEY in .env file")
         sys.exit(1)
         
     # Create and run monitor
     monitor = IrrigationMonitor(api_key, check_interval_minutes=5)
     
-    print(f"✅ Monitor initialized with {len(monitor.zone_status)} zones")
+    print(f"[OK] Monitor initialized with {len(monitor.zone_status)} zones")
     print("\nZone Information:")
     for zone_id, zone in monitor.zone_status.items():
         print(f"  Zone {zone_id}: {zone.name} ({zone.priority} priority, {zone.flow_rate_gpm} GPM)")
     
-    print("\n🔍 Starting monitoring (press Ctrl+C to stop)...")
+    print("\n[ANALYSIS] Starting monitoring (press Ctrl+C to stop)...")
     
     try:
         monitor.start_monitoring()
@@ -504,14 +504,14 @@ if __name__ == "__main__":
             critical_count = summary['critical_alerts']
             warning_count = summary['warning_alerts']
             
-            print(f"\n📊 Status: {critical_count} critical, {warning_count} warning alerts")
+            print(f"\n[RESULTS] Status: {critical_count} critical, {warning_count} warning alerts")
             
             # Show any critical alerts
             critical_alerts = monitor.get_active_alerts(AlertLevel.CRITICAL)
             for alert in critical_alerts:
-                print(f"🚨 CRITICAL: {alert.zone_name} - {alert.description}")
+                print(f"[ALERT] CRITICAL: {alert.zone_name} - {alert.description}")
                 
     except KeyboardInterrupt:
-        print("\n🛑 Stopping monitor...")
+        print("\n[SYMBOL] Stopping monitor...")
         monitor.stop_monitoring()
-        print("✅ Monitor stopped")
+        print("[OK] Monitor stopped")

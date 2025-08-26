@@ -111,10 +111,10 @@ class DatabaseCleaner:
         
         try:
             shutil.copy2(self.db_path, self.backup_path)
-            logger.info(f"✅ Backup created: {self.backup_path}")
+            logger.info(f"[OK] Backup created: {self.backup_path}")
             return True
         except Exception as e:
-            logger.error(f"❌ Failed to create backup: {e}")
+            logger.error(f"[ERROR] Failed to create backup: {e}")
             return False
     
     def clear_all_data(self, dry_run: bool = False) -> bool:
@@ -134,18 +134,18 @@ class DatabaseCleaner:
         total_rows = sum(row_counts.values())
         
         if total_rows == 0:
-            logger.info("📊 Database is already empty - no data to clear")
+            logger.info("[RESULTS] Database is already empty - no data to clear")
             return True
         
-        logger.info("📊 Current database contents:")
+        logger.info("[RESULTS] Current database contents:")
         for table, count in row_counts.items():
             if count > 0:
                 logger.info(f"   {table}: {count:,} rows")
         logger.info(f"   TOTAL: {total_rows:,} rows")
         
         if dry_run:
-            logger.info("🔍 DRY RUN MODE - No data will be deleted")
-            logger.info("📋 Tables that would be cleared:")
+            logger.info("[ANALYSIS] DRY RUN MODE - No data will be deleted")
+            logger.info("[LOG] Tables that would be cleared:")
             for table in self.tables_to_clear:
                 if row_counts.get(table, 0) > 0:
                     logger.info(f"   DELETE FROM {table}; -- ({row_counts[table]:,} rows)")
@@ -164,11 +164,11 @@ class DatabaseCleaner:
                 for table in self.tables_to_clear:
                     if row_counts.get(table, 0) > 0:
                         try:
-                            logger.info(f"🗑️  Clearing table: {table} ({row_counts[table]:,} rows)")
+                            logger.info(f"[DELETE]  Clearing table: {table} ({row_counts[table]:,} rows)")
                             cursor.execute(f"DELETE FROM {table}")
                             deleted_counts[table] = row_counts[table]
                         except sqlite3.Error as e:
-                            logger.error(f"❌ Failed to clear table '{table}': {e}")
+                            logger.error(f"[ERROR] Failed to clear table '{table}': {e}")
                             return False
                 
                 # Re-enable foreign key constraints
@@ -178,32 +178,32 @@ class DatabaseCleaner:
                 
                 # Summary
                 total_deleted = sum(deleted_counts.values())
-                logger.info("✅ Data deletion completed successfully!")
-                logger.info(f"📊 Total rows deleted: {total_deleted:,}")
+                logger.info("[OK] Data deletion completed successfully!")
+                logger.info(f"[RESULTS] Total rows deleted: {total_deleted:,}")
                 
                 # Verify tables are empty
                 verification_counts = self.get_table_row_counts()
                 remaining_rows = sum(verification_counts.values())
                 
                 if remaining_rows == 0:
-                    logger.info("✅ All tables verified empty")
+                    logger.info("[OK] All tables verified empty")
                 else:
-                    logger.warning(f"⚠️  Warning: {remaining_rows} rows still remain in database")
+                    logger.warning(f"[WARNING]  Warning: {remaining_rows} rows still remain in database")
             
             # Vacuum to reclaim space (must be done outside transaction)
-            logger.info("🧹 Optimizing database (VACUUM)")
+            logger.info("[SYMBOL] Optimizing database (VACUUM)")
             try:
                 vacuum_conn = sqlite3.connect(self.db_path)
                 vacuum_conn.execute("VACUUM")
                 vacuum_conn.close()
-                logger.info("✅ Database optimization completed")
+                logger.info("[OK] Database optimization completed")
             except sqlite3.Error as e:
-                logger.warning(f"⚠️  Database optimization failed: {e}")
+                logger.warning(f"[WARNING]  Database optimization failed: {e}")
                 
             return True
                 
         except sqlite3.Error as e:
-            logger.error(f"❌ Database operation failed: {e}")
+            logger.error(f"[ERROR] Database operation failed: {e}")
             return False
     
     def reset_auto_increment_counters(self) -> bool:
@@ -218,13 +218,13 @@ class DatabaseCleaner:
                 
                 # Reset the sqlite_sequence table which tracks auto-increment values
                 cursor.execute("DELETE FROM sqlite_sequence")
-                logger.info("🔄 Auto-increment counters reset to 1")
+                logger.info("[PERIODIC] Auto-increment counters reset to 1")
                 
                 conn.commit()
                 return True
                 
         except sqlite3.Error as e:
-            logger.error(f"❌ Failed to reset auto-increment counters: {e}")
+            logger.error(f"[ERROR] Failed to reset auto-increment counters: {e}")
             return False
 
 def main():
@@ -246,7 +246,7 @@ Examples:
     # Use custom database path
     python database/clear_all_data.py --confirm --db-path /path/to/custom.db
 
-⚠️  WARNING: This operation permanently deletes ALL irrigation data!
+[WARNING]  WARNING: This operation permanently deletes ALL irrigation data!
              Always use --backup unless you're certain you don't need the data.
         """
     )
@@ -290,25 +290,25 @@ Examples:
     
     # Validate database path
     if not args.dry_run and not os.path.exists(args.db_path):
-        logger.error(f"❌ Database file not found: {args.db_path}")
+        logger.error(f"[ERROR] Database file not found: {args.db_path}")
         sys.exit(1)
     
     # Safety confirmation for non-dry runs
     if not args.dry_run:
         print("\n" + "="*60)
-        print("⚠️  DANGER: DATABASE DELETION OPERATION")
+        print("[WARNING]  DANGER: DATABASE DELETION OPERATION")
         print("="*60)
         print(f"Database: {args.db_path}")
         print("This will PERMANENTLY DELETE all irrigation data!")
         print("This operation CANNOT be undone!")
         
         if not args.backup:
-            print("\n🚨 WARNING: No backup will be created!")
+            print("\n[ALERT] WARNING: No backup will be created!")
             print("   Consider using --backup flag for safety")
         
         response = input("\nType 'DELETE ALL DATA' to confirm: ")
         if response != 'DELETE ALL DATA':
-            print("❌ Operation cancelled - confirmation text did not match")
+            print("[ERROR] Operation cancelled - confirmation text did not match")
             sys.exit(1)
     
     # Initialize cleaner
@@ -317,7 +317,7 @@ Examples:
     # Create backup if requested
     if args.backup and not args.dry_run:
         if not cleaner.create_backup():
-            logger.error("❌ Backup failed - aborting operation for safety")
+            logger.error("[ERROR] Backup failed - aborting operation for safety")
             sys.exit(1)
     
     # Clear the data
@@ -329,19 +329,19 @@ Examples:
             cleaner.reset_auto_increment_counters()
         
         print("\n" + "="*60)
-        print("✅ DATABASE CLEARED SUCCESSFULLY")
+        print("[OK] DATABASE CLEARED SUCCESSFULLY")
         print("="*60)
-        print(f"📁 Database: {args.db_path}")
+        print(f"[SYMBOL] Database: {args.db_path}")
         if cleaner.backup_path:
-            print(f"💾 Backup: {cleaner.backup_path}")
-        print("📊 All irrigation data has been deleted")
-        print("🗂️  Database schema and structure preserved")
+            print(f"[SAVED] Backup: {cleaner.backup_path}")
+        print("[RESULTS] All irrigation data has been deleted")
+        print("[SYMBOL][SYMBOL]  Database schema and structure preserved")
         
     elif success and args.dry_run:
-        print("\n✅ Dry run completed - no data was modified")
+        print("\n[OK] Dry run completed - no data was modified")
         
     else:
-        print("\n❌ Operation failed - check logs for details")
+        print("\n[ERROR] Operation failed - check logs for details")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -359,7 +359,7 @@ class SmartIrrigationMonitor:
         freshness = status['data_freshness']
         
         for data_type, info in freshness.items():
-            refresh_icon = "🔄" if info['needs_refresh'] else "✅"
+            refresh_icon = "[PERIODIC]" if info['needs_refresh'] else "[OK]"
             report.append(f"{refresh_icon} {data_type.replace('_', ' ').title()}: {info['reason']}")
             
         report.append("")
@@ -370,7 +370,7 @@ class SmartIrrigationMonitor:
             report.append("-" * 15)
             for action in status['actions_taken']:
                 action_display = action.replace('_', ' ').title()
-                report.append(f"• {action_display}")
+                report.append(f"- {action_display}")
             report.append("")
         
         # Zone status (if available)
@@ -382,16 +382,16 @@ class SmartIrrigationMonitor:
                 actual = zone['actual_runs']
                 water = zone['actual_gallons'] or 0
                 
-                status_icon = "✅" if zone['run_variance'] == 0 else "⚠️" if zone['run_variance'] > 0 else "❌"
+                status_icon = "[OK]" if zone['run_variance'] == 0 else "[WARNING]" if zone['run_variance'] > 0 else "[ERROR]"
                 report.append(f"{status_icon} {zone['zone_name']}: {actual}/{scheduled} runs, {water:.1f} gallons")
         
         # Active failures
         if status['active_failures']:
             report.append("")
-            report.append("🚨 ACTIVE FAILURES:")
+            report.append("[ALERT] ACTIVE FAILURES:")
             report.append("-" * 17)
             for failure in status['active_failures'][:5]:  # Show top 5
-                report.append(f"❗ {failure['zone_name']}: {failure['description']}")
+                report.append(f"[SYMBOL] {failure['zone_name']}: {failure['description']}")
                 report.append(f"   Action: {failure['recommended_action']}")
                 report.append("")
         

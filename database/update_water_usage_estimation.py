@@ -35,27 +35,27 @@ logger = logging.getLogger(__name__)
 def print_banner():
     """Print the utility banner"""
     print("=" * 70)
-    print("🚰 HYDRAWISE WATER USAGE ESTIMATION UPDATE")
+    print("[HYDRAWISE] HYDRAWISE WATER USAGE ESTIMATION UPDATE")
     print("=" * 70)
 
 def update_database_schema():
     """Update database schema with new water usage estimation columns"""
-    print("\n🔧 UPDATING DATABASE SCHEMA")
+    print("\n[SYMBOL] UPDATING DATABASE SCHEMA")
     print("-" * 50)
     
     try:
         # Initialize storage to trigger schema migration
         storage = IntelligentDataStorage()
-        print("✅ Database schema updated with water usage estimation columns")
+        print("[OK] Database schema updated with water usage estimation columns")
         return True
         
     except Exception as e:
-        print(f"❌ Schema update failed: {e}")
+        print(f"[ERROR] Schema update failed: {e}")
         return False
 
 def update_existing_runs(target_date: str = None, days_back: int = None):
     """Update existing runs with water usage estimation"""
-    print(f"\n💧 UPDATING WATER USAGE ESTIMATION")
+    print(f"\n[WATER] UPDATING WATER USAGE ESTIMATION")
     print("-" * 50)
     
     try:
@@ -68,7 +68,7 @@ def update_existing_runs(target_date: str = None, days_back: int = None):
             
             for i in range(days_back):
                 process_date = (today - timedelta(days=i)).strftime('%Y-%m-%d')
-                print(f"📅 Processing {process_date}...")
+                print(f"[DATE] Processing {process_date}...")
                 
                 result = storage.update_existing_runs_usage_estimation(process_date)
                 
@@ -78,17 +78,17 @@ def update_existing_runs(target_date: str = None, days_back: int = None):
                     total_updated += updated
                     
                     if updated > 0:
-                        print(f"   ✅ Updated {updated}/{total} runs")
+                        print(f"   [OK] Updated {updated}/{total} runs")
                     else:
-                        print(f"   ✓  No runs needed updates")
+                        print(f"   [OK]  No runs needed updates")
                 else:
-                    print(f"   ❌ Failed: {result.get('error')}")
+                    print(f"   [ERROR] Failed: {result.get('error')}")
             
-            print(f"\n🎉 Total runs updated: {total_updated}")
+            print(f"\n[SUCCESS] Total runs updated: {total_updated}")
             
         else:
             # Process single date or all data
-            print(f"📅 Processing {'all data' if not target_date else target_date}...")
+            print(f"[DATE] Processing {'all data' if not target_date else target_date}...")
             
             result = storage.update_existing_runs_usage_estimation(target_date)
             
@@ -97,23 +97,23 @@ def update_existing_runs(target_date: str = None, days_back: int = None):
                 total = result['total_runs']
                 
                 if updated > 0:
-                    print(f"✅ Successfully updated {updated}/{total} runs")
-                    print(f"   📊 Runs now have usage_type, usage_flag, and calculated usage values")
+                    print(f"[OK] Successfully updated {updated}/{total} runs")
+                    print(f"   [RESULTS] Runs now have usage_type, usage_flag, and calculated usage values")
                 else:
-                    print(f"✓  No runs needed updates ({total} total runs checked)")
+                    print(f"[OK]  No runs needed updates ({total} total runs checked)")
             else:
-                print(f"❌ Update failed: {result.get('error')}")
+                print(f"[ERROR] Update failed: {result.get('error')}")
                 return False
         
         return True
         
     except Exception as e:
-        print(f"❌ Failed to update existing runs: {e}")
+        print(f"[ERROR] Failed to update existing runs: {e}")
         return False
 
 def show_usage_summary(start_date: str, end_date: str = None):
     """Show water usage estimation summary for date range"""
-    print(f"\n📊 WATER USAGE ESTIMATION SUMMARY")
+    print(f"\n[RESULTS] WATER USAGE ESTIMATION SUMMARY")
     print("-" * 50)
     
     try:
@@ -125,23 +125,23 @@ def show_usage_summary(start_date: str, end_date: str = None):
         summary = estimator.get_usage_summary(start_date, end_date)
         
         if summary['success']:
-            print(f"📅 Date Range: {summary['date_range']}")
-            print(f"📊 Total Runs: {summary['total_runs']}")
-            print(f"💧 Total Estimated Usage: {summary['total_estimated_usage']:.1f} gallons")
-            print(f"💧 Total Actual Usage: {summary['total_actual_usage']:.1f} gallons")
+            print(f"[DATE] Date Range: {summary['date_range']}")
+            print(f"[RESULTS] Total Runs: {summary['total_runs']}")
+            print(f"[WATER] Total Estimated Usage: {summary['total_estimated_usage']:.1f} gallons")
+            print(f"[WATER] Total Actual Usage: {summary['total_actual_usage']:.1f} gallons")
             
             if summary['usage_stats']:
-                print(f"\n📋 Usage Type Breakdown:")
+                print(f"\n[LOG] Usage Type Breakdown:")
                 for usage_type, stats in summary['usage_stats'].items():
                     print(f"   {usage_type.upper()}: {stats['count']} runs, {stats['total_usage']:.1f} gal (avg: {stats['avg_usage']:.1f})")
             else:
                 print("   No usage statistics available")
                 
         else:
-            print(f"❌ Failed to get summary: {summary.get('error')}")
+            print(f"[ERROR] Failed to get summary: {summary.get('error')}")
             
     except Exception as e:
-        print(f"❌ Failed to show summary: {e}")
+        print(f"[ERROR] Failed to show summary: {e}")
 
 def main():
     """Main CLI entry point"""
@@ -238,18 +238,18 @@ Examples:
             show_usage_summary(start_date, end_date)
         
         if success:
-            print(f"\n🎉 Water usage estimation update completed successfully!")
+            print(f"\n[SUCCESS] Water usage estimation update completed successfully!")
             return 0
         else:
-            print(f"\n⚠️  Water usage estimation update completed with errors.")
+            print(f"\n[WARNING]  Water usage estimation update completed with errors.")
             return 1
             
     except ValueError as e:
-        print(f"❌ Invalid date format: {e}")
+        print(f"[ERROR] Invalid date format: {e}")
         print("   Use YYYY-MM-DD format, 'today', or 'yesterday'")
         return 1
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1

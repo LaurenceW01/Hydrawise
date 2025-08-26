@@ -58,7 +58,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Navigating to Schedule tab...")
+        self.logger.info("[PERIODIC] Navigating to Schedule tab...")
         
         # Multiple selector strategies based on working implementations
         schedule_selectors = [
@@ -76,14 +76,14 @@ class HydrawiseNavigationHelper:
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 schedule_element.click()
-                self.logger.info(f"✅ Clicked Schedule tab using: {selector}")
+                self.logger.info(f"[OK] Clicked Schedule tab using: {selector}")
                 time.sleep(wait_seconds)  # Wait for data to load
                 return True
             except Exception as e:
                 self.logger.debug(f"Schedule selector '{selector}' failed: {e}")
                 continue
         
-        self.logger.error("❌ Could not find or click Schedule tab")
+        self.logger.error("[ERROR] Could not find or click Schedule tab")
         return False
     
     def navigate_to_reported_tab(self, wait_seconds: int = 5) -> bool:
@@ -96,7 +96,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Navigating to Reported tab...")
+        self.logger.info("[PERIODIC] Navigating to Reported tab...")
         
         # Multiple selector strategies - most reliable first to minimize wait time
         reported_selectors = [
@@ -114,14 +114,14 @@ class HydrawiseNavigationHelper:
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 reported_element.click()
-                self.logger.info(f"✅ Clicked Reported tab using: {selector}")
+                self.logger.info(f"[OK] Clicked Reported tab using: {selector}")
                 time.sleep(wait_seconds)  # Wait for data to load
                 return True
             except Exception as e:
                 self.logger.debug(f"Reported selector '{selector}' failed: {e}")
                 continue
         
-        self.logger.error("❌ Could not find or click Reported tab")
+        self.logger.error("[ERROR] Could not find or click Reported tab")
         return False
     
     # ========== VIEW SWITCHING ==========
@@ -136,7 +136,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Switching to Day view...")
+        self.logger.info("[PERIODIC] Switching to Day view...")
         
         # Wait for UI to be ready
         time.sleep(2)
@@ -186,12 +186,12 @@ class HydrawiseNavigationHelper:
                 # Try multiple click methods
                 try:
                     day_button.click()
-                    self.logger.info(f"✅ Clicked Day button (direct) using: {successful_selector}")
+                    self.logger.info(f"[OK] Clicked Day button (direct) using: {successful_selector}")
                 except Exception as e:
                     self.logger.debug(f"Direct click failed: {e}")
                     # Try JavaScript click
                     self.driver.execute_script("arguments[0].click();", day_button)
-                    self.logger.info(f"✅ Clicked Day button (JavaScript) using: {successful_selector}")
+                    self.logger.info(f"[OK] Clicked Day button (JavaScript) using: {successful_selector}")
                 
                 time.sleep(wait_seconds)
                 return True
@@ -199,7 +199,7 @@ class HydrawiseNavigationHelper:
                 self.logger.error(f"Failed to click Day button: {e}")
                 return False
         else:
-            self.logger.warning("⚠️ Could not find Day button - may already be in daily view")
+            self.logger.warning("[WARNING] Could not find Day button - may already be in daily view")
             return True  # Assume already in day view
     
     def switch_to_week_view(self, wait_seconds: int = 3) -> bool:
@@ -212,7 +212,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Switching to Week view...")
+        self.logger.info("[PERIODIC] Switching to Week view...")
         
         week_selectors = [
             "//button[text()='Week']",
@@ -233,7 +233,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Switching to Month view...")
+        self.logger.info("[PERIODIC] Switching to Month view...")
         
         month_selectors = [
             "//button[text()='Month']",
@@ -281,7 +281,7 @@ class HydrawiseNavigationHelper:
                 self.logger.debug(f"{button_name} selector '{selector}' failed: {e}")
                 continue
         
-        self.logger.error(f"❌ Could not find or click {button_name} button using any method")
+        self.logger.error(f"[ERROR] Could not find or click {button_name} button using any method")
         return False
     
     # ========== DATE NAVIGATION ==========
@@ -297,7 +297,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Clicking Previous button...")
+        self.logger.info("[PERIODIC] Clicking Previous button...")
         
         # Step 1: PRIMARY METHOD - General button search (most reliable)
         self.logger.debug("Trying primary method: General button search...")
@@ -351,7 +351,7 @@ class HydrawiseNavigationHelper:
                 continue
         
         # If all methods fail
-        self.logger.error("❌ Could not find Previous button using any method")
+        self.logger.error("[ERROR] Could not find Previous button using any method")
         self._debug_available_buttons()
         return False
     
@@ -366,7 +366,7 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
-        self.logger.info("🔄 Clicking Next button...")
+        self.logger.info("[PERIODIC] Clicking Next button...")
         
         # Step 1: PRIMARY METHOD - General button search (most reliable)
         self.logger.debug("Trying primary method: General button search...")
@@ -419,7 +419,7 @@ class HydrawiseNavigationHelper:
                 continue
         
         # If all methods fail
-        self.logger.error("❌ Could not find Next button using any method")
+        self.logger.error("[ERROR] Could not find Next button using any method")
         self._debug_available_buttons()
         return False
     
@@ -439,7 +439,7 @@ class HydrawiseNavigationHelper:
         try:
             # Method 1: Direct click
             element.click()
-            self.logger.info(f"✅ Clicked {button_name} button (direct) using: {selector_info}")
+            self.logger.info(f"[OK] Clicked {button_name} button (direct) using: {selector_info}")
             time.sleep(wait_seconds)
             return True
         except Exception as e:
@@ -448,7 +448,7 @@ class HydrawiseNavigationHelper:
             try:
                 # Method 2: JavaScript click
                 self.driver.execute_script("arguments[0].click();", element)
-                self.logger.info(f"✅ Clicked {button_name} button (JavaScript) using: {selector_info}")
+                self.logger.info(f"[OK] Clicked {button_name} button (JavaScript) using: {selector_info}")
                 time.sleep(wait_seconds)
                 return True
             except Exception as e:
@@ -459,7 +459,7 @@ class HydrawiseNavigationHelper:
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
                     time.sleep(1)
                     ActionChains(self.driver).move_to_element(element).click().perform()
-                    self.logger.info(f"✅ Clicked {button_name} button (ActionChains) using: {selector_info}")
+                    self.logger.info(f"[OK] Clicked {button_name} button (ActionChains) using: {selector_info}")
                     time.sleep(wait_seconds)
                     return True
                 except Exception as e:
@@ -575,8 +575,8 @@ class HydrawiseNavigationHelper:
         Parse the displayed date range from rbc-toolbar-label text
         
         Handles formats like:
-        - "August 24 – 30" (single month week)
-        - "August 31 – September 06" (cross-month week)  
+        - "August 24 [SYMBOL] 30" (single month week)
+        - "August 31 [SYMBOL] September 06" (cross-month week)  
         - "Friday Aug 22" (day view)
         - "August 2025" (month view)
         
@@ -613,11 +613,11 @@ class HydrawiseNavigationHelper:
             date_text_lower = date_text.lower()
             
             # Week view patterns:
-            # - Single month: "August 24 – 30" 
-            # - Cross-month: "August 31 – September 06", "June 29 – July 05", "May 26 – Jun 01"
-            # - Year boundary: "December 30 – January 05"
-            # Pattern captures: (start_month) (start_day) [–-] (optional_end_month) (end_day)
-            week_pattern = r'(\w+)\s+(\d+)\s*[–-]\s*(?:(\w+)\s+)?(\d+)'
+            # - Single month: "August 24 [SYMBOL] 30" 
+            # - Cross-month: "August 31 [SYMBOL] September 06", "June 29 [SYMBOL] July 05", "May 26 [SYMBOL] Jun 01"
+            # - Year boundary: "December 30 [SYMBOL] January 05"
+            # Pattern captures: (start_month) (start_day) [[SYMBOL]-] (optional_end_month) (end_day)
+            week_pattern = r'(\w+)\s+(\d+)\s*[[SYMBOL]-]\s*(?:(\w+)\s+)?(\d+)'
             week_match = re.search(week_pattern, date_text_lower)
             
             if week_match:
@@ -753,7 +753,7 @@ class HydrawiseNavigationHelper:
             current_date = date.today()
             days_diff = (target_date - current_date).days
             
-            self.logger.info(f"🎯 Navigating to {target_date} ({days_diff:+d} days from today)")
+            self.logger.info(f"[SYMBOL] Navigating to {target_date} ({days_diff:+d} days from today)")
             
             # Navigate to appropriate tab
             if tab.lower() == "schedule":
@@ -765,24 +765,24 @@ class HydrawiseNavigationHelper:
             
             # Use intelligent navigation strategy based on date difference
             if abs(days_diff) == 0:
-                self.logger.info("✅ Already on target date")
+                self.logger.info("[OK] Already on target date")
                 # Still ensure we're in day view
                 return self.switch_to_day_view()
             elif abs(days_diff) <= 6:
                 # Small difference: Use day view directly
-                self.logger.info(f"📅 Small date difference ({abs(days_diff)} days) - using day navigation")
+                self.logger.info(f"[DATE] Small date difference ({abs(days_diff)} days) - using day navigation")
                 return self._navigate_using_day_view(target_date, current_date)
             elif abs(days_diff) <= 30:
                 # Medium difference: Use week view then day view
-                self.logger.info(f"📅 Medium date difference ({abs(days_diff)} days) - using week navigation")
+                self.logger.info(f"[DATE] Medium date difference ({abs(days_diff)} days) - using week navigation")
                 return self._navigate_using_week_view(target_date, current_date)
             else:
                 # Large difference: Use month view, then week view, then day view
-                self.logger.info(f"📅 Large date difference ({abs(days_diff)} days) - using hierarchical navigation")
+                self.logger.info(f"[DATE] Large date difference ({abs(days_diff)} days) - using hierarchical navigation")
                 return self._navigate_using_month_view(target_date, current_date)
                 
         except Exception as e:
-            self.logger.error(f"❌ Failed to navigate to date {target_date}: {e}")
+            self.logger.error(f"[ERROR] Failed to navigate to date {target_date}: {e}")
             return False
     
     def navigate_date_range(self, start_date: Union[date, datetime], 
@@ -808,7 +808,7 @@ class HydrawiseNavigationHelper:
             if start_date > end_date:
                 start_date, end_date = end_date, start_date
             
-            self.logger.info(f"🗓️ Navigating date range: {start_date} to {end_date}")
+            self.logger.info(f"[SYMBOL][SYMBOL] Navigating date range: {start_date} to {end_date}")
             
             successful_dates = []
             current_date = start_date
@@ -826,16 +826,16 @@ class HydrawiseNavigationHelper:
                         # Verify we're on the right date
                         displayed_date = self.get_current_displayed_date()
                         if displayed_date:
-                            self.logger.info(f"📅 Now on: {displayed_date}")
+                            self.logger.info(f"[DATE] Now on: {displayed_date}")
                     else:
-                        self.logger.error(f"❌ Failed to navigate to {current_date + timedelta(days=1)}")
+                        self.logger.error(f"[ERROR] Failed to navigate to {current_date + timedelta(days=1)}")
                         break
             
-            self.logger.info(f"✅ Successfully navigated to {len(successful_dates)} dates")
+            self.logger.info(f"[OK] Successfully navigated to {len(successful_dates)} dates")
             return successful_dates
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to navigate date range: {e}")
+            self.logger.error(f"[ERROR] Failed to navigate date range: {e}")
             return []
     
     def _navigate_forward_days(self, days: int) -> bool:
@@ -843,18 +843,18 @@ class HydrawiseNavigationHelper:
         try:
             for day in range(days):
                 if not self.click_next_button():
-                    self.logger.error(f"❌ Failed to navigate forward on day {day + 1}/{days}")
+                    self.logger.error(f"[ERROR] Failed to navigate forward on day {day + 1}/{days}")
                     return False
                     
                 # Log progress
                 displayed_date = self.get_current_displayed_date()
                 if displayed_date:
-                    self.logger.info(f"📅 Day {day + 1}/{days}: {displayed_date}")
+                    self.logger.info(f"[DATE] Day {day + 1}/{days}: {displayed_date}")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to navigate forward {days} days: {e}")
+            self.logger.error(f"[ERROR] Failed to navigate forward {days} days: {e}")
             return False
     
     def _navigate_backward_days(self, days: int) -> bool:
@@ -862,18 +862,18 @@ class HydrawiseNavigationHelper:
         try:
             for day in range(days):
                 if not self.click_previous_button():
-                    self.logger.error(f"❌ Failed to navigate backward on day {day + 1}/{days}")
+                    self.logger.error(f"[ERROR] Failed to navigate backward on day {day + 1}/{days}")
                     return False
                     
                 # Log progress
                 displayed_date = self.get_current_displayed_date()
                 if displayed_date:
-                    self.logger.info(f"📅 Day {day + 1}/{days}: {displayed_date}")
+                    self.logger.info(f"[DATE] Day {day + 1}/{days}: {displayed_date}")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to navigate backward {days} days: {e}")
+            self.logger.error(f"[ERROR] Failed to navigate backward {days} days: {e}")
             return False
     
     # ========== INTELLIGENT HIERARCHICAL NAVIGATION ==========
@@ -890,57 +890,57 @@ class HydrawiseNavigationHelper:
             bool: True if successfully navigated to target date
         """
         try:
-            self.logger.info(f"🔧 Fine-tuning to exact day: {target_date}")
+            self.logger.info(f"[SYMBOL] Fine-tuning to exact day: {target_date}")
             
             for attempt in range(max_attempts):
                 # Check if we've found the target
                 if self.is_target_date_in_current_view(target_date):
                     current_display = self.get_current_displayed_date()
-                    self.logger.info(f"✅ Successfully navigated to target: {current_display}")
+                    self.logger.info(f"[OK] Successfully navigated to target: {current_display}")
                     return True
                 
                 # Parse current position to determine direction
                 current_display = self.get_current_displayed_date()
                 if not current_display:
-                    self.logger.warning("⚠️ Could not get current display for fine-tuning")
+                    self.logger.warning("[WARNING] Could not get current display for fine-tuning")
                     return False
                 
                 parsed_range = self.parse_displayed_date_range(current_display)
                 if not parsed_range:
-                    self.logger.warning("⚠️ Could not parse current display for fine-tuning")
+                    self.logger.warning("[WARNING] Could not parse current display for fine-tuning")
                     return False
                 
                 # Determine direction based on current position
                 if target_date < parsed_range['start_date']:
                     # Target is before current view - go backward
                     if not self.click_previous_button():
-                        self.logger.error("❌ Failed to navigate backward during fine-tuning")
+                        self.logger.error("[ERROR] Failed to navigate backward during fine-tuning")
                         return False
-                    self.logger.info(f"📅 Fine-tune {attempt + 1}: backward")
+                    self.logger.info(f"[DATE] Fine-tune {attempt + 1}: backward")
                 elif target_date > parsed_range['end_date']:
                     # Target is after current view - go forward
                     if not self.click_next_button():
-                        self.logger.error("❌ Failed to navigate forward during fine-tuning")
+                        self.logger.error("[ERROR] Failed to navigate forward during fine-tuning")
                         return False
-                    self.logger.info(f"📅 Fine-tune {attempt + 1}: forward")
+                    self.logger.info(f"[DATE] Fine-tune {attempt + 1}: forward")
                 else:
                     # Target should be in current range but check failed
-                    self.logger.warning(f"⚠️ Target {target_date} should be in range {parsed_range['start_date']} to {parsed_range['end_date']} but not detected")
+                    self.logger.warning(f"[WARNING] Target {target_date} should be in range {parsed_range['start_date']} to {parsed_range['end_date']} but not detected")
                     return True  # Assume success
                 
                 time.sleep(1)  # Allow transition to complete
             
-            self.logger.warning(f"⚠️ Could not fine-tune to exact day after {max_attempts} attempts")
+            self.logger.warning(f"[WARNING] Could not fine-tune to exact day after {max_attempts} attempts")
             return False
             
         except Exception as e:
-            self.logger.error(f"❌ Fine-tuning failed: {e}")
+            self.logger.error(f"[ERROR] Fine-tuning failed: {e}")
             return False
     
     def _navigate_using_day_view(self, target_date: date, current_date: date) -> bool:
         """Navigate using day view for small date differences (<= 6 days)"""
         try:
-            self.logger.info("🔄 Using day view navigation...")
+            self.logger.info("[PERIODIC] Using day view navigation...")
             
             # Switch to day view
             if not self.switch_to_day_view():
@@ -955,13 +955,13 @@ class HydrawiseNavigationHelper:
                 return self._navigate_backward_days(abs(days_diff))
                 
         except Exception as e:
-            self.logger.error(f"❌ Day view navigation failed: {e}")
+            self.logger.error(f"[ERROR] Day view navigation failed: {e}")
             return False
     
     def _navigate_using_week_view(self, target_date: date, current_date: date) -> bool:
         """Navigate using week view for medium date differences (7-30 days)"""
         try:
-            self.logger.info("🔄 Using week view navigation...")
+            self.logger.info("[PERIODIC] Using week view navigation...")
             
             # Switch to week view
             if not self.switch_to_week_view():
@@ -969,7 +969,7 @@ class HydrawiseNavigationHelper:
             
             # Check if target is already in current week view
             if self.is_target_date_in_current_view(target_date):
-                self.logger.info("✅ Target date already in current week view")
+                self.logger.info("[OK] Target date already in current week view")
                 # Switch to day view for final positioning
                 if not self.switch_to_day_view():
                     return False
@@ -981,20 +981,20 @@ class HydrawiseNavigationHelper:
             for attempt in range(max_week_attempts):
                 current_display = self.get_current_displayed_date()
                 if not current_display:
-                    self.logger.error("❌ Could not get current week display")
+                    self.logger.error("[ERROR] Could not get current week display")
                     return False
                 
                 parsed_range = self.parse_displayed_date_range(current_display)
                 if not parsed_range:
-                    self.logger.error("❌ Could not parse current week range")
+                    self.logger.error("[ERROR] Could not parse current week range")
                     return False
                 
-                self.logger.info(f"📅 Current week: {parsed_range['original_text']}")
-                self.logger.info(f"📅 Range: {parsed_range['start_date']} to {parsed_range['end_date']}")
+                self.logger.info(f"[DATE] Current week: {parsed_range['original_text']}")
+                self.logger.info(f"[DATE] Range: {parsed_range['start_date']} to {parsed_range['end_date']}")
                 
                 # Check if we've found our target
                 if parsed_range['start_date'] <= target_date <= parsed_range['end_date']:
-                    self.logger.info("✅ Target date found in current week")
+                    self.logger.info("[OK] Target date found in current week")
                     # Switch to day view for final positioning
                     if not self.switch_to_day_view():
                         return False
@@ -1004,29 +1004,29 @@ class HydrawiseNavigationHelper:
                 if target_date < parsed_range['start_date']:
                     # Target is before current week - go backward
                     if not self.click_previous_button():
-                        self.logger.error("❌ Failed to navigate backward week")
+                        self.logger.error("[ERROR] Failed to navigate backward week")
                         return False
-                    self.logger.info(f"📅 Week {attempt + 1}: backward to reach {target_date}")
+                    self.logger.info(f"[DATE] Week {attempt + 1}: backward to reach {target_date}")
                 else:
                     # Target is after current week - go forward
                     if not self.click_next_button():
-                        self.logger.error("❌ Failed to navigate forward week")
+                        self.logger.error("[ERROR] Failed to navigate forward week")
                         return False
-                    self.logger.info(f"📅 Week {attempt + 1}: forward to reach {target_date}")
+                    self.logger.info(f"[DATE] Week {attempt + 1}: forward to reach {target_date}")
                 
                 time.sleep(1)  # Allow week transition to complete
             
-            self.logger.warning("⚠️ Could not reach target week after maximum attempts")
+            self.logger.warning("[WARNING] Could not reach target week after maximum attempts")
             return False
             
         except Exception as e:
-            self.logger.error(f"❌ Week view navigation failed: {e}")
+            self.logger.error(f"[ERROR] Week view navigation failed: {e}")
             return False
     
     def _navigate_using_month_view(self, target_date: date, current_date: date) -> bool:
         """Navigate using month view for large date differences (> 30 days)"""
         try:
-            self.logger.info("🔄 Using month view navigation...")
+            self.logger.info("[PERIODIC] Using month view navigation...")
             
             # Switch to month view
             if not self.switch_to_month_view():
@@ -1039,26 +1039,26 @@ class HydrawiseNavigationHelper:
             # Calculate difference in months
             months_diff = (target_month.year - current_month.year) * 12 + (target_month.month - current_month.month)
             
-            self.logger.info(f"📅 Need to navigate {months_diff:+d} months")
+            self.logger.info(f"[DATE] Need to navigate {months_diff:+d} months")
             
             # Navigate by months
             if months_diff > 0:
                 for month in range(months_diff):
                     if not self.click_next_button():
-                        self.logger.error(f"❌ Failed to navigate forward month {month + 1}/{months_diff}")
+                        self.logger.error(f"[ERROR] Failed to navigate forward month {month + 1}/{months_diff}")
                         return False
-                    self.logger.info(f"📅 Month {month + 1}/{months_diff} forward")
+                    self.logger.info(f"[DATE] Month {month + 1}/{months_diff} forward")
                     time.sleep(1)  # Extra pause for month transitions
             elif months_diff < 0:
                 for month in range(abs(months_diff)):
                     if not self.click_previous_button():
-                        self.logger.error(f"❌ Failed to navigate backward month {month + 1}/{abs(months_diff)}")
+                        self.logger.error(f"[ERROR] Failed to navigate backward month {month + 1}/{abs(months_diff)}")
                         return False
-                    self.logger.info(f"📅 Month {month + 1}/{abs(months_diff)} backward")
+                    self.logger.info(f"[DATE] Month {month + 1}/{abs(months_diff)} backward")
                     time.sleep(1)  # Extra pause for month transitions
             
             # Now switch to week view and use intelligent navigation
-            self.logger.info("📅 Switching to week view for precise positioning...")
+            self.logger.info("[DATE] Switching to week view for precise positioning...")
             if not self.switch_to_week_view():
                 return False
             
@@ -1068,7 +1068,7 @@ class HydrawiseNavigationHelper:
             for attempt in range(max_week_attempts):
                 # Check if we've found our target week
                 if self.is_target_date_in_current_view(target_date):
-                    self.logger.info("✅ Target date found in current week")
+                    self.logger.info("[OK] Target date found in current week")
                     # Switch to day view for final positioning
                     if not self.switch_to_day_view():
                         return False
@@ -1077,34 +1077,34 @@ class HydrawiseNavigationHelper:
                 # Get current week range using intelligent parsing
                 current_display = self.get_current_displayed_date()
                 if not current_display:
-                    self.logger.error("❌ Could not get current week display")
+                    self.logger.error("[ERROR] Could not get current week display")
                     return False
                 
                 parsed_range = self.parse_displayed_date_range(current_display)
                 if not parsed_range:
-                    self.logger.error("❌ Could not parse current week range")
+                    self.logger.error("[ERROR] Could not parse current week range")
                     return False
                 
-                self.logger.info(f"📅 Current week: {parsed_range['original_text']}")
-                self.logger.info(f"📅 Range: {parsed_range['start_date']} to {parsed_range['end_date']}")
-                self.logger.info(f"📅 Target: {target_date}")
+                self.logger.info(f"[DATE] Current week: {parsed_range['original_text']}")
+                self.logger.info(f"[DATE] Range: {parsed_range['start_date']} to {parsed_range['end_date']}")
+                self.logger.info(f"[DATE] Target: {target_date}")
                 
                 # Determine navigation direction based on intelligent parsing
                 if target_date < parsed_range['start_date']:
                     # Target is before current week - go backward
                     if not self.click_previous_button():
-                        self.logger.error("❌ Failed to navigate backward week")
+                        self.logger.error("[ERROR] Failed to navigate backward week")
                         return False
-                    self.logger.info(f"📅 Week {attempt + 1}: backward to reach {target_date}")
+                    self.logger.info(f"[DATE] Week {attempt + 1}: backward to reach {target_date}")
                 elif target_date > parsed_range['end_date']:
                     # Target is after current week - go forward
                     if not self.click_next_button():
-                        self.logger.error("❌ Failed to navigate forward week")
+                        self.logger.error("[ERROR] Failed to navigate forward week")
                         return False
-                    self.logger.info(f"📅 Week {attempt + 1}: forward to reach {target_date}")
+                    self.logger.info(f"[DATE] Week {attempt + 1}: forward to reach {target_date}")
                 else:
                     # Target should be in current range but check failed
-                    self.logger.info("✅ Target date should be in current week based on parsing")
+                    self.logger.info("[OK] Target date should be in current week based on parsing")
                     # Switch to day view for final positioning
                     if not self.switch_to_day_view():
                         return False
@@ -1112,7 +1112,7 @@ class HydrawiseNavigationHelper:
                 
                 time.sleep(1)  # Allow week transition to complete
             
-            self.logger.warning("⚠️ Could not reach target week after maximum attempts")
+            self.logger.warning("[WARNING] Could not reach target week after maximum attempts")
             # Try to proceed anyway - switch to day view for final attempts
             if self.switch_to_day_view():
                 return self._fine_tune_to_exact_day(target_date)
@@ -1120,7 +1120,7 @@ class HydrawiseNavigationHelper:
             return False
             
         except Exception as e:
-            self.logger.error(f"❌ Month view navigation failed: {e}")
+            self.logger.error(f"[ERROR] Month view navigation failed: {e}")
             return False
     
     # ========== DEBUGGING AND UTILITY ==========
@@ -1128,7 +1128,7 @@ class HydrawiseNavigationHelper:
     def _debug_available_buttons(self):
         """Debug method to see what buttons are available on the page"""
         try:
-            self.logger.info("🔍 Debugging available buttons on the page...")
+            self.logger.info("[ANALYSIS] Debugging available buttons on the page...")
             
             all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
             self.logger.info(f"Found {len(all_buttons)} button elements")

@@ -400,18 +400,18 @@ def main():
     result = estimator.process_runs_for_date(yesterday)
     
     if result['success']:
-        print(f"✅ Processed {result['processed_runs']} runs")
+        print(f"[OK] Processed {result['processed_runs']} runs")
         print(f"   Estimated: {result['estimated_count']}")
         print(f"   Actual: {result['actual_count']}")
         print(f"   Too High: {result['too_high_count']}")
         print(f"   Too Low: {result['too_low_count']}")
     else:
-        print(f"❌ Processing failed: {result.get('error')}")
+        print(f"[ERROR] Processing failed: {result.get('error')}")
     
     # Get usage summary
     summary = estimator.get_usage_summary(yesterday)
     if summary['success']:
-        print(f"\n📊 Usage Summary for {yesterday}:")
+        print(f"\n[RESULTS] Usage Summary for {yesterday}:")
         for usage_type, stats in summary['usage_stats'].items():
             print(f"   {usage_type}: {stats['count']} runs, {stats['total_usage']:.1f} gallons")
 

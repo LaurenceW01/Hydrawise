@@ -27,7 +27,7 @@ from database.irrigation_matcher import IrrigationMatcher
 def print_banner():
     """Print the admin banner"""
     print("=" * 70)
-    print("🔍 HYDRAWISE IRRIGATION ANALYSIS ADMIN")
+    print("[ANALYSIS] HYDRAWISE IRRIGATION ANALYSIS ADMIN")
     print("=" * 70)
 
 def cmd_analyze(args):
@@ -43,11 +43,11 @@ def cmd_analyze(args):
         else:
             target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
     except ValueError:
-        print(f"❌ Invalid date format: {args.date}")
+        print(f"[ERROR] Invalid date format: {args.date}")
         print("   Use YYYY-MM-DD format, 'today', or 'yesterday'")
         return 1
     
-    print(f"🔍 IRRIGATION ANALYSIS - {target_date}")
+    print(f"[ANALYSIS] IRRIGATION ANALYSIS - {target_date}")
     print()
     
     try:
@@ -58,17 +58,17 @@ def cmd_analyze(args):
         scheduled_runs = matcher.load_scheduled_runs(target_date)
         actual_runs = matcher.load_actual_runs(target_date)
         
-        print(f"📊 Data Available:")
+        print(f"[RESULTS] Data Available:")
         print(f"   Scheduled runs: {len(scheduled_runs)}")
         print(f"   Actual runs: {len(actual_runs)}")
         print()
         
         if not scheduled_runs and not actual_runs:
-            print("⚠️  No data found for this date. Run data collection first.")
+            print("[WARNING]  No data found for this date. Run data collection first.")
             return 1
         
         # Generate analysis report
-        print("🔄 Generating irrigation analysis...")
+        print("[PERIODIC] Generating irrigation analysis...")
         report = matcher.generate_match_report(target_date)
         
         # Display report
@@ -85,7 +85,7 @@ def cmd_analyze(args):
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(report)
             
-            print(f"💾 Report saved to: {filename}")
+            print(f"[SAVED] Report saved to: {filename}")
         
         # Check for high priority alerts
         matches = matcher.match_runs(target_date)
@@ -93,17 +93,17 @@ def cmd_analyze(args):
         medium_priority = [m for m in matches if m.alert_priority == "MEDIUM"]
         
         if high_priority:
-            print(f"\n🚨 {len(high_priority)} HIGH PRIORITY issues require immediate attention!")
+            print(f"\n[ALERT] {len(high_priority)} HIGH PRIORITY issues require immediate attention!")
             return 2  # Return code indicates high priority issues
         elif medium_priority:
-            print(f"\n⚠️  {len(medium_priority)} MEDIUM PRIORITY issues found.")
+            print(f"\n[WARNING]  {len(medium_priority)} MEDIUM PRIORITY issues found.")
             return 1  # Return code indicates medium priority issues
         else:
-            print(f"\n✅ No high/medium priority issues found.")
+            print(f"\n[OK] No high/medium priority issues found.")
             return 0
         
     except Exception as e:
-        print(f"❌ Analysis failed: {e}")
+        print(f"[ERROR] Analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -111,7 +111,7 @@ def cmd_analyze(args):
 def cmd_auto_analyze(args):
     """Execute automatic analysis for recent dates"""
     print_banner()
-    print("🔄 AUTOMATIC IRRIGATION ANALYSIS")
+    print("[PERIODIC] AUTOMATIC IRRIGATION ANALYSIS")
     print()
     
     try:
@@ -127,14 +127,14 @@ def cmd_auto_analyze(args):
         high_priority_issues = 0
         
         for check_date in dates_to_analyze:
-            print(f"📅 Analyzing {check_date}...")
+            print(f"[DATE] Analyzing {check_date}...")
             
             # Check if we have data
             scheduled_runs = matcher.load_scheduled_runs(check_date)
             actual_runs = matcher.load_actual_runs(check_date)
             
             if not scheduled_runs and not actual_runs:
-                print(f"   ⚠️  No data found for {check_date}")
+                print(f"   [WARNING]  No data found for {check_date}")
                 continue
             
             # Run analysis
@@ -150,37 +150,37 @@ def cmd_auto_analyze(args):
                 total_issues += len(missing_runs) + len(unexpected_runs) + len(high_alerts) + len(medium_alerts)
                 high_priority_issues += len(high_alerts)
                 
-                print(f"   🚨 Issues found:")
+                print(f"   [ALERT] Issues found:")
                 if missing_runs:
-                    print(f"      ❌ Missing runs: {len(missing_runs)}")
+                    print(f"      [ERROR] Missing runs: {len(missing_runs)}")
                 if unexpected_runs:
-                    print(f"      ❓ Unexpected runs: {len(unexpected_runs)}")
+                    print(f"      [SYMBOL] Unexpected runs: {len(unexpected_runs)}")
                 if high_alerts:
-                    print(f"      🔥 High priority: {len(high_alerts)}")
+                    print(f"      [SYMBOL] High priority: {len(high_alerts)}")
                 if medium_alerts:
-                    print(f"      ⚠️  Medium priority: {len(medium_alerts)}")
+                    print(f"      [WARNING]  Medium priority: {len(medium_alerts)}")
             else:
-                print(f"   ✅ No issues found")
+                print(f"   [OK] No issues found")
         
         print()
-        print("📊 AUTOMATIC ANALYSIS SUMMARY:")
+        print("[RESULTS] AUTOMATIC ANALYSIS SUMMARY:")
         print(f"   Dates analyzed: {len(dates_to_analyze)}")
         print(f"   Total issues: {total_issues}")
         print(f"   High priority issues: {high_priority_issues}")
         
         if high_priority_issues > 0:
-            print(f"\n🚨 ATTENTION: {high_priority_issues} high priority irrigation issues detected!")
+            print(f"\n[ALERT] ATTENTION: {high_priority_issues} high priority irrigation issues detected!")
             print("   Run detailed analysis: python admin_irrigation_analysis.py analyze <date>")
             return 2
         elif total_issues > 0:
-            print(f"\n⚠️  {total_issues} total issues found. Review recommended.")
+            print(f"\n[WARNING]  {total_issues} total issues found. Review recommended.")
             return 1
         else:
-            print(f"\n✅ No issues detected in recent irrigation activity.")
+            print(f"\n[OK] No issues detected in recent irrigation activity.")
             return 0
         
     except Exception as e:
-        print(f"❌ Automatic analysis failed: {e}")
+        print(f"[ERROR] Automatic analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -188,7 +188,7 @@ def cmd_auto_analyze(args):
 def cmd_missing_runs(args):
     """Find all missing runs (scheduled but not executed)"""
     print_banner()
-    print("❌ MISSING RUNS ANALYSIS")
+    print("[ERROR] MISSING RUNS ANALYSIS")
     print()
     
     try:
@@ -200,7 +200,7 @@ def cmd_missing_runs(args):
         
         end_date = date.today() if not args.end_date else datetime.strptime(args.end_date, '%Y-%m-%d').date()
         
-        print(f"🔍 Searching for missing runs from {start_date} to {end_date}")
+        print(f"[ANALYSIS] Searching for missing runs from {start_date} to {end_date}")
         print()
         
         matcher = IrrigationMatcher(time_tolerance_minutes=args.tolerance)
@@ -223,7 +223,7 @@ def cmd_missing_runs(args):
             
             current_date += timedelta(days=1)
         
-        print(f"📊 MISSING RUNS SUMMARY:")
+        print(f"[RESULTS] MISSING RUNS SUMMARY:")
         print(f"   Dates checked: {dates_checked}")
         print(f"   Missing runs found: {len(all_missing)}")
         print()
@@ -234,26 +234,26 @@ def cmd_missing_runs(args):
             medium_priority = [m for m in all_missing if m.alert_priority == "MEDIUM"]
             low_priority = [m for m in all_missing if m.alert_priority == "LOW"]
             
-            print("🔥 HIGH PRIORITY MISSING RUNS:")
+            print("[SYMBOL] HIGH PRIORITY MISSING RUNS:")
             for missing in high_priority:
                 scheduled_time = missing.scheduled_time.strftime('%m/%d %I:%M %p')
-                print(f"   • {missing.zone_name} - {scheduled_time}")
+                print(f"   - {missing.zone_name} - {scheduled_time}")
             
-            print("\n⚠️  MEDIUM PRIORITY MISSING RUNS:")
+            print("\n[WARNING]  MEDIUM PRIORITY MISSING RUNS:")
             for missing in medium_priority:
                 scheduled_time = missing.scheduled_time.strftime('%m/%d %I:%M %p')
-                print(f"   • {missing.zone_name} - {scheduled_time}")
+                print(f"   - {missing.zone_name} - {scheduled_time}")
             
             if args.show_all:
-                print("\n📋 LOW PRIORITY MISSING RUNS:")
+                print("\n[LOG] LOW PRIORITY MISSING RUNS:")
                 for missing in low_priority:
                     scheduled_time = missing.scheduled_time.strftime('%m/%d %I:%M %p')
-                    print(f"   • {missing.zone_name} - {scheduled_time}")
+                    print(f"   - {missing.zone_name} - {scheduled_time}")
         
         return 0 if not all_missing else (2 if any(m.alert_priority == "HIGH" for m in all_missing) else 1)
         
     except Exception as e:
-        print(f"❌ Missing runs analysis failed: {e}")
+        print(f"[ERROR] Missing runs analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -321,10 +321,10 @@ Examples:
     try:
         return args.func(args)
     except KeyboardInterrupt:
-        print("\n\n⏹️  Operation cancelled by user")
+        print("\n\n[CANCELLED]  Operation cancelled by user")
         return 1
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1

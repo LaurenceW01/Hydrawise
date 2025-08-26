@@ -100,7 +100,7 @@ class ReportedRunsManager:
         start_time = get_houston_now()
         collection_date = start_time.date()
         
-        logger.info(f"🌅 Starting daily reported runs collection for {collection_date}")
+        logger.info(f"[DAILY] Starting daily reported runs collection for {collection_date}")
         
         # Check if we've already done daily collection today
         if not force and self._already_collected_today("daily"):
@@ -134,7 +134,7 @@ class ReportedRunsManager:
             
             # Collect previous day's reported runs (final data)
             previous_date = collection_date - timedelta(days=1)
-            logger.info(f"📅 Collecting previous day runs ({previous_date})")
+            logger.info(f"[DATE] Collecting previous day runs ({previous_date})")
             
             previous_runs = self._collect_runs_for_date(scraper, previous_date)
             logger.info(f"   Collected {len(previous_runs)} runs for {previous_date}")
@@ -146,7 +146,7 @@ class ReportedRunsManager:
                 result.runs_stored += stored_prev.get('total', 0) if isinstance(stored_prev, dict) else stored_prev
             
             # Collect current day's reported runs (partial data)
-            logger.info(f"📅 Collecting current day runs ({collection_date})")
+            logger.info(f"[DATE] Collecting current day runs ({collection_date})")
             
             current_runs = self._collect_runs_for_date(scraper, collection_date)
             logger.info(f"   Collected {len(current_runs)} runs for {collection_date}")
@@ -169,7 +169,7 @@ class ReportedRunsManager:
             # Update last collection time
             self._last_daily_collection = start_time
             
-            logger.info(f"✅ Daily collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")
+            logger.info(f"[OK] Daily collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")
             
         except Exception as e:
             error_msg = f"Daily collection failed: {e}"
@@ -197,7 +197,7 @@ class ReportedRunsManager:
         start_time = get_houston_now()
         collection_date = start_time.date()
         
-        logger.info(f"🔄 Starting periodic reported runs collection for {collection_date}")
+        logger.info(f"[PERIODIC] Starting periodic reported runs collection for {collection_date}")
         
         # Check minimum interval
         if self._last_periodic_collection:
@@ -232,7 +232,7 @@ class ReportedRunsManager:
             scraper = HydrawiseWebScraper(self.username, self.password, headless=self.headless)
             
             # Collect current day's reported runs
-            logger.info(f"📅 Collecting current day runs ({collection_date})")
+            logger.info(f"[DATE] Collecting current day runs ({collection_date})")
             
             current_runs = self._collect_runs_for_date(scraper, collection_date)
             logger.info(f"   Collected {len(current_runs)} runs for {collection_date}")
@@ -254,7 +254,7 @@ class ReportedRunsManager:
             # Update last collection time
             self._last_periodic_collection = start_time
             
-            logger.info(f"✅ Periodic collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")
+            logger.info(f"[OK] Periodic collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")
             
         except Exception as e:
             error_msg = f"Periodic collection failed: {e}"
@@ -282,7 +282,7 @@ class ReportedRunsManager:
         """
         start_time = get_houston_now()
         
-        logger.info(f"👤 Starting admin reported runs collection for {target_date}")
+        logger.info(f"[ADMIN] Starting admin reported runs collection for {target_date}")
         
         result = CollectionResult(
             mode=CollectionMode.ADMIN,
@@ -301,7 +301,7 @@ class ReportedRunsManager:
             scraper = HydrawiseWebScraper(self.username, self.password, headless=self.headless)
             
             # Collect runs for specified date
-            logger.info(f"📅 Collecting runs for {target_date} (admin mode)")
+            logger.info(f"[DATE] Collecting runs for {target_date} (admin mode)")
             
             collected_runs = self._collect_runs_for_date(scraper, target_date, limit_zones)
             logger.info(f"   Collected {len(collected_runs)} runs for {target_date}")
@@ -333,7 +333,7 @@ class ReportedRunsManager:
                 "storage_breakdown": storage_breakdown
             }
             
-            logger.info(f"✅ Admin collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")
+            logger.info(f"[OK] Admin collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")
             
         except Exception as e:
             error_msg = f"Admin collection failed: {e}"
@@ -361,25 +361,25 @@ class ReportedRunsManager:
         """
         try:
             # Follow the working pattern from collect_reported_data.py
-            logger.info("🔐 Starting browser and logging in...")
+            logger.info("[SYMBOL] Starting browser and logging in...")
             scraper.start_browser()
             if not scraper.login():
                 raise Exception("Login failed")
             
-            logger.info("✅ Login successful")
+            logger.info("[OK] Login successful")
             
             # Navigate to reports
-            logger.info("🗂️  Navigating to reports page...")
+            logger.info("[SYMBOL][SYMBOL]  Navigating to reports page...")
             scraper.navigate_to_reports()
             
             # Use appropriate extraction method based on date
             if target_date < date.today():
-                logger.info(f"📋 Extracting reported runs for {target_date}...")
+                logger.info(f"[LOG] Extracting reported runs for {target_date}...")
                 target_datetime = datetime.combine(target_date + timedelta(days=1), datetime.min.time())  # Reference date should be day after target
                 actual_runs = scraper.extract_previous_day_reported_runs(target_datetime)
             else:
                 # For current day, use extract_actual_runs 
-                logger.info(f"📋 Extracting current day reported runs for {target_date}...")
+                logger.info(f"[LOG] Extracting current day reported runs for {target_date}...")
                 target_datetime = datetime.combine(target_date, datetime.min.time())
                 actual_runs = scraper.extract_actual_runs(target_datetime)
             
@@ -394,7 +394,7 @@ class ReportedRunsManager:
             # Always stop browser
             try:
                 scraper.stop_browser()
-                logger.info("🔒 Browser closed")
+                logger.info("[SYMBOL] Browser closed")
             except Exception as e:
                 logger.debug(f"Browser cleanup warning: {e}")
     
@@ -454,7 +454,7 @@ class ReportedRunsManager:
 
 def main():
     """Test the reported runs manager"""
-    print("🔄 Testing Reported Runs Manager")
+    print("[PERIODIC] Testing Reported Runs Manager")
     print("=" * 50)
     
     try:
@@ -462,7 +462,7 @@ def main():
         manager = ReportedRunsManager(headless=False)
         
         # Show current status
-        print("📊 Current Collection Status:")
+        print("[RESULTS] Current Collection Status:")
         status = manager.get_collection_status()
         print(f"   Current time: {status['current_time']}")
         print(f"   Daily collection completed today: {status['daily_collection']['completed_today']}")
@@ -470,7 +470,7 @@ def main():
         
         # Test admin collection (small sample)
         yesterday = date.today() - timedelta(days=1)
-        print(f"\n👤 Testing admin collection for {yesterday} (first 3 zones):")
+        print(f"\n[ADMIN] Testing admin collection for {yesterday} (first 3 zones):")
         
         admin_result = manager.collect_admin(yesterday, limit_zones=3)
         
@@ -482,10 +482,10 @@ def main():
         if admin_result.errors:
             print(f"   Errors: {admin_result.errors}")
         
-        print("\n✅ Reported runs manager test completed!")
+        print("\n[OK] Reported runs manager test completed!")
         
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n[ERROR] Test failed: {e}")
         import traceback
         traceback.print_exc()
 

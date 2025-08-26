@@ -21,20 +21,20 @@ from config.failure_detection_rules import FailureType, AlertLevel
 
 def test_monitor_initialization():
     """Test that the monitor initializes correctly"""
-    print("🧪 Testing monitor initialization...")
+    print("[SYMBOL] Testing monitor initialization...")
     
     from dotenv import load_dotenv
     load_dotenv()
     
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     if not api_key:
-        print("❌ No API key found for testing")
+        print("[SYMBOL] No API key found for testing")
         return False
         
     try:
         monitor = IrrigationMonitor(api_key, check_interval_minutes=1)
         
-        print(f"✅ Monitor initialized successfully")
+        print(f"[SYMBOL] Monitor initialized successfully")
         print(f"   Zones found: {len(monitor.zone_status)}")
         
         for zone_id, zone in list(monitor.zone_status.items())[:3]:  # Show first 3
@@ -43,19 +43,19 @@ def test_monitor_initialization():
         return True
         
     except Exception as e:
-        print(f"❌ Monitor initialization failed: {e}")
+        print(f"[SYMBOL] Monitor initialization failed: {e}")
         return False
 
 def test_zone_status_check():
     """Test that zone status checking works"""
-    print("\n🧪 Testing zone status check...")
+    print("\n[SYMBOL] Testing zone status check...")
     
     from dotenv import load_dotenv
     load_dotenv()
     
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     if not api_key:
-        print("❌ No API key found for testing")
+        print("[SYMBOL] No API key found for testing")
         return False
         
     try:
@@ -64,12 +64,12 @@ def test_zone_status_check():
         # Check status
         status = monitor.check_zone_status()
         
-        print(f"✅ Status check completed")
+        print(f"[SYMBOL] Status check completed")
         print(f"   Checked {len(status)} zones")
         
         # Show status of a few zones
         for zone_id, zone in list(status.items())[:3]:
-            running_status = "🟢 RUNNING" if zone.running else "⚫ IDLE"
+            running_status = "[SYMBOL] RUNNING" if zone.running else "[SYMBOL] IDLE"
             print(f"   Zone {zone_id} ({zone.name}): {running_status}")
             if zone.time_left:
                 print(f"      Next/Time left: {zone.time_left}")
@@ -77,19 +77,19 @@ def test_zone_status_check():
         return True
         
     except Exception as e:
-        print(f"❌ Zone status check failed: {e}")
+        print(f"[SYMBOL] Zone status check failed: {e}")
         return False
 
 def test_failure_detection():
     """Test the failure detection logic"""
-    print("\n🧪 Testing failure detection...")
+    print("\n[SYMBOL] Testing failure detection...")
     
     from dotenv import load_dotenv
     load_dotenv()
     
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     if not api_key:
-        print("❌ No API key found for testing")
+        print("[SYMBOL] No API key found for testing")
         return False
         
     try:
@@ -110,7 +110,7 @@ def test_failure_detection():
         # Run failure detection
         alerts = monitor.detect_failures()
         
-        print(f"✅ Failure detection completed")
+        print(f"[SYMBOL] Failure detection completed")
         print(f"   Generated {len(alerts)} alerts")
         
         for alert in alerts:
@@ -119,19 +119,19 @@ def test_failure_detection():
         return True
         
     except Exception as e:
-        print(f"❌ Failure detection test failed: {e}")
+        print(f"[SYMBOL] Failure detection test failed: {e}")
         return False
 
 def test_short_monitoring_session():
     """Test a short monitoring session"""
-    print("\n🧪 Testing short monitoring session...")
+    print("\n[SYMBOL] Testing short monitoring session...")
     
     from dotenv import load_dotenv
     load_dotenv()
     
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     if not api_key:
-        print("❌ No API key found for testing")
+        print("[SYMBOL] No API key found for testing")
         return False
         
     try:
@@ -147,7 +147,7 @@ def test_short_monitoring_session():
         summary = monitor.get_zone_summary()
         active_alerts = monitor.get_active_alerts()
         
-        print(f"✅ Monitoring session completed")
+        print(f"[SYMBOL] Monitoring session completed")
         print(f"   Active alerts: {len(active_alerts)}")
         print(f"   Critical alerts: {summary['critical_alerts']}")
         print(f"   Warning alerts: {summary['warning_alerts']}")
@@ -160,7 +160,7 @@ def test_short_monitoring_session():
         return True
         
     except Exception as e:
-        print(f"❌ Monitoring session test failed: {e}")
+        print(f"[SYMBOL] Monitoring session test failed: {e}")
         return False
 
 def main():
@@ -182,14 +182,14 @@ def main():
         if test():
             passed += 1
         else:
-            print("   ⚠️ Test failed - continuing with remaining tests...")
+            print("   [SYMBOL][SYMBOL] Test failed - continuing with remaining tests...")
             
-    print(f"\n📊 Test Results: {passed}/{total} tests passed")
+    print(f"\n[SYMBOL] Test Results: {passed}/{total} tests passed")
     
     if passed == total:
-        print("✅ All tests passed! Monitor is ready for production use.")
+        print("[SYMBOL] All tests passed! Monitor is ready for production use.")
     else:
-        print("❌ Some tests failed. Check configuration and API connectivity.")
+        print("[SYMBOL] Some tests failed. Check configuration and API connectivity.")
         
     return passed == total
 

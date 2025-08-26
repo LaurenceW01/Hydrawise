@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database.water_usage_estimator import WaterUsageEstimator
 
 def test_estimation():
-    print("💧 TESTING WATER USAGE ESTIMATION SYSTEM")
+    print("[SYMBOL] TESTING WATER USAGE ESTIMATION SYSTEM")
     print("=" * 60)
     
     estimator = WaterUsageEstimator('database/irrigation_data.db')
@@ -30,7 +30,7 @@ def test_estimation():
     ]
     
     for i, case in enumerate(test_cases, 1):
-        print(f"\n🧪 Test {i}: {case['description']}")
+        print(f"\n[SYMBOL] Test {i}: {case['description']}")
         print("-" * 50)
         
         zone_id = case['zone_id']
@@ -68,10 +68,10 @@ def test_estimation():
             assert usage_flag == 'normal', f"Expected 'normal' flag"
             assert usage_type == 'actual', f"Expected 'actual' type for normal usage"
         
-        print("   ✅ Test passed")
+        print("   [SYMBOL] Test passed")
     
-    print(f"\n🎉 All {len(test_cases)} tests passed successfully!")
-    print("💧 Water usage estimation system is working correctly with updated flow rates")
+    print(f"\n[SYMBOL] All {len(test_cases)} tests passed successfully!")
+    print("[SYMBOL] Water usage estimation system is working correctly with updated flow rates")
 
 if __name__ == "__main__":
     test_estimation()

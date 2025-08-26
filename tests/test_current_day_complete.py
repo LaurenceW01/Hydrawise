@@ -44,21 +44,21 @@ def main():
         scraper.navigate_to_reports()
         
         # Test 1: Today's scheduled runs (this worked!)
-        print("\n🗓️  TESTING TODAY'S SCHEDULED RUNS...")
+        print("\n[SYMBOL][SYMBOL]  TESTING TODAY'S SCHEDULED RUNS...")
         today = datetime.now()
         scheduled_runs = scraper.extract_scheduled_runs(today)
         
-        print(f"✅ Scheduled runs collected: {len(scheduled_runs)}")
+        print(f"[SYMBOL] Scheduled runs collected: {len(scheduled_runs)}")
         if scheduled_runs:
             print(f"   Sample: {scheduled_runs[0].zone_name} at {scheduled_runs[0].start_time.strftime('%I:%M%p')} for {scheduled_runs[0].duration_minutes}min")
             if len(scheduled_runs) > 1:
                 print(f"           {scheduled_runs[-1].zone_name} at {scheduled_runs[-1].start_time.strftime('%I:%M%p')} for {scheduled_runs[-1].duration_minutes}min")
         
         # Test 2: Today's actual runs
-        print(f"\n📊 TESTING TODAY'S ACTUAL RUNS...")
+        print(f"\n[SYMBOL] TESTING TODAY'S ACTUAL RUNS...")
         actual_runs = scraper.extract_actual_runs(today)
         
-        print(f"✅ Actual runs collected: {len(actual_runs)}")
+        print(f"[SYMBOL] Actual runs collected: {len(actual_runs)}")
         if actual_runs:
             print(f"   Sample: {actual_runs[0].zone_name} at {actual_runs[0].start_time.strftime('%I:%M%p')} for {actual_runs[0].duration_minutes}min")
             if actual_runs[0].actual_gallons:
@@ -72,7 +72,7 @@ def main():
         # Calculate totals
         total_water = sum(run.actual_gallons or 0 for run in actual_runs)
         
-        print(f"\n📈 SUMMARY:")
+        print(f"\n[SYMBOL] SUMMARY:")
         print(f"   Scheduled for today: {len(scheduled_runs)} runs")
         print(f"   Completed so far: {len(actual_runs)} runs") 
         print(f"   Total water delivered: {total_water:.1f} gallons")
@@ -82,16 +82,16 @@ def main():
         print(f"   Runs with water data: {runs_with_water}/{len(actual_runs)}")
         
         if len(scheduled_runs) > 0 and len(actual_runs) > 0:
-            print(f"\n✅ SUCCESS: Both scheduled and actual data collection working!")
+            print(f"\n[SYMBOL] SUCCESS: Both scheduled and actual data collection working!")
             print(f"   Core monitoring capability: OPERATIONAL")
         elif len(scheduled_runs) > 0:
-            print(f"\n⚠️  PARTIAL: Schedule collection working, actual runs may be limited")
+            print(f"\n[SYMBOL][SYMBOL]  PARTIAL: Schedule collection working, actual runs may be limited")
             print(f"   (This is normal if few zones have run today)")
         else:
-            print(f"\n❌ ISSUE: Schedule collection failed")
+            print(f"\n[SYMBOL] ISSUE: Schedule collection failed")
             
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"[SYMBOL] Test failed: {e}")
         import traceback
         traceback.print_exc()
         

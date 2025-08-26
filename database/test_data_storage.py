@@ -108,32 +108,32 @@ def create_test_data():
 
 def main():
     """Test the intelligent data storage"""
-    print("🧪 Testing Intelligent Data Storage")
+    print("[TEST] Testing Intelligent Data Storage")
     print("=" * 50)
     
     try:
         # Initialize storage (this will create/migrate database)
-        print("📊 Initializing intelligent data storage...")
+        print("[RESULTS] Initializing intelligent data storage...")
         storage = IntelligentDataStorage("database/test_irrigation_data.db")
-        print("✅ Database initialized successfully")
+        print("[OK] Database initialized successfully")
         
         # Create test data
-        print("\n📝 Creating test data...")
+        print("\n[SYMBOL] Creating test data...")
         scheduled_runs, actual_runs = create_test_data()
-        print(f"✅ Created {len(scheduled_runs)} scheduled runs and {len(actual_runs)} actual runs")
+        print(f"[OK] Created {len(scheduled_runs)} scheduled runs and {len(actual_runs)} actual runs")
         
         # Test storing scheduled runs
-        print("\n💾 Storing scheduled runs...")
+        print("\n[SAVED] Storing scheduled runs...")
         scheduled_stored = storage.store_scheduled_runs_enhanced(scheduled_runs, date(2025, 8, 22))
-        print(f"✅ Stored {scheduled_stored} scheduled runs")
+        print(f"[OK] Stored {scheduled_stored} scheduled runs")
         
         # Test storing actual runs
-        print("\n💾 Storing actual runs...")
+        print("\n[SAVED] Storing actual runs...")
         actual_stored = storage.store_actual_runs_enhanced(actual_runs, date(2025, 8, 22))
-        print(f"✅ Stored {actual_stored} actual runs")
+        print(f"[OK] Stored {actual_stored} actual runs")
         
         # Query the data back to verify storage
-        print("\n🔍 Verifying stored data...")
+        print("\n[ANALYSIS] Verifying stored data...")
         with sqlite3.connect(storage.db_path) as conn:
             cursor = conn.cursor()
             
@@ -145,9 +145,9 @@ def main():
             """, (date(2025, 8, 22),))
             
             scheduled_results = cursor.fetchall()
-            print(f"📋 Retrieved {len(scheduled_results)} scheduled runs:")
+            print(f"[LOG] Retrieved {len(scheduled_results)} scheduled runs:")
             for row in scheduled_results:
-                print(f"   🕐 {row[0]} at {row[1]} for {row[2]}min - Rain cancelled: {row[3]}")
+                print(f"   [TIME] {row[0]} at {row[1]} for {row[2]}min - Rain cancelled: {row[3]}")
                 
             # Check actual runs
             cursor.execute("""
@@ -157,28 +157,28 @@ def main():
             """, (date(2025, 8, 22),))
             
             actual_results = cursor.fetchall()
-            print(f"📋 Retrieved {len(actual_results)} actual runs:")
+            print(f"[LOG] Retrieved {len(actual_results)} actual runs:")
             for row in actual_results:
                 efficiency = f"{row[4]:.1f}%" if row[4] else "N/A"
                 current = f"{row[5]}mA" if row[5] else "N/A"
-                print(f"   ✅ {row[0]} at {row[1]} for {row[2]}min - {row[3]:.4f}gal (Efficiency: {efficiency}, Current: {current})")
+                print(f"   [OK] {row[0]} at {row[1]} for {row[2]}min - {row[3]:.4f}gal (Efficiency: {efficiency}, Current: {current})")
         
-        print("\n🎉 All tests passed! Data storage is working correctly.")
-        print("\n📋 Key features verified:")
-        print("   ✅ Schema migration and database initialization")
-        print("   ✅ Enhanced scheduled run storage with rain cancellation detection")
-        print("   ✅ Enhanced actual run storage with efficiency calculations")
-        print("   ✅ Full popup data preservation (raw text, parsed lines, summary)")
-        print("   ✅ Ready for schedule vs actual matching algorithms")
+        print("\n[SUCCESS] All tests passed! Data storage is working correctly.")
+        print("\n[LOG] Key features verified:")
+        print("   [OK] Schema migration and database initialization")
+        print("   [OK] Enhanced scheduled run storage with rain cancellation detection")
+        print("   [OK] Enhanced actual run storage with efficiency calculations")
+        print("   [OK] Full popup data preservation (raw text, parsed lines, summary)")
+        print("   [OK] Ready for schedule vs actual matching algorithms")
         
         # Cleanup test database
         import os
         if os.path.exists("database/test_irrigation_data.db"):
             os.remove("database/test_irrigation_data.db")
-            print("\n🧹 Test database cleaned up")
+            print("\n[SYMBOL] Test database cleaned up")
         
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n[ERROR] Test failed: {e}")
         import traceback
         traceback.print_exc()
         return False

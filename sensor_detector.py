@@ -86,7 +86,7 @@ def check_rain_sensor_status(self) -> Dict[str, any]:
             if 'not stopping irrigation' in sensor_lower or 'is not stopping' in sensor_lower:
                 sensor_info['rain_sensor_active'] = False
                 sensor_info['irrigation_suspended'] = False
-                self.logger.info(f"✅ Normal sensor status: {sensor_text}")
+                self.logger.info(f"[OK] Normal sensor status: {sensor_text}")
             else:
                 # Then check for suspension indicators (only if not explicitly "not stopping")
                 suspension_keywords = [
@@ -99,11 +99,11 @@ def check_rain_sensor_status(self) -> Dict[str, any]:
                 if any(keyword in sensor_lower for keyword in suspension_keywords):
                     sensor_info['rain_sensor_active'] = True
                     sensor_info['irrigation_suspended'] = True
-                    self.logger.warning(f"🌧️  Rain sensor detected: {sensor_text}")
+                    self.logger.warning(f"[SYMBOL][SYMBOL]  Rain sensor detected: {sensor_text}")
                 else:
                     sensor_info['rain_sensor_active'] = False
                     sensor_info['irrigation_suspended'] = False
-                    self.logger.info(f"✅ Normal sensor status: {sensor_text}")
+                    self.logger.info(f"[OK] Normal sensor status: {sensor_text}")
         else:
             # No sensor status found - assume normal operation
             sensor_info['sensor_status'] = 'No sensor alerts detected'

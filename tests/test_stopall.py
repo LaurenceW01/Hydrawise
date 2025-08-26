@@ -18,20 +18,20 @@ def test_stopall():
     
     explorer = HydrawiseAPIExplorer(api_key, respect_rate_limits=True, aggressive_rate_limiting=False)
     
-    print("🛑 TESTING STOPALL COMMAND")
+    print("[SYMBOL] TESTING STOPALL COMMAND")
     print("=" * 30)
     
     try:
         result = explorer.stop_all_zones()
-        print(f"📋 StopAll Result: {result}")
+        print(f"[SYMBOL] StopAll Result: {result}")
         
         if result.get('message_type') == 'info':
-            print(f"✅ StopAll command successful: {result.get('message')}")
+            print(f"[SYMBOL] StopAll command successful: {result.get('message')}")
         else:
-            print(f"❌ StopAll command failed: {result}")
+            print(f"[SYMBOL] StopAll command failed: {result}")
     
     except Exception as e:
-        print(f"❌ StopAll command error: {e}")
+        print(f"[SYMBOL] StopAll command error: {e}")
 
 
 if __name__ == "__main__":

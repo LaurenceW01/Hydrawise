@@ -35,7 +35,7 @@ class ZoneFlowMonitor:
     def _refresh_system_info(self):
         """Get current system information including zones and sensors."""
         try:
-            print("🔄 Refreshing system information...")
+            print("[PERIODIC] Refreshing system information...")
             # FIXED: Zones are in statusschedule, not customerdetails
             status_data = self.explorer.get_status_schedule()
             
@@ -68,9 +68,9 @@ class ZoneFlowMonitor:
             
             # Debug: Show what we actually received
             if not zones_found:
-                print("🔍 DEBUG: Zone data not found in expected format")
-                print("📋 Customer data keys:", list(customer_data.keys()) if customer_data else "None")
-                print("📋 Status data keys:", list(status_data.keys()) if status_data else "None")
+                print("[ANALYSIS] DEBUG: Zone data not found in expected format")
+                print("[LOG] Customer data keys:", list(customer_data.keys()) if customer_data else "None")
+                print("[LOG] Status data keys:", list(status_data.keys()) if status_data else "None")
                 
                 # Try to find zones in any nested structure
                 self._debug_find_zones(customer_data, "customer_data")
@@ -92,14 +92,14 @@ class ZoneFlowMonitor:
             self.sensor_info = self._extract_sensor_info(status_data)
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not refresh system info: {e}")
+            print(f"[WARNING] Warning: Could not refresh system info: {e}")
     
     def _debug_find_zones(self, data, data_name):
         """Debug helper to find zone data in any structure."""
         if not data:
             return
             
-        print(f"🔍 Searching for zones in {data_name}...")
+        print(f"[ANALYSIS] Searching for zones in {data_name}...")
         
         def search_recursive(obj, path=""):
             if isinstance(obj, dict):
@@ -108,11 +108,11 @@ class ZoneFlowMonitor:
                     
                     # Look for potential zone indicators
                     if any(indicator in key.lower() for indicator in ['relay', 'zone', 'id', 'name']):
-                        print(f"   🎯 Found potential zone data at {current_path}: {value}")
+                        print(f"   [SYMBOL] Found potential zone data at {current_path}: {value}")
                     
                     # Look for arrays that might contain zones
                     if isinstance(value, list) and len(value) > 0:
-                        print(f"   📋 Found array at {current_path} with {len(value)} items")
+                        print(f"   [LOG] Found array at {current_path} with {len(value)} items")
                         if isinstance(value[0], dict):
                             print(f"      First item keys: {list(value[0].keys())}")
                     
@@ -148,34 +148,34 @@ class ZoneFlowMonitor:
     
     def list_available_zones(self):
         """Display all available zones with their current status."""
-        print("\n🌱 AVAILABLE ZONES")
+        print("\n[SYMBOL] AVAILABLE ZONES")
         print("=" * 50)
         
         if not self.zones_info:
-            print("❌ No zones found. Check your system setup.")
+            print("[ERROR] No zones found. Check your system setup.")
             return
         
         for zone_id, info in self.zones_info.items():
-            status_icon = "🟢" if info.get('running') else "⚫"
+            status_icon = "[SYMBOL]" if info.get('running') else "[SYMBOL]"
             print(f"{status_icon} Zone {zone_id}: {info.get('name', 'Unknown')}")
             print(f"   Status: {info.get('status', 'Unknown')}")
             if info.get('running'):
-                print(f"   ⏰ Time Left: {info.get('time_left', 'Unknown')}")
+                print(f"   [SCHEDULE] Time Left: {info.get('time_left', 'Unknown')}")
             if info.get('next_run'):
-                print(f"   📅 Next Run: {info.get('next_run')}")
+                print(f"   [DATE] Next Run: {info.get('next_run')}")
             print()
     
     def show_flow_sensor_info(self):
         """Display information about detected flow sensors."""
-        print("\n💧 FLOW SENSOR INFORMATION")
+        print("\n[WATER] FLOW SENSOR INFORMATION")
         print("=" * 40)
         
         if not self.sensor_info:
-            print("❌ No flow sensors detected")
+            print("[ERROR] No flow sensors detected")
             return
         
         for input_num, sensor in self.sensor_info.items():
-            print(f"📊 Flow Sensor (Input {input_num}):")
+            print(f"[RESULTS] Flow Sensor (Input {input_num}):")
             print(f"   Rate: {sensor['rate']} (units/minute)")
             print(f"   Mode: {sensor['mode']}")
             print(f"   Connected Zones: {len(sensor.get('relays', []))}")
@@ -184,30 +184,30 @@ class ZoneFlowMonitor:
     def start_zone_with_monitoring(self, zone_id: int, duration_minutes: int):
         """Start a zone and monitor it until completion."""
         if zone_id not in self.zones_info:
-            print(f"❌ Zone {zone_id} not found. Available zones:")
+            print(f"[ERROR] Zone {zone_id} not found. Available zones:")
             self.list_available_zones()
             return
         
         zone_name = self.zones_info[zone_id].get('name', f'Zone {zone_id}')
         
-        print(f"\n🚿 STARTING ZONE MONITORING")
+        print(f"\n[SYMBOL] STARTING ZONE MONITORING")
         print("=" * 40)
         print(f"Zone: {zone_name} (ID: {zone_id})")
         print(f"Duration: {duration_minutes} minutes")
         print(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Get baseline readings before starting
-        print("\n📊 Getting baseline readings...")
+        print("\n[RESULTS] Getting baseline readings...")
         baseline_data = self._get_current_readings()
         
         # Start the zone
         try:
-            print(f"\n🚀 Starting zone {zone_id}...")
+            print(f"\n[SYMBOL] Starting zone {zone_id}...")
             result = self.explorer.start_zone(zone_id, duration_minutes)
-            print("✅ Zone started successfully!")
+            print("[OK] Zone started successfully!")
             
         except Exception as e:
-            print(f"❌ Failed to start zone: {e}")
+            print(f"[ERROR] Failed to start zone: {e}")
             return
         
         # Monitor the zone
@@ -245,7 +245,7 @@ class ZoneFlowMonitor:
             return readings
             
         except Exception as e:
-            print(f"⚠️ Error getting readings: {e}")
+            print(f"[WARNING] Error getting readings: {e}")
             return {'timestamp': datetime.now(), 'zones': {}, 'sensors': {}}
     
     def _monitor_zone_operation(self, zone_id: int, duration_minutes: int, baseline_data: dict):
@@ -253,7 +253,7 @@ class ZoneFlowMonitor:
         zone_name = self.zones_info[zone_id].get('name', f'Zone {zone_id}')
         expected_end_time = time.time() + (duration_minutes * 60)
         
-        print(f"\n⏰ MONITORING ZONE OPERATION")
+        print(f"\n[SCHEDULE] MONITORING ZONE OPERATION")
         print("=" * 40)
         print("Press Ctrl+C to stop monitoring early")
         print()
@@ -268,7 +268,7 @@ class ZoneFlowMonitor:
                 
                 # Rate-limited status checks
                 if current_time - last_status_check >= check_interval:
-                    print(f"📊 Checking status... ({datetime.now().strftime('%H:%M:%S')})")
+                    print(f"[RESULTS] Checking status... ({datetime.now().strftime('%H:%M:%S')})")
                     
                     readings = self._get_current_readings()
                     monitoring_data.append(readings)
@@ -277,12 +277,12 @@ class ZoneFlowMonitor:
                     zone_status = readings['zones'].get(zone_id, {})
                     if zone_status.get('running'):
                         time_left = zone_status.get('time_left', 'Unknown')
-                        print(f"   🟢 Zone {zone_name} running - Time left: {time_left}")
+                        print(f"   [SYMBOL] Zone {zone_name} running - Time left: {time_left}")
                         
                         # Show any flow data
                         self._display_current_flow_data(readings)
                     else:
-                        print(f"   ⚫ Zone {zone_name} not running - may have finished early")
+                        print(f"   [SYMBOL] Zone {zone_name} not running - may have finished early")
                         break
                     
                     last_status_check = current_time
@@ -291,10 +291,10 @@ class ZoneFlowMonitor:
                 time.sleep(5)
         
         except KeyboardInterrupt:
-            print("\n⏹️ Monitoring stopped by user")
+            print("\n[CANCELLED] Monitoring stopped by user")
         
         # Get final readings
-        print(f"\n📊 Getting final readings...")
+        print(f"\n[RESULTS] Getting final readings...")
         final_data = self._get_current_readings()
         monitoring_data.append(final_data)
         
@@ -308,13 +308,13 @@ class ZoneFlowMonitor:
                 if sensor.get('type') == 3:  # Flow sensor
                     rate = sensor.get('rate', 0)
                     timer = sensor.get('timer', 0)
-                    print(f"   💧 Flow Rate: {rate} units/min, Timer: {timer}")
+                    print(f"   [WATER] Flow Rate: {rate} units/min, Timer: {timer}")
     
     def _analyze_monitoring_results(self, zone_id: int, baseline_data: dict, monitoring_data: list, final_data: dict):
         """Analyze and display the monitoring results."""
         zone_name = self.zones_info[zone_id].get('name', f'Zone {zone_id}')
         
-        print(f"\n📈 MONITORING RESULTS FOR {zone_name}")
+        print(f"\n[SYMBOL] MONITORING RESULTS FOR {zone_name}")
         print("=" * 50)
         
         # Basic operation info
@@ -322,12 +322,12 @@ class ZoneFlowMonitor:
         end_time = final_data['timestamp']
         duration = end_time - start_time
         
-        print(f"🕐 Operation Duration: {duration.total_seconds()/60:.1f} minutes")
-        print(f"🚀 Start Time: {start_time.strftime('%H:%M:%S')}")
-        print(f"🏁 End Time: {end_time.strftime('%H:%M:%S')}")
+        print(f"[TIME] Operation Duration: {duration.total_seconds()/60:.1f} minutes")
+        print(f"[SYMBOL] Start Time: {start_time.strftime('%H:%M:%S')}")
+        print(f"[SYMBOL] End Time: {end_time.strftime('%H:%M:%S')}")
         
         # Flow analysis
-        print(f"\n💧 FLOW DATA ANALYSIS")
+        print(f"\n[WATER] FLOW DATA ANALYSIS")
         print("-" * 30)
         
         # Look for flow data in monitoring results
@@ -344,7 +344,7 @@ class ZoneFlowMonitor:
                         })
         
         if flow_readings:
-            print(f"📊 Flow readings collected: {len(flow_readings)}")
+            print(f"[RESULTS] Flow readings collected: {len(flow_readings)}")
             
             # Calculate statistics
             rates = [r['rate'] for r in flow_readings if r['rate'] > 0]
@@ -362,17 +362,17 @@ class ZoneFlowMonitor:
                 estimated_usage = avg_rate * total_minutes
                 print(f"   Estimated Total Usage: {estimated_usage:.2f} units")
             else:
-                print("   ⚠️ No positive flow rates detected")
+                print("   [WARNING] No positive flow rates detected")
             
             # Show detailed readings
-            print(f"\n📋 DETAILED FLOW READINGS")
+            print(f"\n[LOG] DETAILED FLOW READINGS")
             print("-" * 30)
             for reading in flow_readings[-5:]:  # Show last 5 readings
                 time_str = reading['timestamp'].strftime('%H:%M:%S')
                 print(f"   {time_str}: Rate={reading['rate']:.2f}, Timer={reading['timer']}")
         else:
-            print("❌ No flow data collected during monitoring")
-            print("💡 This might mean:")
+            print("[ERROR] No flow data collected during monitoring")
+            print("[INFO] This might mean:")
             print("   - Flow meter is not properly configured")
             print("   - Zone is not connected to flow meter")
             print("   - Flow data is reported differently")
@@ -396,9 +396,9 @@ class ZoneFlowMonitor:
         try:
             with open(filename, 'w') as f:
                 json.dump(log_data, f, indent=2)
-            print(f"\n💾 Detailed log saved to: {filename}")
+            print(f"\n[SAVED] Detailed log saved to: {filename}")
         except Exception as e:
-            print(f"⚠️ Could not save log: {e}")
+            print(f"[WARNING] Could not save log: {e}")
     
     def _serialize_datetime(self, data):
         """Convert datetime objects to strings for JSON serialization."""
@@ -419,7 +419,7 @@ class ZoneFlowMonitor:
 
 def main():
     """Main function for zone flow monitoring."""
-    print("💧 HYDRAWISE ZONE FLOW MONITOR")
+    print("[WATER] HYDRAWISE ZONE FLOW MONITOR")
     print("=" * 40)
     
     # Load API key
@@ -427,10 +427,10 @@ def main():
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     
     if not api_key:
-        print("❌ No API key found in .env file")
+        print("[ERROR] No API key found in .env file")
         return
     
-    print(f"✅ API key loaded: {api_key[:8]}..." + "*" * (len(api_key) - 8))
+    print(f"[OK] API key loaded: {api_key[:8]}..." + "*" * (len(api_key) - 8))
     
     # Initialize monitor
     monitor = ZoneFlowMonitor(api_key)
@@ -441,21 +441,21 @@ def main():
     
     # Interactive zone selection
     try:
-        zone_id = int(input("\n🎯 Enter zone ID to run and monitor: "))
-        duration = int(input("⏰ Enter duration in minutes: "))
+        zone_id = int(input("\n[SYMBOL] Enter zone ID to run and monitor: "))
+        duration = int(input("[SCHEDULE] Enter duration in minutes: "))
         
-        confirm = input(f"\n⚠️ Start zone {zone_id} for {duration} minutes? (yes/no): ").lower().strip()
+        confirm = input(f"\n[WARNING] Start zone {zone_id} for {duration} minutes? (yes/no): ").lower().strip()
         if confirm == 'yes':
             monitor.start_zone_with_monitoring(zone_id, duration)
         else:
-            print("❌ Operation cancelled")
+            print("[ERROR] Operation cancelled")
     
     except KeyboardInterrupt:
-        print("\n👋 Goodbye!")
+        print("\n[SYMBOL] Goodbye!")
     except ValueError:
-        print("❌ Invalid input. Please enter numbers only.")
+        print("[ERROR] Invalid input. Please enter numbers only.")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] Error: {e}")
 
 
 if __name__ == "__main__":

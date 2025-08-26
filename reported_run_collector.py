@@ -21,7 +21,7 @@ from selenium.webdriver.support import expected_conditions as EC
 def navigate_to_reported_tab(self):
     """Navigate to the Reported tab and ensure Day view is selected"""
     try:
-        self.logger.info("📍 Navigating to Reported tab with Day view...")
+        self.logger.info("[SYMBOL] Navigating to Reported tab with Day view...")
         
         # Use shared navigation helper - same efficient approach as schedule collection
         from shared_navigation_helper import create_navigation_helper
@@ -29,18 +29,18 @@ def navigate_to_reported_tab(self):
         
         # Navigate to Reported tab (includes built-in wait)
         if not nav_helper.navigate_to_reported_tab():
-            self.logger.error("❌ Failed to navigate to Reported tab")
+            self.logger.error("[ERROR] Failed to navigate to Reported tab")
             return False
         
         # Switch to Day view (includes built-in wait)
         if not nav_helper.switch_to_day_view():
-            self.logger.warning("⚠️ Failed to switch to Day view - may already be in daily view")
+            self.logger.warning("[WARNING] Failed to switch to Day view - may already be in daily view")
         
-        self.logger.info("✅ Ready for data extraction")
+        self.logger.info("[OK] Ready for data extraction")
         return True
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to navigate to Reported tab: {e}")
+        self.logger.error(f"[ERROR] Failed to navigate to Reported tab: {e}")
         return False
 
 
@@ -66,7 +66,7 @@ def _click_day_button_for_reported(self):
                     if element.is_displayed() and element.is_enabled():
                         day_button = element
                         successful_selector = f"{selector} (immediate)"
-                        self.logger.info(f"✅ Found Day button immediately: {successful_selector}")
+                        self.logger.info(f"[OK] Found Day button immediately: {successful_selector}")
                         break
                 if day_button:
                     break
@@ -115,9 +115,9 @@ def _click_day_button_for_reported(self):
         if day_button:
             day_button.click()
             time.sleep(2)
-            self.logger.info(f"✅ Clicked Day button using: {successful_selector}")
+            self.logger.info(f"[OK] Clicked Day button using: {successful_selector}")
         else:
-            self.logger.warning("⚠️ Could not find Day button - may already be in daily view")
+            self.logger.warning("[WARNING] Could not find Day button - may already be in daily view")
             
     except Exception as e:
         self.logger.warning(f"Day button click failed: {e}")
@@ -141,16 +141,16 @@ def get_current_date_label(self) -> Optional[str]:
                 date_element = self.driver.find_element(By.XPATH, selector)
                 date_text = date_element.text.strip()
                 if date_text and len(date_text) > 5:  # Valid date text
-                    self.logger.info(f"📅 Current date label: '{date_text}'")
+                    self.logger.info(f"[DATE] Current date label: '{date_text}'")
                     return date_text
             except:
                 continue
                 
-        self.logger.warning("⚠️ Could not extract current date label")
+        self.logger.warning("[WARNING] Could not extract current date label")
         return None
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to get date label: {e}")
+        self.logger.error(f"[ERROR] Failed to get date label: {e}")
         return None
 
 
@@ -177,17 +177,17 @@ def extract_reported_zones(self) -> List[Dict]:
             try:
                 elements = self.driver.find_elements(By.XPATH, selector)
                 if elements:
-                    self.logger.info(f"✅ Found {len(elements)} reported elements with: {selector}")
+                    self.logger.info(f"[OK] Found {len(elements)} reported elements with: {selector}")
                     zones = elements
                     break
             except:
                 continue
         
         if not zones:
-            self.logger.warning("❌ No reported zone elements found")
+            self.logger.warning("[ERROR] No reported zone elements found")
             
             # DEBUG: Let's see what elements are actually on the page
-            self.logger.info("🔍 DEBUG: Looking for any elements that might contain zone data...")
+            self.logger.info("[ANALYSIS] DEBUG: Looking for any elements that might contain zone data...")
             debug_selectors = [
                 "//div[contains(text(), ':')]",  # Elements with time format
                 "//div[contains(text(), 'am')]",  # Morning times
@@ -201,7 +201,7 @@ def extract_reported_zones(self) -> List[Dict]:
                 try:
                     debug_elements = self.driver.find_elements(By.XPATH, debug_selector)
                     if debug_elements:
-                        self.logger.info(f"🔍 Found {len(debug_elements)} elements with: {debug_selector}")
+                        self.logger.info(f"[ANALYSIS] Found {len(debug_elements)} elements with: {debug_selector}")
                         # Show first few elements
                         for i, elem in enumerate(debug_elements[:3]):
                             try:
@@ -217,7 +217,7 @@ def extract_reported_zones(self) -> List[Dict]:
             
         # Convert elements to zone data with progressive scrolling to ensure all zones are captured
         zone_data_list = []
-        self.logger.info(f"📋 Processing {len(zones)} zone elements with progressive scrolling...")
+        self.logger.info(f"[LOG] Processing {len(zones)} zone elements with progressive scrolling...")
         
         for i, element in enumerate(zones):
             try:
@@ -241,7 +241,7 @@ def extract_reported_zones(self) -> List[Dict]:
                             'index': i
                         }
                         zone_data_list.append(zone_data)
-                        self.logger.debug(f"✅ Zone {i+1}/{len(zones)}: {first_line}")
+                        self.logger.debug(f"[OK] Zone {i+1}/{len(zones)}: {first_line}")
                         
             except Exception as e:
                 self.logger.debug(f"Error extracting zone {i}: {e}")
@@ -251,11 +251,11 @@ def extract_reported_zones(self) -> List[Dict]:
         self.driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(0.5)
         
-        self.logger.info(f"✅ Extracted {len(zone_data_list)} reported zones (with progressive scrolling)")
+        self.logger.info(f"[OK] Extracted {len(zone_data_list)} reported zones (with progressive scrolling)")
         return zone_data_list
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to extract reported zones: {e}")
+        self.logger.error(f"[ERROR] Failed to extract reported zones: {e}")
         return []
 
 
@@ -269,17 +269,17 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
         # Get current date label to verify we're on the right date
         current_date_label = get_current_date_label(self)
         if current_date_label:
-            self.logger.info(f"📅 Collecting reported data for: {current_date_label}")
+            self.logger.info(f"[DATE] Collecting reported data for: {current_date_label}")
         
         # IMPORTANT: Scroll to top before extracting zones to ensure we get all zones
-        self.logger.info("📜 Ensuring page is scrolled to top before zone extraction...")
+        self.logger.info("[SYMBOL] Ensuring page is scrolled to top before zone extraction...")
         self.driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(0.5)
         
         # Extract all reported zone elements
         zone_data_list = extract_reported_zones(self)
         if not zone_data_list:
-            self.logger.warning("❌ No reported zones found")
+            self.logger.warning("[ERROR] No reported zones found")
             return []
         
         actual_runs = []
@@ -290,7 +290,7 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                 element = zone_data['element']
                 zone_name = zone_data['zone_name']
                 
-                self.logger.info(f"🔍 Processing reported zone: {zone_name}")
+                self.logger.info(f"[ANALYSIS] Processing reported zone: {zone_name}")
                 
                 # Parse time from zone name if present (e.g., "6:01am Rear Left Pots")
                 parsed_start_time = None
@@ -304,7 +304,7 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                         parsed_start_time = datetime.combine(target_date.date(), time_obj)
                         # Remove time prefix from zone name
                         zone_name = zone_name[len(time_str):].strip()
-                        self.logger.debug(f"📊 Parsed time {time_str} -> {parsed_start_time}, cleaned zone: {zone_name}")
+                        self.logger.debug(f"[RESULTS] Parsed time {time_str} -> {parsed_start_time}, cleaned zone: {zone_name}")
                     except:
                         self.logger.debug(f"Failed to parse time from: {time_str}")
                 
@@ -319,7 +319,7 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                     viewport_height = self.driver.execute_script("return window.innerHeight;")
                     element_y = element_rect['y']
                     
-                    self.logger.debug(f"🔍 Hovering over zone {zone_name}: element_y={element_y}, viewport_height={viewport_height}")
+                    self.logger.debug(f"[ANALYSIS] Hovering over zone {zone_name}: element_y={element_y}, viewport_height={viewport_height}")
                     
                     # Additional small scroll if element is too close to edges
                     if element_y < 100:  # Too close to top
@@ -356,7 +356,7 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                     run_id = f"{clean_zone_name}_{start_time_str}"
                     
                     if run_id in seen_runs:
-                        self.logger.debug(f"🔄 Skipping duplicate: {run_id}")
+                        self.logger.debug(f"[PERIODIC] Skipping duplicate: {run_id}")
                         continue
                     seen_runs.add(run_id)
                     
@@ -398,19 +398,19 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                         actual_run.parsed_data = popup_data.get('parsed_data', {})
                     
                     actual_runs.append(actual_run)
-                    self.logger.info(f"✅ Extracted reported run {len(actual_runs)}: '{zone_name}' at {start_time_str}, {duration_minutes}min, {actual_gallons}gal - {status}")
+                    self.logger.info(f"[OK] Extracted reported run {len(actual_runs)}: '{zone_name}' at {start_time_str}, {duration_minutes}min, {actual_gallons}gal - {status}")
                 else:
-                    self.logger.warning(f"⚠️ No popup data for zone: {zone_name}")
+                    self.logger.warning(f"[WARNING] No popup data for zone: {zone_name}")
                     
             except Exception as e:
-                self.logger.error(f"❌ Error processing zone {zone_data.get('zone_name', 'unknown')}: {e}")
+                self.logger.error(f"[ERROR] Error processing zone {zone_data.get('zone_name', 'unknown')}: {e}")
                 continue
         
-        self.logger.info(f"✅ Successfully extracted {len(actual_runs)} reported runs")
+        self.logger.info(f"[OK] Successfully extracted {len(actual_runs)} reported runs")
         return actual_runs
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to extract reported runs: {e}")
+        self.logger.error(f"[ERROR] Failed to extract reported runs: {e}")
         return []
 
 
@@ -426,16 +426,16 @@ def extract_previous_day_reported_runs(self, reference_date: datetime = None) ->
         
         # Calculate target date
         target_date = (reference_date - timedelta(days=1)).date()
-        self.logger.info(f"📍 Navigating directly to {target_date} using efficient navigation...")
+        self.logger.info(f"[SYMBOL] Navigating directly to {target_date} using efficient navigation...")
         
         if not nav_helper.navigate_to_date(target_date, "reported"):
-            self.logger.error(f"❌ Failed to navigate to {target_date}")
+            self.logger.error(f"[ERROR] Failed to navigate to {target_date}")
             return []
         
-        self.logger.info(f"✅ Successfully navigated to {target_date} for reported data collection")
+        self.logger.info(f"[OK] Successfully navigated to {target_date} for reported data collection")
         
         # CRITICAL: Scroll to top to ensure we capture all zones (especially early morning ones)
-        self.logger.info("📜 Scrolling to top of page to capture all zones...")
+        self.logger.info("[SYMBOL] Scrolling to top of page to capture all zones...")
         self.driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(1)  # Brief pause after scroll
         
@@ -455,7 +455,7 @@ def extract_previous_day_reported_runs(self, reference_date: datetime = None) ->
                     for element in elements:
                         if element.is_displayed():
                             self.driver.execute_script("arguments[0].scrollTop = 0;", element)
-                            self.logger.info(f"✅ Scrolled container to top: {selector}")
+                            self.logger.info(f"[OK] Scrolled container to top: {selector}")
                             break
                     break
                 except:
@@ -466,7 +466,7 @@ def extract_previous_day_reported_runs(self, reference_date: datetime = None) ->
         # Verify we're on the previous day
         current_date_label = get_current_date_label(self)
         if current_date_label:
-            self.logger.info(f"📅 Now viewing: {current_date_label}")
+            self.logger.info(f"[DATE] Now viewing: {current_date_label}")
         
         # Calculate previous day date
         previous_day = reference_date - timedelta(days=1)
@@ -474,9 +474,9 @@ def extract_previous_day_reported_runs(self, reference_date: datetime = None) ->
         # Extract reported runs for previous day
         reported_runs = extract_reported_runs_for_date(self, previous_day)
         
-        self.logger.info(f"✅ Collected {len(reported_runs)} reported runs from previous day")
+        self.logger.info(f"[OK] Collected {len(reported_runs)} reported runs from previous day")
         return reported_runs
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to extract previous day reported runs: {e}")
+        self.logger.error(f"[ERROR] Failed to extract previous day reported runs: {e}")
         return []

@@ -185,16 +185,16 @@ class CurrentDayMonitor:
                 actual = zone['actual_runs']
                 water = zone['actual_gallons'] or 0
                 
-                status_icon = "✅" if zone['run_variance'] == 0 else "⚠️" if zone['run_variance'] > 0 else "❌"
+                status_icon = "[OK]" if zone['run_variance'] == 0 else "[WARNING]" if zone['run_variance'] > 0 else "[ERROR]"
                 report.append(f"{status_icon} {zone['zone_name']}: {actual}/{scheduled} runs, {water:.1f} gallons")
         
         # Urgent actions
         if status['urgent_actions']:
             report.append("")
-            report.append("🚨 URGENT ACTIONS REQUIRED:")
+            report.append("[ALERT] URGENT ACTIONS REQUIRED:")
             report.append("-" * 30)
             for action in status['urgent_actions']:
-                report.append(f"❗ {action['zone_name']}: {action['description']}")
+                report.append(f"[SYMBOL] {action['zone_name']}: {action['description']}")
                 report.append(f"   Action: {action['recommended_action']}")
                 report.append("")
         
@@ -280,9 +280,9 @@ def main():
         # Summary
         urgent_count = len(status.get('urgent_actions', []))
         if urgent_count > 0:
-            print(f"\n🚨 {urgent_count} zones need immediate attention!")
+            print(f"\n[ALERT] {urgent_count} zones need immediate attention!")
         else:
-            print(f"\n✅ No urgent irrigation issues detected")
+            print(f"\n[OK] No urgent irrigation issues detected")
             
     except Exception as e:
         logger.error(f"Monitor execution failed: {e}")

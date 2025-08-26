@@ -14,43 +14,43 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_imports():
     """Test that all refactored modules can be imported"""
-    print("🧪 Testing module imports...")
+    print("[SYMBOL] Testing module imports...")
     
     try:
         # Test individual module imports
         import browser_manager
-        print("✅ browser_manager imported")
+        print("[SYMBOL] browser_manager imported")
         
         import popup_extractor
-        print("✅ popup_extractor imported")
+        print("[SYMBOL] popup_extractor imported")
         
         import schedule_collector
-        print("✅ schedule_collector imported")
+        print("[SYMBOL] schedule_collector imported")
         
         import actual_run_collector
-        print("✅ actual_run_collector imported")
+        print("[SYMBOL] actual_run_collector imported")
         
         import shared_navigation_helper
-        print("✅ shared_navigation_helper imported")
+        print("[SYMBOL] shared_navigation_helper imported")
         
         import sensor_detector
-        print("✅ sensor_detector imported")
+        print("[SYMBOL] sensor_detector imported")
         
         # Test main refactored class import
         from hydrawise_web_scraper_refactored import HydrawiseWebScraper, ScheduledRun, ActualRun, IrrigationFailure
-        print("✅ HydrawiseWebScraper refactored class imported")
+        print("[SYMBOL] HydrawiseWebScraper refactored class imported")
         
         return True
         
     except Exception as e:
-        print(f"❌ Import failed: {e}")
+        print(f"[SYMBOL] Import failed: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 def test_basic_functionality():
     """Test basic functionality of the refactored system"""
-    print("\n🧪 Testing basic functionality...")
+    print("\n[SYMBOL] Testing basic functionality...")
     
     try:
         # Load credentials
@@ -59,28 +59,28 @@ def test_basic_functionality():
         password = os.getenv('HYDRAWISE_PASSWORD')
         
         if not username or not password:
-            print("⚠️  No credentials found - skipping functionality test")
+            print("[SYMBOL][SYMBOL]  No credentials found - skipping functionality test")
             return True
             
         # Test class instantiation
         from hydrawise_web_scraper_refactored import HydrawiseWebScraper
         scraper = HydrawiseWebScraper(username, password, headless=True)
-        print("✅ HydrawiseWebScraper instantiated successfully")
+        print("[SYMBOL] HydrawiseWebScraper instantiated successfully")
         
         # Test method delegation (without actually running browser)
-        print("✅ All methods accessible through delegation")
+        print("[SYMBOL] All methods accessible through delegation")
         
         return True
         
     except Exception as e:
-        print(f"❌ Functionality test failed: {e}")
+        print(f"[SYMBOL] Functionality test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 def test_rain_sensor_during_active_condition():
     """Test the rain sensor detection with current rain conditions"""
-    print("\n🌧️  Testing rain sensor detection (with current active rain sensor)...")
+    print("\n[SYMBOL][SYMBOL]  Testing rain sensor detection (with current active rain sensor)...")
     
     try:
         load_dotenv()
@@ -88,41 +88,41 @@ def test_rain_sensor_during_active_condition():
         password = os.getenv('HYDRAWISE_PASSWORD')
         
         if not username or not password:
-            print("⚠️  No credentials - skipping rain sensor test")
+            print("[SYMBOL][SYMBOL]  No credentials - skipping rain sensor test")
             return True
             
         from hydrawise_web_scraper_refactored import HydrawiseWebScraper
         scraper = HydrawiseWebScraper(username, password, headless=False)
         
-        print("🚀 Starting browser to test rain sensor detection...")
+        print("[SYMBOL] Starting browser to test rain sensor detection...")
         scraper.start_browser()
         
         if scraper.login():
-            print("✅ Login successful")
+            print("[SYMBOL] Login successful")
             
             # Test rain sensor detection
             sensor_status = scraper.check_rain_sensor_status()
             
-            print("📊 Rain Sensor Status Results:")
-            print(f"   🌧️  Rain Sensor Active: {sensor_status.get('rain_sensor_active')}")
-            print(f"   🚫 Irrigation Suspended: {sensor_status.get('irrigation_suspended')}")
-            print(f"   📍 Sensor Status: {sensor_status.get('sensor_status')}")
+            print("[SYMBOL] Rain Sensor Status Results:")
+            print(f"   [SYMBOL][SYMBOL]  Rain Sensor Active: {sensor_status.get('rain_sensor_active')}")
+            print(f"   [SYMBOL] Irrigation Suspended: {sensor_status.get('irrigation_suspended')}")
+            print(f"   [SYMBOL] Sensor Status: {sensor_status.get('sensor_status')}")
             
             if sensor_status.get('rain_sensor_active'):
-                print("🎉 SUCCESS: System correctly detected active rain sensor!")
-                print("📋 This confirms our rain sensor detection module is working correctly")
+                print("[SYMBOL] SUCCESS: System correctly detected active rain sensor!")
+                print("[SYMBOL] This confirms our rain sensor detection module is working correctly")
             else:
-                print("⚠️  Rain sensor not detected as active (may have dried out)")
+                print("[SYMBOL][SYMBOL]  Rain sensor not detected as active (may have dried out)")
                 
         else:
-            print("❌ Login failed")
+            print("[SYMBOL] Login failed")
             return False
             
         scraper.stop_browser()
         return True
         
     except Exception as e:
-        print(f"❌ Rain sensor test failed: {e}")
+        print(f"[SYMBOL] Rain sensor test failed: {e}")
         import traceback
         traceback.print_exc()
         try:
@@ -133,7 +133,7 @@ def test_rain_sensor_during_active_condition():
 
 def main():
     """Run all tests"""
-    print("🧪 Testing Refactored Hydrawise Web Scraper System")
+    print("[SYMBOL] Testing Refactored Hydrawise Web Scraper System")
     print("=" * 60)
     
     tests_passed = 0
@@ -152,15 +152,15 @@ def main():
         tests_passed += 1
     
     print("\n" + "=" * 60)
-    print(f"🎯 TEST RESULTS: {tests_passed}/{total_tests} tests passed")
+    print(f"[SYMBOL] TEST RESULTS: {tests_passed}/{total_tests} tests passed")
     
     if tests_passed == total_tests:
-        print("🎉 ALL TESTS PASSED - Refactored system is working!")
-        print("✅ Ready to proceed with full functionality testing")
-        print("📁 Check logs/ folder for detailed test logs")
+        print("[SYMBOL] ALL TESTS PASSED - Refactored system is working!")
+        print("[SYMBOL] Ready to proceed with full functionality testing")
+        print("[SYMBOL] Check logs/ folder for detailed test logs")
     else:
-        print("⚠️  Some tests failed - need to fix issues before proceeding")
-        print("📁 Check logs/ folder for error details")
+        print("[SYMBOL][SYMBOL]  Some tests failed - need to fix issues before proceeding")
+        print("[SYMBOL] Check logs/ folder for error details")
         
     return tests_passed == total_tests
 

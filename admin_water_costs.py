@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database.water_cost_calculator import WaterCostCalculator
 
-def print_banner(title: str, icon: str = "🔬") -> None:
+def print_banner(title: str, icon: str = "[SYMBOL]") -> None:
     """Print a formatted banner for the analytics tool"""
     print("=" * 70)
     print(f"{icon} {title}")
@@ -41,7 +41,7 @@ def setup_logging(log_level: str = 'INFO') -> None:
 
 def cmd_current(args) -> None:
     """Show current billing period cost analysis"""
-    print_banner("HOUSTON WATER COST ANALYSIS", "💰")
+    print_banner("HOUSTON WATER COST ANALYSIS", "[SYMBOL]")
     print("Current Billing Period Cost Analysis\n")
     
     calculator = WaterCostCalculator()
@@ -49,59 +49,59 @@ def cmd_current(args) -> None:
     
     # Display billing period info
     period = result['billing_period']
-    print(f"📅 BILLING PERIOD: {period['start_date']} to {period['end_date']}")
-    print(f"📊 Progress: {period['percent_complete']}% complete ({period['days_elapsed']}/{period['total_days']} days)")
+    print(f"[DATE] BILLING PERIOD: {period['start_date']} to {period['end_date']}")
+    print(f"[RESULTS] Progress: {period['percent_complete']}% complete ({period['days_elapsed']}/{period['total_days']} days)")
     print()
     
     # Display usage breakdown
     usage = result['usage']
-    print(f"💧 WATER USAGE TO DATE:")
-    print(f"   🚿 Irrigation:      {usage['irrigation_gallons']:7.1f} gallons")
-    print(f"   🏡 Manual watering: {usage['manual_watering_gallons']:7.1f} gallons ({usage['manual_watering_rate']} gal/day)")
-    print(f"   📊 Total usage:     {usage['total_gallons']:7.1f} gallons")
+    print(f"[WATER] WATER USAGE TO DATE:")
+    print(f"   [SYMBOL] Irrigation:      {usage['irrigation_gallons']:7.1f} gallons")
+    print(f"   [SYMBOL] Manual watering: {usage['manual_watering_gallons']:7.1f} gallons ({usage['manual_watering_rate']} gal/day)")
+    print(f"   [RESULTS] Total usage:     {usage['total_gallons']:7.1f} gallons")
     print()
     
     # Display tier information
     tier = result['tier']
-    print(f"💸 RATE TIER: Tier {tier['tier_number']} ({tier['tier_range']})")
-    print(f"   💧 Water rate:      ${tier['water_rate_per_gallon']:.5f}/gallon")
-    print(f"   🚰 Wastewater rate: ${tier['wastewater_rate_per_gallon']:.5f}/gallon")
+    print(f"[SYMBOL] RATE TIER: Tier {tier['tier_number']} ({tier['tier_range']})")
+    print(f"   [WATER] Water rate:      ${tier['water_rate_per_gallon']:.5f}/gallon")
+    print(f"   [HYDRAWISE] Wastewater rate: ${tier['wastewater_rate_per_gallon']:.5f}/gallon")
     print()
     
     # Display cost breakdown
     costs = result['costs']
-    print(f"💰 COST BREAKDOWN:")
-    print(f"   🏠 Basic service:    ${costs['basic_service_charge']:7.2f}")
-    print(f"   💧 Water usage:      ${costs['water_usage_cost']:7.2f}")
-    print(f"   🚰 Wastewater usage: ${costs['wastewater_usage_cost']:7.2f}")
-    print(f"   ───────────────────────────")
-    print(f"   💰 Total estimated:  ${costs['estimated_total_cost']:7.2f}")
+    print(f"[SYMBOL] COST BREAKDOWN:")
+    print(f"   [SYMBOL] Basic service:    ${costs['basic_service_charge']:7.2f}")
+    print(f"   [WATER] Water usage:      ${costs['water_usage_cost']:7.2f}")
+    print(f"   [HYDRAWISE] Wastewater usage: ${costs['wastewater_usage_cost']:7.2f}")
+    print(f"   [SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL][SYMBOL]")
+    print(f"   [SYMBOL] Total estimated:  ${costs['estimated_total_cost']:7.2f}")
     print()
     
     # Display projections if available
     if 'projections' in result and result['projections']:
         proj = result['projections']
-        print(f"📈 FULL PERIOD PROJECTION:")
-        print(f"   🚿 Projected irrigation: {proj['projected_irrigation_gallons']:7.1f} gallons ({proj['daily_irrigation_average']:.1f} gal/day avg)")
-        print(f"   🏡 Projected manual:     {proj['projected_manual_gallons']:7.1f} gallons")
-        print(f"   📊 Projected total:      {proj['projected_total_gallons']:7.1f} gallons")
-        print(f"   💸 Projected tier:       Tier {proj['projected_tier_number']}")
-        print(f"   💰 Projected cost:       ${proj['projected_total_cost']:7.2f}")
+        print(f"[SYMBOL] FULL PERIOD PROJECTION:")
+        print(f"   [SYMBOL] Projected irrigation: {proj['projected_irrigation_gallons']:7.1f} gallons ({proj['daily_irrigation_average']:.1f} gal/day avg)")
+        print(f"   [SYMBOL] Projected manual:     {proj['projected_manual_gallons']:7.1f} gallons")
+        print(f"   [RESULTS] Projected total:      {proj['projected_total_gallons']:7.1f} gallons")
+        print(f"   [SYMBOL] Projected tier:       Tier {proj['projected_tier_number']}")
+        print(f"   [SYMBOL] Projected cost:       ${proj['projected_total_cost']:7.2f}")
         
         # Calculate cost increase
         cost_increase = proj['projected_total_cost'] - costs['estimated_total_cost']
-        print(f"   📈 Expected increase:    ${cost_increase:7.2f}")
+        print(f"   [SYMBOL] Expected increase:    ${cost_increase:7.2f}")
 
 def cmd_history(args) -> None:
     """Show historical cost analysis"""
-    print_banner("HOUSTON WATER COST HISTORY", "📊")
+    print_banner("HOUSTON WATER COST HISTORY", "[RESULTS]")
     print(f"Historical Cost Analysis (Last {args.periods} Periods)\n")
     
     calculator = WaterCostCalculator()
     history = calculator.get_historical_costs(args.periods)
     
     if not history:
-        print("❌ No historical cost data available")
+        print("[ERROR] No historical cost data available")
         return
     
     # Display table header
@@ -136,14 +136,14 @@ def cmd_history(args) -> None:
         usage_change = latest['usage']['total_gallons'] - previous['usage']['total_gallons']
         irrigation_change = latest['usage']['irrigation_gallons'] - previous['usage']['irrigation_gallons']
         
-        print(f"\n📈 MONTH-OVER-MONTH TRENDS:")
-        print(f"   💰 Cost change:       ${cost_change:+7.2f}")
-        print(f"   💧 Usage change:      {usage_change:+7.1f} gallons")
-        print(f"   🚿 Irrigation change: {irrigation_change:+7.1f} gallons")
+        print(f"\n[SYMBOL] MONTH-OVER-MONTH TRENDS:")
+        print(f"   [SYMBOL] Cost change:       ${cost_change:+7.2f}")
+        print(f"   [WATER] Usage change:      {usage_change:+7.1f} gallons")
+        print(f"   [SYMBOL] Irrigation change: {irrigation_change:+7.1f} gallons")
 
 def cmd_tier_analysis(args) -> None:
     """Analyze cost implications of different usage tiers"""
-    print_banner("HOUSTON WATER TIER ANALYSIS", "🎯")
+    print_banner("HOUSTON WATER TIER ANALYSIS", "[SYMBOL]")
     print("Usage Tier Cost Analysis\n")
     
     calculator = WaterCostCalculator()
@@ -175,7 +175,7 @@ def cmd_tier_analysis(args) -> None:
         tier_range = f"{tier['usage_min']}-{tier['usage_max']}" if tier['usage_max'] != 999999 else f"{tier['usage_min']}+"
         
         # Highlight current tier
-        marker = "→" if tier['tier'] == current_result['tier']['tier_number'] else " "
+        marker = "->" if tier['tier'] == current_result['tier']['tier_number'] else " "
         
         print(f"{marker} {tier['tier']:<4} "
               f"{tier_range:<20} "
@@ -193,14 +193,14 @@ def cmd_tier_analysis(args) -> None:
         gallons_to_next_tier = next_tier['usage_min'] - current_usage
         
         if gallons_to_next_tier > 0:
-            print(f"\n⚠️  TIER CHANGE ALERT:")
-            print(f"   📈 Next tier: Tier {next_tier['tier']} at {next_tier['usage_min']} gallons")
-            print(f"   📏 Distance: {gallons_to_next_tier:.1f} gallons away")
-            print(f"   💰 Rate increase: ${next_tier['water_rate_per_gallon']:.5f}/gal water, ${next_tier['wastewater_rate_per_gallon']:.5f}/gal wastewater")
+            print(f"\n[WARNING]  TIER CHANGE ALERT:")
+            print(f"   [SYMBOL] Next tier: Tier {next_tier['tier']} at {next_tier['usage_min']} gallons")
+            print(f"   [SYMBOL] Distance: {gallons_to_next_tier:.1f} gallons away")
+            print(f"   [SYMBOL] Rate increase: ${next_tier['water_rate_per_gallon']:.5f}/gal water, ${next_tier['wastewater_rate_per_gallon']:.5f}/gal wastewater")
 
 def cmd_budget(args) -> None:
     """Budget monitoring and cost alerts"""
-    print_banner("BUDGET MONITORING", "🎯")
+    print_banner("BUDGET MONITORING", "[SYMBOL]")
     
     if args.target_cost:
         print(f"Budget Monitoring (Target: ${args.target_cost:.2f})\n")
@@ -213,25 +213,25 @@ def cmd_budget(args) -> None:
     current_cost = result['costs']['estimated_total_cost']
     projected_cost = result.get('projections', {}).get('projected_total_cost', current_cost)
     
-    print(f"💰 Current estimated cost: ${current_cost:.2f}")
-    print(f"📈 Projected period cost:  ${projected_cost:.2f}")
+    print(f"[SYMBOL] Current estimated cost: ${current_cost:.2f}")
+    print(f"[SYMBOL] Projected period cost:  ${projected_cost:.2f}")
     
     if args.target_cost:
         remaining_budget = args.target_cost - current_cost
         projected_overage = projected_cost - args.target_cost
         
-        print(f"🎯 Budget target:          ${args.target_cost:.2f}")
-        print(f"💵 Remaining budget:       ${remaining_budget:.2f}")
+        print(f"[SYMBOL] Budget target:          ${args.target_cost:.2f}")
+        print(f"[SYMBOL] Remaining budget:       ${remaining_budget:.2f}")
         
         if projected_overage > 0:
-            print(f"⚠️  Projected overage:      ${projected_overage:.2f}")
+            print(f"[WARNING]  Projected overage:      ${projected_overage:.2f}")
             
             # Calculate usage reduction needed
             tier = result['tier']
             combined_rate = tier['water_rate_per_gallon'] + tier['wastewater_rate_per_gallon']
             gallons_to_reduce = projected_overage / combined_rate
             
-            print(f"\n📉 TO STAY ON BUDGET:")
+            print(f"\n[SYMBOL] TO STAY ON BUDGET:")
             print(f"   Reduce usage by: {gallons_to_reduce:.0f} gallons")
             
             # Suggest reductions
@@ -244,7 +244,7 @@ def cmd_budget(args) -> None:
                 print(f"   Option 2: Reduce irrigation by {irrigation_needed:.0f} gallons")
                 print(f"   Option 3: Combination of both")
         else:
-            print(f"✅ Projected to stay within budget by ${-projected_overage:.2f}")
+            print(f"[OK] Projected to stay within budget by ${-projected_overage:.2f}")
 
 def main():
     """Main CLI interface"""
@@ -304,7 +304,7 @@ Examples:
         # Execute command
         args.func(args)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] Error: {e}")
         if args.log_level == 'DEBUG':
             import traceback
             traceback.print_exc()

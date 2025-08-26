@@ -47,6 +47,28 @@ def start_browser(self):
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     
+    # Disable Google API services to prevent quota issues
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-client-side-phishing-detection")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-hang-monitor")
+    options.add_argument("--disable-prompt-on-repost")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--metrics-recording-only")
+    options.add_argument("--no-report-upload")
+    options.add_argument("--disable-features=VizDisplayCompositor,TranslateUI")
+    options.add_argument("--disable-ipc-flooding-protection")
+    
+    # Disable Google Cloud Messaging and registration services
+    options.add_argument("--disable-background-mode")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-plugins-discovery")
+    options.add_argument("--disable-preconnect")
+    
     # Use webdriver-manager to handle ChromeDriver installation
     service = Service(ChromeDriverManager().install())
     
@@ -76,7 +98,7 @@ def login(self) -> bool:
         bool: True if login successful, False otherwise
     """
     try:
-        self.logger.info("📍 Step 1: Logging into Hydrawise portal...")
+        self.logger.info("[SYMBOL] Step 1: Logging into Hydrawise portal...")
         
         # Navigate to login page
         self.driver.get(self.login_url)
@@ -116,11 +138,11 @@ def login(self) -> bool:
 def navigate_to_reports(self):
     """Navigate to the reports page"""
     try:
-        self.logger.info("📍 Step 2: Navigating to reports page...")
+        self.logger.info("[SYMBOL] Step 2: Navigating to reports page...")
         
         # Step 2: Navigate to reports URL with 2 second delay (as specified)
         self.driver.get(self.reports_url)
-        self.logger.info("⏳ Waiting 2 seconds after reports page load...")
+        self.logger.info("[SYMBOL] Waiting 2 seconds after reports page load...")
         time.sleep(2)
         
         # Log current URL for debugging
@@ -162,7 +184,7 @@ def navigate_to_reports(self):
         return True
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to navigate to reports: {e}")
+        self.logger.error(f"[ERROR] Failed to navigate to reports: {e}")
         return False
 
 def set_date(self, target_date: datetime):

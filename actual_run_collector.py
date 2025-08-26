@@ -50,7 +50,7 @@ def extract_actual_runs(self, target_date: datetime) -> List:
             if not nav_helper.switch_to_day_view():
                 self.logger.error("CRITICAL: Failed to switch to Day view - may be viewing week actuals instead of daily")
             else:
-                self.logger.info("✅ Successfully switched to Day view for daily actual runs")
+                self.logger.info("[OK] Successfully switched to Day view for daily actual runs")
                 
         except Exception as e:
             self.logger.error(f"CRITICAL: Failed to switch to Day view: {e}")
@@ -189,5 +189,5 @@ def extract_actual_runs(self, target_date: datetime) -> List:
         return actual_runs
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to extract actual runs: {e}")
+        self.logger.error(f"[ERROR] Failed to extract actual runs: {e}")
         return []

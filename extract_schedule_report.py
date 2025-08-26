@@ -21,10 +21,10 @@ from database.intelligent_data_storage import IntelligentDataStorage
 def extract_schedule_report():
     """Extract and display today's scheduled runs with popup details"""
     
-    print("📊 HYDRAWISE SCHEDULED RUNS REPORT")
+    print("[RESULTS] HYDRAWISE SCHEDULED RUNS REPORT")
     print("=" * 80)
-    print(f"📅 Date: {date.today().strftime('%A, %B %d, %Y')}")
-    print("🔍 Data Source: Local SQLite Database")
+    print(f"[DATE] Date: {date.today().strftime('%A, %B %d, %Y')}")
+    print("[ANALYSIS] Data Source: Local SQLite Database")
     print("=" * 80)
     
     try:
@@ -58,17 +58,17 @@ def extract_schedule_report():
             runs = cursor.fetchall()
             
         if not runs:
-            print("❌ No scheduled runs found for today")
+            print("[ERROR] No scheduled runs found for today")
             print("   This could mean:")
-            print("   • No data has been collected yet")
-            print("   • All irrigation was cancelled")
-            print("   • Database is empty")
+            print("   - No data has been collected yet")
+            print("   - All irrigation was cancelled")
+            print("   - Database is empty")
             return False
             
-        print(f"📋 Found {len(runs)} scheduled runs for today\n")
+        print(f"[LOG] Found {len(runs)} scheduled runs for today\n")
         
         # Display summary table
-        print("📊 SCHEDULE SUMMARY:")
+        print("[RESULTS] SCHEDULE SUMMARY:")
         print("-" * 120)
         print(f"{'Zone Name':<35} {'Start Time':<12} {'Duration':<10} {'Rain Cancel':<12} {'Status':<25} {'Popup Lines':<12}")
         print("-" * 120)
@@ -80,7 +80,7 @@ def extract_schedule_report():
             zone_name = run['zone_name'][:32] + "..." if len(run['zone_name']) > 32 else run['zone_name']
             start_time = datetime.fromisoformat(run['scheduled_start_time']).strftime('%I:%M %p')
             duration = f"{run['scheduled_duration_minutes']} min"
-            rain_cancel = "🌧️ YES" if run['is_rain_cancelled'] else "☀️ NO"
+            rain_cancel = "[SYMBOL][SYMBOL] YES" if run['is_rain_cancelled'] else "[SYMBOL][SYMBOL] NO"
             status = (run['popup_status'] or 'Normal')[:22] + "..." if len(run['popup_status'] or 'Normal') > 22 else (run['popup_status'] or 'Normal')
             
             # Count popup lines
@@ -106,24 +106,24 @@ def extract_schedule_report():
         print()
         
         # Display detailed popup analysis for each run
-        print("📄 DETAILED POPUP ANALYSIS:")
+        print("[SYMBOL] DETAILED POPUP ANALYSIS:")
         print("=" * 80)
         
         for i, run in enumerate(runs, 1):
             print(f"\n{i}. {run['zone_name']}")
-            print(f"   ⏰ Scheduled: {datetime.fromisoformat(run['scheduled_start_time']).strftime('%I:%M %p')}")
-            print(f"   ⏱️  Duration: {run['scheduled_duration_minutes']} minutes")
-            print(f"   💧 Expected: {run['expected_gallons']:.2f} gallons" if run['expected_gallons'] else "   💧 Expected: Not calculated")
-            print(f"   🌧️  Rain Cancelled: {'YES' if run['is_rain_cancelled'] else 'NO'}")
+            print(f"   [SCHEDULE] Scheduled: {datetime.fromisoformat(run['scheduled_start_time']).strftime('%I:%M %p')}")
+            print(f"   [SYMBOL][SYMBOL]  Duration: {run['scheduled_duration_minutes']} minutes")
+            print(f"   [WATER] Expected: {run['expected_gallons']:.2f} gallons" if run['expected_gallons'] else "   [WATER] Expected: Not calculated")
+            print(f"   [SYMBOL][SYMBOL]  Rain Cancelled: {'YES' if run['is_rain_cancelled'] else 'NO'}")
             
             if run['rain_sensor_status']:
-                print(f"   🌦️  Rain Status: {run['rain_sensor_status']}")
+                print(f"   [SYMBOL][SYMBOL]  Rain Status: {run['rain_sensor_status']}")
                 
             # Display popup lines
             if run['popup_lines_json']:
                 try:
                     popup_lines = json.loads(run['popup_lines_json'])
-                    print(f"   📄 Popup Lines ({len(popup_lines)} total):")
+                    print(f"   [SYMBOL] Popup Lines ({len(popup_lines)} total):")
                     
                     for idx, line_data in enumerate(popup_lines, 1):
                         line_type = line_data.get('type', 'unknown').upper()
@@ -131,46 +131,46 @@ def extract_schedule_report():
                         parsed_value = line_data.get('parsed_value')
                         
                         if parsed_value is not None and parsed_value != '':
-                            print(f"      Line {idx} [{line_type}]: '{line_text}' → {parsed_value}")
+                            print(f"      Line {idx} [{line_type}]: '{line_text}' -> {parsed_value}")
                         else:
                             print(f"      Line {idx} [{line_type}]: '{line_text}'")
                             
                 except json.JSONDecodeError:
-                    print("   📄 Popup Lines: Error parsing JSON data")
+                    print("   [SYMBOL] Popup Lines: Error parsing JSON data")
                     
             elif run['raw_popup_text']:
-                print(f"   📄 Raw Popup Text:")
+                print(f"   [SYMBOL] Raw Popup Text:")
                 for line in run['raw_popup_text'].split('\n'):
                     if line.strip():
                         print(f"      {line.strip()}")
             else:
-                print("   📄 Popup Data: None available")
+                print("   [SYMBOL] Popup Data: None available")
                 
             if run['parsed_summary']:
-                print(f"   📊 Summary: {run['parsed_summary']}")
+                print(f"   [RESULTS] Summary: {run['parsed_summary']}")
                 
-            print(f"   📅 Collected: {datetime.fromisoformat(run['created_at']).strftime('%Y-%m-%d %I:%M %p')}")
+            print(f"   [DATE] Collected: {datetime.fromisoformat(run['created_at']).strftime('%Y-%m-%d %I:%M %p')}")
             
             # Ensure output is flushed for each zone
             sys.stdout.flush()
             
         print("\n" + "=" * 80)
-        print("✅ Schedule report completed successfully")
+        print("[OK] Schedule report completed successfully")
         
         # Additional analysis
         if rain_cancelled_count == len(runs):
-            print("🌧️  WEATHER ALERT: All irrigation cancelled due to rain sensor")
+            print("[SYMBOL][SYMBOL]  WEATHER ALERT: All irrigation cancelled due to rain sensor")
         elif rain_cancelled_count > 0:
-            print(f"🌦️  PARTIAL CANCELLATION: {rain_cancelled_count}/{len(runs)} runs cancelled due to rain")
+            print(f"[SYMBOL][SYMBOL]  PARTIAL CANCELLATION: {rain_cancelled_count}/{len(runs)} runs cancelled due to rain")
         else:
-            print("☀️  NORMAL OPERATION: No rain cancellations detected")
+            print("[SYMBOL][SYMBOL]  NORMAL OPERATION: No rain cancellations detected")
         
         # Final flush to ensure all output is displayed
         sys.stdout.flush()
         return True
         
     except Exception as e:
-        print(f"❌ Error extracting schedule report: {e}")
+        print(f"[ERROR] Error extracting schedule report: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -181,14 +181,14 @@ def main():
         success = extract_schedule_report()
         
         if success:
-            print("\n✨ Report generation completed!")
+            print("\n[COMPLETE] Report generation completed!")
         else:
-            print("\n💔 Report generation failed")
+            print("\n[SYMBOL] Report generation failed")
             
     except KeyboardInterrupt:
-        print("\n👋 Report interrupted by user")
+        print("\n[SYMBOL] Report interrupted by user")
     except Exception as e:
-        print(f"\n💥 Unexpected error: {e}")
+        print(f"\n[SYMBOL] Unexpected error: {e}")
 
 if __name__ == "__main__":
     main()

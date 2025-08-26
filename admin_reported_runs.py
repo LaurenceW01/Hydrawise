@@ -32,15 +32,15 @@ from database.intelligent_data_storage import IntelligentDataStorage
 def print_banner():
     """Print the admin banner"""
     print("=" * 70)
-    print("🚰 HYDRAWISE REPORTED RUNS ADMIN")
+    print("HYDRAWISE REPORTED RUNS ADMIN")
     print("=" * 70)
 
 def print_result(result, title: str):
     """Print collection result in a nice format"""
-    print(f"\n📊 {title}")
+    print(f"\n[RESULTS] {title}")
     print("-" * 50)
     print(f"Mode: {result.mode.value}")
-    print(f"Success: {'✅ Yes' if result.success else '❌ No'}")
+    print(f"Success: {'Yes' if result.success else 'No'}")
     print(f"Collection Date: {result.collection_date}")
     print(f"Runs Collected: {result.runs_collected}")
     print(f"Runs Stored: {result.runs_stored}")
@@ -50,14 +50,14 @@ def print_result(result, title: str):
         print(f"Details: {result.details}")
     
     if result.errors:
-        print(f"❌ Errors:")
+        print(f"[ERROR] Errors:")
         for error in result.errors:
             print(f"   - {error}")
 
 def cmd_daily(args):
     """Execute daily collection"""
     print_banner()
-    print("🌅 DAILY COLLECTION - Previous Day + Current Day")
+    print("[DAILY] DAILY COLLECTION - Previous Day + Current Day")
     
     manager = ReportedRunsManager(headless=args.headless)
     result = manager.collect_daily(force=args.force)
@@ -69,7 +69,7 @@ def cmd_daily(args):
 def cmd_periodic(args):
     """Execute periodic collection"""
     print_banner()
-    print("🔄 PERIODIC COLLECTION - Current Day Delta Updates")
+    print("[PERIODIC] PERIODIC COLLECTION - Current Day Delta Updates")
     
     manager = ReportedRunsManager(headless=args.headless)
     result = manager.collect_periodic(min_interval_minutes=args.interval)
@@ -81,7 +81,7 @@ def cmd_periodic(args):
 def cmd_admin(args):
     """Execute admin override collection"""
     print_banner()
-    print(f"👤 ADMIN COLLECTION - Manual Override for {args.date}")
+    print(f"[ADMIN] ADMIN COLLECTION - Manual Override for {args.date}")
     
     # Parse target date
     try:
@@ -92,7 +92,7 @@ def cmd_admin(args):
         else:
             target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
     except ValueError:
-        print(f"❌ Invalid date format: {args.date}")
+        print(f"[ERROR] Invalid date format: {args.date}")
         print("   Use YYYY-MM-DD format, 'today', or 'yesterday'")
         return 1
     
@@ -106,43 +106,43 @@ def cmd_admin(args):
 def cmd_status(args):
     """Show collection status"""
     print_banner()
-    print("📊 COLLECTION STATUS")
+    print("[RESULTS] COLLECTION STATUS")
     
     try:
         manager = ReportedRunsManager()
         status = manager.get_collection_status()
         
-        print(f"\n🕐 Current Time: {status['current_time']}")
+        print(f"\n[TIME] Current Time: {status['current_time']}")
         
-        print(f"\n🌅 Daily Collection:")
+        print(f"\n[DAILY] Daily Collection:")
         daily = status['daily_collection']
         print(f"   Last Run: {daily['last_run'] or 'Never'}")
-        print(f"   Completed Today: {'✅ Yes' if daily['completed_today'] else '❌ No'}")
+        print(f"   Completed Today: {'[OK] Yes' if daily['completed_today'] else '[ERROR] No'}")
         print(f"   Next Recommended: {daily['next_recommended']}")
         
-        print(f"\n🔄 Periodic Collection:")
+        print(f"\n[PERIODIC] Periodic Collection:")
         periodic = status['periodic_collection']
         print(f"   Last Run: {periodic['last_run'] or 'Never'}")
-        print(f"   Completed Today: {'✅ Yes' if periodic['completed_today'] else '❌ No'}")
+        print(f"   Completed Today: {'[OK] Yes' if periodic['completed_today'] else '[ERROR] No'}")
         print(f"   Next Recommended: {periodic['next_recommended'] or 'Available now'}")
         
-        print(f"\n🗄️  Database Status:")
+        print(f"\n[DATABASE]  Database Status:")
         db_info = status['database_info']
         print(f"   Total Scheduled Runs: {db_info.get('scheduled_runs_count', 0)}")
         print(f"   Total Actual Runs: {db_info.get('actual_runs_count', 0)}")
         print(f"   Database Path: {db_info.get('database_path', 'Unknown')}")
-        print(f"   Cloud Sync: {'✅ Enabled' if db_info.get('cloud_sync_enabled') else '❌ Disabled'}")
+        print(f"   Cloud Sync: {'[OK] Enabled' if db_info.get('cloud_sync_enabled') else '[ERROR] Disabled'}")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Failed to get status: {e}")
+        print(f"[ERROR] Failed to get status: {e}")
         return 1
 
 def cmd_test(args):
     """Test the system with a small collection"""
     print_banner()
-    print("🧪 TEST MODE - Small Collection Sample")
+    print("[TEST] TEST MODE - Small Collection Sample")
     
     try:
         manager = ReportedRunsManager(headless=args.headless)
@@ -154,22 +154,22 @@ def cmd_test(args):
         print_result(result, f"Test Collection Results for {yesterday} (3 zones)")
         
         if result.success:
-            print("\n🎉 Test completed successfully!")
+            print("\n[SUCCESS] Test completed successfully!")
             print("   The system is working and ready for normal operations.")
         else:
-            print("\n⚠️  Test completed with errors.")
+            print("\n[WARNING]  Test completed with errors.")
             print("   Check the error messages above for troubleshooting.")
         
         return 0 if result.success else 1
         
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"[ERROR] Test failed: {e}")
         return 1
 
 def cmd_update(args):
     """Update/refresh current day's reported runs"""
     print_banner()
-    print("🔄 UPDATING CURRENT DAY'S REPORTED RUNS")
+    print("[PERIODIC] UPDATING CURRENT DAY'S REPORTED RUNS")
     print()
     
     try:
@@ -177,7 +177,7 @@ def cmd_update(args):
         
         # Use admin collection for today to get fresh data
         target_date = date.today()
-        print(f"📅 Updating reported runs for {target_date}")
+        print(f"[DATE] Updating reported runs for {target_date}")
         print("   This will collect the latest run data and update deltas")
         print()
         
@@ -197,27 +197,27 @@ def cmd_update(args):
                 unchanged_runs = storage_details['unchanged']
                 total_processed = storage_details['total']
                 
-                print(f"\n✅ Successfully processed {total_processed} reported runs for today:")
-                print(f"   🆕 {new_runs} new runs added to database")
-                print(f"   🔄 {updated_runs} existing runs updated")
-                print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
-                print(f"   💾 Total database changes: {new_runs + updated_runs}")
+                print(f"\n[OK] Successfully processed {total_processed} reported runs for today:")
+                print(f"   [NEW] {new_runs} new runs added to database")
+                print(f"   [PERIODIC] {updated_runs} existing runs updated")
+                print(f"   [OK]  {unchanged_runs} runs unchanged (already current)")
+                print(f"   [SAVED] Total database changes: {new_runs + updated_runs}")
             else:
                 # Fallback to old format
-                print(f"\n✅ Successfully updated {result.runs_stored} reported runs for today")
+                print(f"\n[OK] Successfully updated {result.runs_stored} reported runs for today")
                 if result.runs_collected != result.runs_stored:
-                    print(f"   📊 {result.runs_collected - result.runs_stored} runs were duplicates")
+                    print(f"   [RESULTS] {result.runs_collected - result.runs_stored} runs were duplicates")
             
-            print("   💡 Latest irrigation status is now available for analysis")
+            print("   [INFO] Latest irrigation status is now available for analysis")
         else:
-            print(f"\n❌ Update failed")
+            print(f"\n[ERROR] Update failed")
             if result.errors:
                 print("   Check errors above for troubleshooting")
         
         return 0 if result.success else 1
         
     except Exception as e:
-        print(f"❌ Update failed: {e}")
+        print(f"[ERROR] Update failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -225,7 +225,7 @@ def cmd_update(args):
 def cmd_yesterday(args):
     """Collect yesterday's reported runs"""
     print_banner()
-    print("📅 COLLECTING YESTERDAY'S REPORTED RUNS")
+    print("[DATE] COLLECTING YESTERDAY'S REPORTED RUNS")
     print()
     
     try:
@@ -233,7 +233,7 @@ def cmd_yesterday(args):
         
         # Target yesterday's date
         target_date = date.today() - timedelta(days=1)
-        print(f"📅 Collecting reported runs for {target_date}")
+        print(f"[DATE] Collecting reported runs for {target_date}")
         print("   This ensures we have complete data for yesterday")
         print()
         
@@ -253,20 +253,20 @@ def cmd_yesterday(args):
                 unchanged_runs = storage_details['unchanged']
                 total_processed = storage_details['total']
                 
-                print(f"\n✅ Successfully processed {total_processed} reported runs for yesterday:")
-                print(f"   🆕 {new_runs} new runs added to database")
-                print(f"   🔄 {updated_runs} existing runs updated")
-                print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
-                print(f"   💾 Total database changes: {new_runs + updated_runs}")
+                print(f"\n[OK] Successfully processed {total_processed} reported runs for yesterday:")
+                print(f"   [NEW] {new_runs} new runs added to database")
+                print(f"   [PERIODIC] {updated_runs} existing runs updated")
+                print(f"   [OK]  {unchanged_runs} runs unchanged (already current)")
+                print(f"   [SAVED] Total database changes: {new_runs + updated_runs}")
                 
                 if new_runs == 0 and updated_runs == 0:
-                    print(f"   ✨ Yesterday's data was already complete!")
+                    print(f"   [COMPLETE] Yesterday's data was already complete!")
                 else:
-                    print(f"   📊 Yesterday's irrigation data is now complete for analysis")
+                    print(f"   [RESULTS] Yesterday's irrigation data is now complete for analysis")
             else:
                 # Legacy simple count
-                print(f"\n✅ Successfully collected yesterday's reported runs:")
-                print(f"   💾 {result.runs_stored} runs stored in database")
+                print(f"\n[OK] Successfully collected yesterday's reported runs:")
+                print(f"   [SAVED] {result.runs_stored} runs stored in database")
             
             # Analyze zero gallon usage after data collection
             print_zero_gallon_analysis([target_date])
@@ -277,13 +277,13 @@ def cmd_yesterday(args):
         return 0 if result.success else 1
         
     except Exception as e:
-        print(f"❌ Yesterday collection failed: {e}")
+        print(f"[ERROR] Yesterday collection failed: {e}")
         return 1
 
 def cmd_today(args):
     """Collect today's reported runs (enhanced version of update)"""
     print_banner()
-    print("📅 COLLECTING TODAY'S REPORTED RUNS")
+    print("[DATE] COLLECTING TODAY'S REPORTED RUNS")
     print()
     
     try:
@@ -291,7 +291,7 @@ def cmd_today(args):
         
         # Use admin collection for today to get fresh data
         target_date = date.today()
-        print(f"📅 Collecting reported runs for {target_date}")
+        print(f"[DATE] Collecting reported runs for {target_date}")
         print("   This will collect all runs from today")
         print()
         
@@ -311,17 +311,17 @@ def cmd_today(args):
                 unchanged_runs = storage_details['unchanged']
                 total_processed = storage_details['total']
                 
-                print(f"\n✅ Successfully processed {total_processed} reported runs for today:")
-                print(f"   🆕 {new_runs} new runs added to database")
-                print(f"   🔄 {updated_runs} existing runs updated")
-                print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
-                print(f"   💾 Total database changes: {new_runs + updated_runs}")
+                print(f"\n[OK] Successfully processed {total_processed} reported runs for today:")
+                print(f"   [NEW] {new_runs} new runs added to database")
+                print(f"   [PERIODIC] {updated_runs} existing runs updated")
+                print(f"   [OK]  {unchanged_runs} runs unchanged (already current)")
+                print(f"   [SAVED] Total database changes: {new_runs + updated_runs}")
             else:
                 # Legacy simple count
-                print(f"\n✅ Successfully collected today's reported runs:")
-                print(f"   💾 {result.runs_stored} runs stored in database")
+                print(f"\n[OK] Successfully collected today's reported runs:")
+                print(f"   [SAVED] {result.runs_stored} runs stored in database")
                 
-            print(f"   💡 Latest irrigation status is now available for analysis")
+            print(f"   [INFO] Latest irrigation status is now available for analysis")
             
             # Analyze zero gallon usage after data collection
             print_zero_gallon_analysis([target_date])
@@ -332,13 +332,13 @@ def cmd_today(args):
         return 0 if result.success else 1
         
     except Exception as e:
-        print(f"❌ Today collection failed: {e}")
+        print(f"[ERROR] Today collection failed: {e}")
         return 1
 
 def cmd_catchup(args):
     """Collect both yesterday and today's runs for complete coverage"""
     print_banner()
-    print("🔄 CATCH-UP COLLECTION (YESTERDAY + TODAY)")
+    print("[PERIODIC] CATCH-UP COLLECTION (YESTERDAY + TODAY)")
     print()
     
     print("This will collect both yesterday and today's runs to ensure complete coverage.")
@@ -349,7 +349,7 @@ def cmd_catchup(args):
         
         # Collect yesterday first
         yesterday = date.today() - timedelta(days=1)
-        print(f"📅 Step 1: Collecting yesterday's runs ({yesterday})...")
+        print(f"[DATE] Step 1: Collecting yesterday's runs ({yesterday})...")
         
         result_yesterday = manager.collect_admin(yesterday, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
         
@@ -357,7 +357,7 @@ def cmd_catchup(args):
         
         # Collect today
         today = date.today()
-        print(f"\n📅 Step 2: Collecting today's runs ({today})...")
+        print(f"\n[DATE] Step 2: Collecting today's runs ({today})...")
         
         result_today = manager.collect_admin(today, limit_zones=args.limit if hasattr(args, 'limit') and args.limit else None)
         
@@ -377,13 +377,13 @@ def cmd_catchup(args):
                 total_unchanged = yesterday_details.get('unchanged', 0) + today_details.get('unchanged', 0)
                 total_processed = yesterday_details.get('total', 0) + today_details.get('total', 0)
                 
-                print(f"\n🎉 CATCH-UP COMPLETE!")
-                print(f"   📊 Total runs processed: {total_processed}")
-                print(f"   🆕 New runs added: {total_new}")
-                print(f"   🔄 Runs updated: {total_updated}")
-                print(f"   ✓  Runs unchanged: {total_unchanged}")
-                print(f"   💾 Total database changes: {total_new + total_updated}")
-                print(f"   ✨ Irrigation data is now up-to-date for analysis!")
+                print(f"\n[SUCCESS] CATCH-UP COMPLETE!")
+                print(f"   [RESULTS] Total runs processed: {total_processed}")
+                print(f"   [NEW] New runs added: {total_new}")
+                print(f"   [PERIODIC] Runs updated: {total_updated}")
+                print(f"   [OK]  Runs unchanged: {total_unchanged}")
+                print(f"   [SAVED] Total database changes: {total_new + total_updated}")
+                print(f"   [COMPLETE] Irrigation data is now up-to-date for analysis!")
                 
                 # Analyze zero gallon usage after data collection
                 print_zero_gallon_analysis([yesterday, today])
@@ -391,12 +391,12 @@ def cmd_catchup(args):
         return 0 if total_success else 1
         
     except Exception as e:
-        print(f"❌ Catch-up collection failed: {e}")
+        print(f"[ERROR] Catch-up collection failed: {e}")
         return 1
 
 def print_zero_gallon_analysis(analysis_dates: List[date]):
     """Analyze and report zones with 0 gallon water usage for specified dates"""
-    print(f"\n🚨 ZERO GALLON USAGE ANALYSIS")
+    print(f"\n[ALERT] ZERO GALLON USAGE ANALYSIS")
     print("=" * 60)
     
     try:
@@ -431,7 +431,7 @@ def print_zero_gallon_analysis(analysis_dates: List[date]):
             zero_gallon_runs = cursor.fetchall()
             
             if not zero_gallon_runs:
-                print("✅ No zones reported 0 gallons during irrigation attempts")
+                print("[OK] No zones reported 0 gallons during irrigation attempts")
                 return
             
             # Organize data for analysis
@@ -465,7 +465,7 @@ def print_zero_gallon_analysis(analysis_dates: List[date]):
             total_zones_affected = 0
             for run_date in sorted(zones_by_date.keys(), reverse=True):
                 zones = zones_by_date[run_date]
-                print(f"📅 {run_date}: {len(zones)} zones reported 0 gallons")
+                print(f"[DATE] {run_date}: {len(zones)} zones reported 0 gallons")
                 total_zones_affected += len(zones)
                 
                 for zone in zones:
@@ -473,23 +473,23 @@ def print_zero_gallon_analysis(analysis_dates: List[date]):
                         zone['status'], zone['failure_reason'], 
                         zone['abort_reason'], zone['popup_text']
                     )
-                    print(f"   • {zone['zone_name']} ({zone['duration']} min) - {reason}")
+                    print(f"   - {zone['zone_name']} ({zone['duration']} min) - {reason}")
             
-            print(f"\n📊 SUMMARY:")
+            print(f"\n[RESULTS] SUMMARY:")
             print(f"   Total affected zones: {total_zones_affected}")
             print(f"   Unique zones: {len(zone_patterns)}")
             
             # Pattern analysis
-            print(f"\n🔍 PATTERN ANALYSIS:")
+            print(f"\n[ANALYSIS] PATTERN ANALYSIS:")
             
             # Zones with multiple zero-gallon occurrences
             repeat_offenders = {zone: data for zone, data in zone_patterns.items() if data['count'] > 1}
             if repeat_offenders:
-                print(f"   🔄 Zones with repeated issues ({len(repeat_offenders)}):")
+                print(f"   [PERIODIC] Zones with repeated issues ({len(repeat_offenders)}):")
                 for zone, data in repeat_offenders.items():
                     dates_str = ", ".join(data['dates'])
                     reasons_str = ", ".join(set(data['reasons']))
-                    print(f"      • {zone}: {data['count']} times ({dates_str}) - {reasons_str}")
+                    print(f"      - {zone}: {data['count']} times ({dates_str}) - {reasons_str}")
             
             # Common failure reasons
             all_reasons = []
@@ -500,23 +500,23 @@ def print_zero_gallon_analysis(analysis_dates: List[date]):
             for reason in all_reasons:
                 reason_counts[reason] = reason_counts.get(reason, 0) + 1
             
-            print(f"   📋 Common causes:")
+            print(f"   [LOG] Common causes:")
             for reason, count in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True):
-                print(f"      • {reason}: {count} occurrences")
+                print(f"      - {reason}: {count} occurrences")
             
             # Recommendations
-            print(f"\n💡 RECOMMENDATIONS:")
+            print(f"\n[INFO] RECOMMENDATIONS:")
             if any('sensor' in reason.lower() for reason in reason_counts.keys()):
-                print("   • Check flow sensors on affected zones")
+                print("   - Check flow sensors on affected zones")
             if any('abort' in reason.lower() for reason in reason_counts.keys()):
-                print("   • Investigate causes of irrigation aborts")
+                print("   - Investigate causes of irrigation aborts")
             if any('valve' in reason.lower() for reason in reason_counts.keys()):
-                print("   • Inspect valves on problem zones")
+                print("   - Inspect valves on problem zones")
             if repeat_offenders:
-                print(f"   • Priority inspection needed for: {', '.join(repeat_offenders.keys())}")
+                print(f"   - Priority inspection needed for: {', '.join(repeat_offenders.keys())}")
             
     except Exception as e:
-        print(f"❌ Zero gallon analysis failed: {e}")
+        print(f"[ERROR] Zero gallon analysis failed: {e}")
         import traceback
         traceback.print_exc()
 
@@ -563,7 +563,7 @@ def determine_zero_gallon_reason(status, failure_reason, abort_reason, popup_tex
 def update_water_usage_estimation_for_date(target_date: date):
     """Update water usage estimation for a specific date"""
     try:
-        print(f"\n💧 UPDATING WATER USAGE ESTIMATION FOR {target_date}")
+        print(f"\n[WATER] UPDATING WATER USAGE ESTIMATION FOR {target_date}")
         print("-" * 60)
         
         storage = IntelligentDataStorage()
@@ -576,22 +576,22 @@ def update_water_usage_estimation_for_date(target_date: date):
             total = result['total_runs']
             
             if updated > 0:
-                print(f"✅ Updated water usage estimation for {updated}/{total} runs")
-                print(f"   📊 Runs now have usage_type and calculated usage values")
+                print(f"[OK] Updated water usage estimation for {updated}/{total} runs")
+                print(f"   [RESULTS] Runs now have usage_type and calculated usage values")
             else:
-                print(f"✓  All {total} runs already have usage estimation data")
+                print(f"[OK]  All {total} runs already have usage estimation data")
         else:
-            print(f"❌ Failed to update water usage estimation: {result.get('error')}")
+            print(f"[ERROR] Failed to update water usage estimation: {result.get('error')}")
             
     except Exception as e:
-        print(f"❌ Water usage estimation update failed: {e}")
+        print(f"[ERROR] Water usage estimation update failed: {e}")
         import traceback
         traceback.print_exc()
 
 def cmd_zero_gallons(args):
     """Analyze zero gallon water usage for specified date range"""
     print_banner()
-    print("🚨 ZERO GALLON WATER USAGE ANALYSIS")
+    print("[ALERT] ZERO GALLON WATER USAGE ANALYSIS")
     print()
     
     try:
@@ -614,7 +614,7 @@ def cmd_zero_gallons(args):
             # Default to yesterday
             analysis_dates = [date.today() - timedelta(days=1)]
         
-        print(f"📅 Analyzing zero gallon usage for: {len(analysis_dates)} date(s)")
+        print(f"[DATE] Analyzing zero gallon usage for: {len(analysis_dates)} date(s)")
         if len(analysis_dates) == 1:
             print(f"   Date: {analysis_dates[0]}")
         else:
@@ -626,10 +626,10 @@ def cmd_zero_gallons(args):
         return 0
         
     except ValueError:
-        print(f"❌ Invalid date format. Use YYYY-MM-DD, 'today', or 'yesterday'")
+        print(f"[ERROR] Invalid date format. Use YYYY-MM-DD, 'today', or 'yesterday'")
         return 1
     except Exception as e:
-        print(f"❌ Zero gallon analysis failed: {e}")
+        print(f"[ERROR] Zero gallon analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -862,8 +862,8 @@ Examples:
         # Store file handler reference for cleanup
         log_file_handler_ref = file_handler
         
-        print(f"📋 Logging output to: {enhanced_filename}")
-        print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[LOG] Logging output to: {enhanced_filename}")
+        print(f"[DATE] Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("-" * 50)
         
         # Store references for cleanup
@@ -888,10 +888,10 @@ Examples:
         return result
         
     except KeyboardInterrupt:
-        print("\n\n⏹️  Operation cancelled by user")
+        print("\n\n[CANCELLED]  Operation cancelled by user")
         return 1
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -914,7 +914,7 @@ Examples:
                 # Close log file
                 log_file_handle_ref.close()
                 
-                print(f"📋 Log saved to: {enhanced_filename}")
+                print(f"[LOG] Log saved to: {enhanced_filename}")
                 
             except Exception as cleanup_error:
                 # If cleanup fails, at least try to restore streams
@@ -922,7 +922,7 @@ Examples:
                     sys.stdout = original_stdout_ref
                 if original_stderr_ref:
                     sys.stderr = original_stderr_ref
-                print(f"⚠️  Log cleanup warning: {cleanup_error}")
+                print(f"[WARNING]  Log cleanup warning: {cleanup_error}")
 
 if __name__ == "__main__":
     sys.exit(main())

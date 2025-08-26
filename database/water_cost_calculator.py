@@ -126,7 +126,7 @@ class WaterCostCalculator:
         days_in_period = (target_date - billing_start).days + 1  # Include start day
         manual_usage = gallons_per_day * days_in_period
         
-        logger.debug(f"Manual watering: {gallons_per_day} gal/day × {days_in_period} days = {manual_usage:.1f} gallons")
+        logger.debug(f"Manual watering: {gallons_per_day} gal/day [SYMBOL] {days_in_period} days = {manual_usage:.1f} gallons")
         return manual_usage
     
     def find_usage_tier(self, total_usage: float) -> Dict[str, Any]:
@@ -308,24 +308,24 @@ if __name__ == "__main__":
     calculator = WaterCostCalculator()
     
     # Test current period calculation
-    print("🧾 HOUSTON WATER COST CALCULATOR TEST")
+    print("[SYMBOL] HOUSTON WATER COST CALCULATOR TEST")
     print("=" * 50)
     
     result = calculator.calculate_period_cost()
     
-    print(f"📅 Billing Period: {result['billing_period']['start_date']} to {result['billing_period']['end_date']}")
-    print(f"📊 Progress: {result['billing_period']['percent_complete']}% complete")
-    print(f"\n💧 Usage:")
+    print(f"[DATE] Billing Period: {result['billing_period']['start_date']} to {result['billing_period']['end_date']}")
+    print(f"[RESULTS] Progress: {result['billing_period']['percent_complete']}% complete")
+    print(f"\n[WATER] Usage:")
     print(f"   Irrigation: {result['usage']['irrigation_gallons']} gallons")
     print(f"   Manual watering: {result['usage']['manual_watering_gallons']} gallons")
     print(f"   Total: {result['usage']['total_gallons']} gallons")
-    print(f"\n💰 Costs:")
+    print(f"\n[SYMBOL] Costs:")
     print(f"   Basic service: ${result['costs']['basic_service_charge']}")
     print(f"   Water usage: ${result['costs']['water_usage_cost']}")
     print(f"   Wastewater usage: ${result['costs']['wastewater_usage_cost']}")
     print(f"   Total estimated: ${result['costs']['estimated_total_cost']}")
     
     if 'projections' in result and result['projections']:
-        print(f"\n📈 Full Period Projection:")
+        print(f"\n[SYMBOL] Full Period Projection:")
         print(f"   Projected total usage: {result['projections']['projected_total_gallons']} gallons")
         print(f"   Projected total cost: ${result['projections']['projected_total_cost']}")

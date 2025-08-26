@@ -764,9 +764,9 @@ class IrrigationAnalytics:
         # Generate report
         report_lines = []
         report_lines.append("=" * 80)
-        report_lines.append("💧 IRRIGATION ANALYTICS REPORT")
-        report_lines.append(f"📅 Analysis Period: {start_date} to {end_date} ({days_back} days)")
-        report_lines.append(f"📊 Generated: {get_display_timestamp()}")
+        report_lines.append("[WATER] IRRIGATION ANALYTICS REPORT")
+        report_lines.append(f"[DATE] Analysis Period: {start_date} to {end_date} ({days_back} days)")
+        report_lines.append(f"[RESULTS] Generated: {get_display_timestamp()}")
         report_lines.append("=" * 80)
         report_lines.append("")
         
@@ -774,48 +774,48 @@ class IrrigationAnalytics:
         high_anomalies = [a for a in anomalies if a.severity == "HIGH"]
         medium_anomalies = [a for a in anomalies if a.severity == "MEDIUM"]
         
-        report_lines.append("📋 EXECUTIVE SUMMARY:")
-        report_lines.append(f"   🏠 Zones analyzed: {len(trends)}")
-        report_lines.append(f"   🚨 High priority alerts: {len(high_anomalies)}")
-        report_lines.append(f"   ⚠️  Medium priority alerts: {len(medium_anomalies)}")
-        report_lines.append(f"   💧 Total gallons used: {sum(t.total_gallons for t in trends):.1f}")
+        report_lines.append("[LOG] EXECUTIVE SUMMARY:")
+        report_lines.append(f"   [SYMBOL] Zones analyzed: {len(trends)}")
+        report_lines.append(f"   [ALERT] High priority alerts: {len(high_anomalies)}")
+        report_lines.append(f"   [WARNING]  Medium priority alerts: {len(medium_anomalies)}")
+        report_lines.append(f"   [WATER] Total gallons used: {sum(t.total_gallons for t in trends):.1f}")
         
         if include_costs and trends:
             total_cost = sum(t.total_cost for t in trends)
-            report_lines.append(f"   💰 Total irrigation cost: ${total_cost:.2f}")
-            report_lines.append(f"   📊 Rate structure: {self.water_rates.name}")
+            report_lines.append(f"   [SYMBOL] Total irrigation cost: ${total_cost:.2f}")
+            report_lines.append(f"   [RESULTS] Rate structure: {self.water_rates.name}")
         
         report_lines.append("")
         
         # High priority anomalies
         if high_anomalies:
-            report_lines.append("🚨 HIGH PRIORITY ANOMALIES:")
+            report_lines.append("[ALERT] HIGH PRIORITY ANOMALIES:")
             report_lines.append("-" * 60)
             for anomaly in high_anomalies:
-                report_lines.append(f"🔥 {anomaly.zone_name} ({anomaly.run_date})")
+                report_lines.append(f"[SYMBOL] {anomaly.zone_name} ({anomaly.run_date})")
                 report_lines.append(f"   {anomaly.description}")
                 report_lines.append("")
         
         # Zone trends
         if trends:
-            report_lines.append("📈 ZONE USAGE TRENDS:")
+            report_lines.append("[SYMBOL] ZONE USAGE TRENDS:")
             report_lines.append("-" * 80)
             for trend in sorted(trends, key=lambda x: x.total_gallons, reverse=True):
-                usage_emoji = {"INCREASING": "📈", "DECREASING": "📉", "STABLE": "➡️"}
-                efficiency_emoji = {"IMPROVING": "⬆️", "DECLINING": "⬇️", "STABLE": "➡️"}
+                usage_emoji = {"INCREASING": "[SYMBOL]", "DECREASING": "[SYMBOL]", "STABLE": "[SYMBOL][SYMBOL]"}
+                efficiency_emoji = {"IMPROVING": "[SYMBOL][SYMBOL]", "DECLINING": "[SYMBOL][SYMBOL]", "STABLE": "[SYMBOL][SYMBOL]"}
                 
-                report_lines.append(f"🏠 {trend.zone_name}")
-                report_lines.append(f"   💧 Total: {trend.total_gallons:.1f} gal ({trend.total_runs} runs)")
-                report_lines.append(f"   📊 Avg: {trend.avg_gallons_per_run:.1f} gal/run, {trend.avg_duration_per_run:.1f} min/run")
-                report_lines.append(f"   ⚡ Efficiency: {trend.avg_gpm:.2f} GPM")
+                report_lines.append(f"[SYMBOL] {trend.zone_name}")
+                report_lines.append(f"   [WATER] Total: {trend.total_gallons:.1f} gal ({trend.total_runs} runs)")
+                report_lines.append(f"   [RESULTS] Avg: {trend.avg_gallons_per_run:.1f} gal/run, {trend.avg_duration_per_run:.1f} min/run")
+                report_lines.append(f"   [SYMBOL] Efficiency: {trend.avg_gpm:.2f} GPM")
                 
                 if include_costs:
-                    report_lines.append(f"   💰 Cost: ${trend.total_cost:.2f} total, ${trend.avg_cost_per_run:.2f}/run")
+                    report_lines.append(f"   [SYMBOL] Cost: ${trend.total_cost:.2f} total, ${trend.avg_cost_per_run:.2f}/run")
                 
-                report_lines.append(f"   📈 Trends: Usage {usage_emoji[trend.usage_trend]} {trend.usage_trend}, Efficiency {efficiency_emoji[trend.efficiency_trend]} {trend.efficiency_trend}")
+                report_lines.append(f"   [SYMBOL] Trends: Usage {usage_emoji[trend.usage_trend]} {trend.usage_trend}, Efficiency {efficiency_emoji[trend.efficiency_trend]} {trend.efficiency_trend}")
                 
                 if trend.gap_days > 0:
-                    report_lines.append(f"   ⚠️  {trend.gap_days} gap days (zero usage)")
+                    report_lines.append(f"   [WARNING]  {trend.gap_days} gap days (zero usage)")
                     
                 report_lines.append("")
         
@@ -975,23 +975,23 @@ class IrrigationAnalytics:
         """
         lines = []
         lines.append("=" * 80)
-        lines.append(f"💰 {report.title.upper()}")
+        lines.append(f"[SYMBOL] {report.title.upper()}")
         lines.append("=" * 80)
-        lines.append(f"📅 Period: {report.period_start} to {report.period_end}")
-        lines.append(f"📊 Rate Structure: {report.rate_structure_name}")
+        lines.append(f"[DATE] Period: {report.period_start} to {report.period_end}")
+        lines.append(f"[RESULTS] Rate Structure: {report.rate_structure_name}")
         lines.append("")
         
         # Summary
-        lines.append("📋 SUMMARY:")
-        lines.append(f"   💧 Total gallons: {report.grand_total_gallons:.1f}")
-        lines.append(f"   💰 Total cost: ${report.grand_total_cost:.2f}")
-        lines.append(f"   🔄 Total runs: {report.grand_total_runs}")
-        lines.append(f"   📈 Average daily cost: ${report.average_daily_cost:.2f}")
+        lines.append("[LOG] SUMMARY:")
+        lines.append(f"   [WATER] Total gallons: {report.grand_total_gallons:.1f}")
+        lines.append(f"   [SYMBOL] Total cost: ${report.grand_total_cost:.2f}")
+        lines.append(f"   [PERIODIC] Total runs: {report.grand_total_runs}")
+        lines.append(f"   [SYMBOL] Average daily cost: ${report.average_daily_cost:.2f}")
         lines.append("")
         
         # Zone totals
         if report.zone_totals:
-            lines.append("🏠 COST BY ZONE:")
+            lines.append("[SYMBOL] COST BY ZONE:")
             lines.append("-" * 80)
             lines.append(f"{'Zone':<35} {'Runs':<8} {'Gallons':<12} {'Total Cost':<12} {'Avg/Run'}")
             lines.append("-" * 80)
@@ -1014,7 +1014,7 @@ class IrrigationAnalytics:
         
         # Daily detail if requested and multiple days
         if show_daily_detail and len(set(s.run_date for s in report.daily_summaries)) > 1:
-            lines.append("📅 DAILY BREAKDOWN:")
+            lines.append("[DATE] DAILY BREAKDOWN:")
             lines.append("-" * 80)
             
             # Group by date
@@ -1030,13 +1030,13 @@ class IrrigationAnalytics:
                 daily_total_gallons = sum(s.total_gallons for s in date_summaries)
                 daily_total_runs = sum(s.total_runs for s in date_summaries)
                 
-                lines.append(f"📅 {run_date} - {daily_total_runs} runs, {daily_total_gallons:.1f} gal, ${daily_total_cost:.2f}")
+                lines.append(f"[DATE] {run_date} - {daily_total_runs} runs, {daily_total_gallons:.1f} gal, ${daily_total_cost:.2f}")
                 
                 # Sort zones by cost for this day
                 date_summaries.sort(key=lambda x: x.total_cost, reverse=True)
                 for summary in date_summaries:
                     zone_display = summary.zone_name[:30] + "..." if len(summary.zone_name) > 30 else summary.zone_name
-                    lines.append(f"   🏠 {zone_display:<33} {summary.total_runs} runs, {summary.total_gallons:.1f} gal, ${summary.total_cost:.2f}")
+                    lines.append(f"   [SYMBOL] {zone_display:<33} {summary.total_runs} runs, {summary.total_gallons:.1f} gal, ${summary.total_cost:.2f}")
                 
                 lines.append("")
         
@@ -1048,11 +1048,11 @@ class IrrigationAnalytics:
         lines = []
         
         # Header
-        lines.append("🚨 ZERO GALLON WATER USAGE ANALYSIS REPORT")
+        lines.append("[ALERT] ZERO GALLON WATER USAGE ANALYSIS REPORT")
         lines.append("=" * 80)
-        lines.append(f"📅 Analysis Period: {start_date} to {end_date}")
-        lines.append(f"🔍 Duration: {(end_date - start_date).days + 1} days")
-        lines.append(f"📊 Generated: {get_display_timestamp()}")
+        lines.append(f"[DATE] Analysis Period: {start_date} to {end_date}")
+        lines.append(f"[ANALYSIS] Duration: {(end_date - start_date).days + 1} days")
+        lines.append(f"[RESULTS] Generated: {get_display_timestamp()}")
         lines.append("")
         
         with sqlite3.connect(self.db_path) as conn:
@@ -1079,7 +1079,7 @@ class IrrigationAnalytics:
             zero_gallon_runs = cursor.fetchall()
             
             if not zero_gallon_runs:
-                lines.append("✅ NO ZERO GALLON ISSUES DETECTED")
+                lines.append("[OK] NO ZERO GALLON ISSUES DETECTED")
                 lines.append("   All irrigation runs that attempted watering successfully used water.")
                 lines.append("   This indicates healthy system operation during the analysis period.")
                 lines.append("")
@@ -1131,21 +1131,21 @@ class IrrigationAnalytics:
             unique_zones = len(zone_patterns)
             total_wasted_duration = sum(run[2] for run in zero_gallon_runs)
             
-            lines.append("📊 SUMMARY STATISTICS:")
-            lines.append(f"   🚨 Total zero-gallon runs: {total_affected_runs}")
-            lines.append(f"   🏠 Unique zones affected: {unique_zones}")
-            lines.append(f"   ⏱️  Total wasted runtime: {total_wasted_duration} minutes ({total_wasted_duration/60:.1f} hours)")
-            lines.append(f"   📈 Average per affected zone: {total_affected_runs/unique_zones:.1f} incidents")
+            lines.append("[RESULTS] SUMMARY STATISTICS:")
+            lines.append(f"   [ALERT] Total zero-gallon runs: {total_affected_runs}")
+            lines.append(f"   [SYMBOL] Unique zones affected: {unique_zones}")
+            lines.append(f"   [SYMBOL][SYMBOL]  Total wasted runtime: {total_wasted_duration} minutes ({total_wasted_duration/60:.1f} hours)")
+            lines.append(f"   [SYMBOL] Average per affected zone: {total_affected_runs/unique_zones:.1f} incidents")
             lines.append("")
             
             # Daily Breakdown
-            lines.append("📅 DAILY BREAKDOWN:")
+            lines.append("[DATE] DAILY BREAKDOWN:")
             lines.append("-" * 60)
             
             for run_date in sorted(zones_by_date.keys(), reverse=True):
                 zones = zones_by_date[run_date]
                 daily_duration = sum(zone['duration'] for zone in zones)
-                lines.append(f"📅 {run_date}: {len(zones)} zones affected ({daily_duration} min wasted)")
+                lines.append(f"[DATE] {run_date}: {len(zones)} zones affected ({daily_duration} min wasted)")
                 
                 for zone in sorted(zones, key=lambda x: x['zone_name']):
                     reason = self._determine_zero_gallon_reason(
@@ -1153,11 +1153,11 @@ class IrrigationAnalytics:
                         zone['abort_reason'], zone['popup_text'], zone['current_ma']
                     )
                     current_info = f" ({zone['current_ma']}mA)" if zone['current_ma'] else ""
-                    lines.append(f"   • {zone['zone_name']} - {zone['duration']} min - {reason}{current_info}")
+                    lines.append(f"   - {zone['zone_name']} - {zone['duration']} min - {reason}{current_info}")
                 lines.append("")
             
             # Zone Pattern Analysis
-            lines.append("🔍 ZONE PATTERN ANALYSIS:")
+            lines.append("[ANALYSIS] ZONE PATTERN ANALYSIS:")
             lines.append("-" * 60)
             
             # Sort zones by incident count
@@ -1168,79 +1168,79 @@ class IrrigationAnalytics:
                 date_range = f"{min(data['dates'])} to {max(data['dates'])}" if len(data['dates']) > 1 else str(data['dates'][0])
                 reasons_str = ", ".join(set(data['reasons']))
                 
-                severity_icon = "🔥" if data['count'] >= 3 else "⚠️" if data['count'] >= 2 else "ℹ️"
+                severity_icon = "[SYMBOL]" if data['count'] >= 3 else "[WARNING]" if data['count'] >= 2 else "[INFO]"
                 
                 lines.append(f"{severity_icon} {zone_name}:")
-                lines.append(f"   📊 Incidents: {data['count']} ({date_range})")
-                lines.append(f"   ⏱️  Avg duration: {avg_duration:.1f} min")
-                lines.append(f"   🔍 Causes: {reasons_str}")
+                lines.append(f"   [RESULTS] Incidents: {data['count']} ({date_range})")
+                lines.append(f"   [SYMBOL][SYMBOL]  Avg duration: {avg_duration:.1f} min")
+                lines.append(f"   [ANALYSIS] Causes: {reasons_str}")
                 lines.append("")
             
             # Failure Reason Analysis
-            lines.append("📋 FAILURE CAUSE ANALYSIS:")
+            lines.append("[LOG] FAILURE CAUSE ANALYSIS:")
             lines.append("-" * 60)
             
             sorted_reasons = sorted(failure_reasons.items(), key=lambda x: x[1], reverse=True)
             
             for reason, count in sorted_reasons:
                 percentage = (count / total_affected_runs) * 100
-                lines.append(f"• {reason}: {count} occurrences ({percentage:.1f}%)")
+                lines.append(f"- {reason}: {count} occurrences ({percentage:.1f}%)")
             
             lines.append("")
             
             # Priority Issues (zones with 3+ incidents)
             high_priority = {zone: data for zone, data in zone_patterns.items() if data['count'] >= 3}
             if high_priority:
-                lines.append("🔥 HIGH PRIORITY ZONES (3+ incidents):")
+                lines.append("[SYMBOL] HIGH PRIORITY ZONES (3+ incidents):")
                 lines.append("-" * 60)
                 for zone, data in high_priority.items():
                     total_wasted = data['total_duration']
-                    lines.append(f"🚨 {zone}: {data['count']} incidents, {total_wasted} min wasted")
-                    lines.append(f"   📅 Dates: {', '.join(data['dates'])}")
-                    lines.append(f"   🔍 Issues: {', '.join(set(data['reasons']))}")
+                    lines.append(f"[ALERT] {zone}: {data['count']} incidents, {total_wasted} min wasted")
+                    lines.append(f"   [DATE] Dates: {', '.join(data['dates'])}")
+                    lines.append(f"   [ANALYSIS] Issues: {', '.join(set(data['reasons']))}")
                 lines.append("")
             
             # Recommendations
-            lines.append("💡 RECOMMENDATIONS:")
+            lines.append("[INFO] RECOMMENDATIONS:")
             lines.append("-" * 60)
             
             if any('sensor' in reason.lower() for reason in failure_reasons.keys()):
                 sensor_count = sum(count for reason, count in failure_reasons.items() if 'sensor' in reason.lower())
-                lines.append(f"🔧 SENSOR ISSUES ({sensor_count} incidents):")
-                lines.append("   • Inspect flow sensors on affected zones")
-                lines.append("   • Verify sensor calibration and connections")
-                lines.append("   • Check for debris or mineral buildup")
+                lines.append(f"[SYMBOL] SENSOR ISSUES ({sensor_count} incidents):")
+                lines.append("   - Inspect flow sensors on affected zones")
+                lines.append("   - Verify sensor calibration and connections")
+                lines.append("   - Check for debris or mineral buildup")
                 lines.append("")
             
             if any('abort' in reason.lower() for reason in failure_reasons.keys()):
                 abort_count = sum(count for reason, count in failure_reasons.items() if 'abort' in reason.lower())
-                lines.append(f"⚠️ SYSTEM ABORTS ({abort_count} incidents):")
-                lines.append("   • Review system logs for abort triggers")
-                lines.append("   • Check rain sensor functionality")
-                lines.append("   • Verify pressure and flow thresholds")
+                lines.append(f"[WARNING] SYSTEM ABORTS ({abort_count} incidents):")
+                lines.append("   - Review system logs for abort triggers")
+                lines.append("   - Check rain sensor functionality")
+                lines.append("   - Verify pressure and flow thresholds")
                 lines.append("")
             
             if any('valve' in reason.lower() for reason in failure_reasons.keys()):
                 valve_count = sum(count for reason, count in failure_reasons.items() if 'valve' in reason.lower())
-                lines.append(f"🔧 VALVE ISSUES ({valve_count} incidents):")
-                lines.append("   • Inspect valve operation and sealing")
-                lines.append("   • Check for clogs or debris")
-                lines.append("   • Verify electrical connections")
+                lines.append(f"[SYMBOL] VALVE ISSUES ({valve_count} incidents):")
+                lines.append("   - Inspect valve operation and sealing")
+                lines.append("   - Check for clogs or debris")
+                lines.append("   - Verify electrical connections")
                 lines.append("")
             
             if high_priority:
-                lines.append(f"🎯 IMMEDIATE ACTION NEEDED:")
-                lines.append(f"   • Priority inspection: {', '.join(high_priority.keys())}")
-                lines.append(f"   • These zones have consistent problems requiring urgent attention")
+                lines.append(f"[SYMBOL] IMMEDIATE ACTION NEEDED:")
+                lines.append(f"   - Priority inspection: {', '.join(high_priority.keys())}")
+                lines.append(f"   - These zones have consistent problems requiring urgent attention")
                 lines.append("")
             
             # Efficiency Impact
-            lines.append("📈 EFFICIENCY IMPACT:")
+            lines.append("[SYMBOL] EFFICIENCY IMPACT:")
             lines.append("-" * 60)
-            lines.append(f"⏱️  Total wasted irrigation time: {total_wasted_duration} minutes")
-            lines.append(f"💧 Estimated water loss: 0 gallons (no actual water waste)")
-            lines.append(f"⚡ Energy waste: {total_wasted_duration * 0.1:.1f} kWh (estimated)")
-            lines.append(f"🔄 System efficiency: {((total_affected_runs) / (total_affected_runs + 100)) * 100:.1f}% failed runs (estimated)")
+            lines.append(f"[SYMBOL][SYMBOL]  Total wasted irrigation time: {total_wasted_duration} minutes")
+            lines.append(f"[WATER] Estimated water loss: 0 gallons (no actual water waste)")
+            lines.append(f"[SYMBOL] Energy waste: {total_wasted_duration * 0.1:.1f} kWh (estimated)")
+            lines.append(f"[PERIODIC] System efficiency: {((total_affected_runs) / (total_affected_runs + 100)) * 100:.1f}% failed runs (estimated)")
             
         lines.append("")
         lines.append("=" * 80)
@@ -1309,13 +1309,13 @@ class IrrigationAnalytics:
 
 def main():
     """Test the analytics system"""
-    print("🔬 TESTING IRRIGATION ANALYTICS SYSTEM")
+    print("[SYMBOL] TESTING IRRIGATION ANALYTICS SYSTEM")
     print("=" * 60)
     
     analytics = IrrigationAnalytics()
     
     # Update baselines for all zones
-    print("📊 Calculating baselines...")
+    print("[RESULTS] Calculating baselines...")
     
     # Get all unique zones
     with sqlite3.connect(analytics.db_path) as conn:
@@ -1325,18 +1325,18 @@ def main():
     
     for zone in zones:
         if analytics.update_baseline(zone):
-            print(f"   ✅ Updated baseline for {zone}")
+            print(f"   [OK] Updated baseline for {zone}")
         else:
-            print(f"   ⚠️  Insufficient data for {zone}")
+            print(f"   [WARNING]  Insufficient data for {zone}")
     
     # Detect anomalies
-    print("\n🔍 Detecting anomalies...")
+    print("\n[ANALYSIS] Detecting anomalies...")
     anomalies = analytics.detect_anomalies()
     stored_count = analytics.store_anomalies(anomalies)
-    print(f"   🚨 Found {len(anomalies)} anomalies, stored {stored_count} new ones")
+    print(f"   [ALERT] Found {len(anomalies)} anomalies, stored {stored_count} new ones")
     
     # Generate report
-    print("\n📄 Generating analytics report...")
+    print("\n[SYMBOL] Generating analytics report...")
     report = analytics.generate_analytics_report()
     print(report)
 

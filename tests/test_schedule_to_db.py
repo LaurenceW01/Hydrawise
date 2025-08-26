@@ -20,7 +20,7 @@ from database.intelligent_data_storage import IntelligentDataStorage
 def test_schedule_collection_to_db():
     """Collect first 10 scheduled runs from today and store in database"""
     
-    print("🧪 Testing Schedule Collection → Database Storage")
+    print("[SYMBOL] Testing Schedule Collection [SYMBOL] Database Storage")
     print("=" * 60)
     
     # Load credentials
@@ -29,17 +29,17 @@ def test_schedule_collection_to_db():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials in .env file")
+        print("[SYMBOL] Missing credentials in .env file")
         return False
         
     try:
         # Initialize components
-        print("🔧 Initializing scraper and database...")
+        print("[SYMBOL] Initializing scraper and database...")
         scraper = HydrawiseWebScraper(username, password, headless=True)
         storage = IntelligentDataStorage("database/irrigation_data.db")
         
         # Collect today's schedule (limit to first 10 for testing)
-        print("🕐 Collecting today's schedule (first 10 runs)...")
+        print("[SYMBOL] Collecting today's schedule (first 10 runs)...")
         today = datetime.now()
         
         scraper.start_browser()
@@ -53,14 +53,14 @@ def test_schedule_collection_to_db():
         
         scraper.stop_browser()
         
-        print(f"📊 Collected {len(scheduled_runs)} scheduled runs")
+        print(f"[SYMBOL] Collected {len(scheduled_runs)} scheduled runs")
         
         if not scheduled_runs:
-            print("⚠️  No scheduled runs found for today")
+            print("[SYMBOL][SYMBOL]  No scheduled runs found for today")
             return False
             
         # Display what we collected
-        print("\n📋 Collected Scheduled Runs:")
+        print("\n[SYMBOL] Collected Scheduled Runs:")
         for i, run in enumerate(scheduled_runs[:5], 1):  # Show first 5
             zone_name = run.zone_name[:30] + "..." if len(run.zone_name) > 30 else run.zone_name
             start_time = run.start_time.strftime('%I:%M %p')
@@ -79,13 +79,13 @@ def test_schedule_collection_to_db():
             print(f"   ... and {len(scheduled_runs) - 5} more runs")
             
         # Store in database
-        print(f"\n💾 Storing {len(scheduled_runs)} runs in database...")
+        print(f"\n[SYMBOL] Storing {len(scheduled_runs)} runs in database...")
         stored_count = storage.store_scheduled_runs_enhanced(scheduled_runs, today.date())
         
-        print(f"✅ Successfully stored {stored_count} scheduled runs")
+        print(f"[SYMBOL] Successfully stored {stored_count} scheduled runs")
         
         # Verify storage by querying back
-        print("\n🔍 Verifying database storage...")
+        print("\n[SYMBOL] Verifying database storage...")
         import sqlite3
         with sqlite3.connect(storage.db_path) as conn:
             cursor = conn.cursor()
@@ -101,22 +101,22 @@ def test_schedule_collection_to_db():
             
             results = cursor.fetchall()
             
-            print(f"📋 Database contains {len(results)} runs (showing first 5):")
+            print(f"[SYMBOL] Database contains {len(results)} runs (showing first 5):")
             for i, (zone_name, start_time, duration, rain_cancelled, has_popup) in enumerate(results, 1):
                 zone_display = zone_name[:30] + "..." if len(zone_name) > 30 else zone_name
                 time_display = datetime.fromisoformat(start_time).strftime('%I:%M %p')
-                rain_status = "🌧️" if rain_cancelled else "☀️"
-                popup_status = "📄" if has_popup else "❌"
+                rain_status = "[SYMBOL][SYMBOL]" if rain_cancelled else "[SYMBOL][SYMBOL]"
+                popup_status = "[SYMBOL]" if has_popup else "[SYMBOL]"
                 
                 print(f"   {i}. {zone_display:<35} {time_display:<10} {duration:>2}min {rain_status} {popup_status}")
                 
-        print(f"\n🎉 SUCCESS! Schedule data collection and storage working perfectly!")
-        print(f"📊 Database now contains today's irrigation schedule with popup data")
+        print(f"\n[SYMBOL] SUCCESS! Schedule data collection and storage working perfectly!")
+        print(f"[SYMBOL] Database now contains today's irrigation schedule with popup data")
         
         return True
         
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n[SYMBOL] Test failed: {e}")
         import traceback
         traceback.print_exc()
         
@@ -135,15 +135,15 @@ def main():
         success = test_schedule_collection_to_db()
         
         if success:
-            print("\n✨ Test completed successfully!")
-            print("🗃️  Your database is ready for schedule vs actual matching")
+            print("\n[SYMBOL] Test completed successfully!")
+            print("[SYMBOL][SYMBOL]  Your database is ready for schedule vs actual matching")
         else:
-            print("\n💔 Test failed - check the error messages above")
+            print("\n[SYMBOL] Test failed - check the error messages above")
             
     except KeyboardInterrupt:
-        print("\n👋 Test interrupted by user")
+        print("\n[SYMBOL] Test interrupted by user")
     except Exception as e:
-        print(f"\n💥 Unexpected error: {e}")
+        print(f"\n[SYMBOL] Unexpected error: {e}")
 
 if __name__ == "__main__":
     main()

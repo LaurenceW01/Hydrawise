@@ -77,7 +77,7 @@ class RateLimiter:
             if len(self.general_calls) >= self.general_limit:
                 wait_time = self.general_window - (current_time - self.general_calls[0])
                 if wait_time > 0:
-                    print(f"⏳ Rate limit reached. Waiting {wait_time:.1f} seconds for general API limit...")
+                    print(f"[SYMBOL] Rate limit reached. Waiting {wait_time:.1f} seconds for general API limit...")
                     time.sleep(wait_time)
                     self._cleanup_old_calls(self.general_calls, self.general_window)
             
@@ -85,7 +85,7 @@ class RateLimiter:
             if is_zone_control and len(self.zone_control_calls) >= self.zone_control_limit:
                 wait_time = self.zone_control_window - (current_time - self.zone_control_calls[0])
                 if wait_time > 0:
-                    print(f"⏳ Zone control rate limit reached. Waiting {wait_time:.1f} seconds...")
+                    print(f"[SYMBOL] Zone control rate limit reached. Waiting {wait_time:.1f} seconds...")
                     time.sleep(wait_time)
                     self._cleanup_old_calls(self.zone_control_calls, self.zone_control_window)
             
@@ -191,7 +191,7 @@ class HydrawiseAPIExplorer:
             current_time = time.time()
             if current_time < nextpoll_time:
                 wait_time = nextpoll_time - current_time
-                print(f"⏰ Respecting nextpoll recommendation. Waiting {wait_time:.1f} seconds...")
+                print(f"[SCHEDULE] Respecting nextpoll recommendation. Waiting {wait_time:.1f} seconds...")
                 time.sleep(wait_time)
         elif self.respect_rate_limits and endpoint in self.last_nextpoll:
             # Less aggressive: only wait if nextpoll is very recent (< 10 seconds)
@@ -200,10 +200,10 @@ class HydrawiseAPIExplorer:
             if current_time < nextpoll_time:
                 wait_time = nextpoll_time - current_time
                 if wait_time > 10:
-                    print(f"⏰ Large nextpoll delay ({wait_time:.1f}s) - reducing to 10s for monitoring")
+                    print(f"[SCHEDULE] Large nextpoll delay ({wait_time:.1f}s) - reducing to 10s for monitoring")
                     time.sleep(10)
                 else:
-                    print(f"⏰ Short nextpoll delay. Waiting {wait_time:.1f} seconds...")
+                    print(f"[SCHEDULE] Short nextpoll delay. Waiting {wait_time:.1f} seconds...")
                     time.sleep(wait_time)
         
         # Apply rate limiting
@@ -213,8 +213,8 @@ class HydrawiseAPIExplorer:
             # Show rate limit status
             status = self.rate_limiter.get_status()
             if is_zone_control:
-                print(f"🚦 Zone control calls: {status['zone_control_calls_used']}/{status['zone_control_calls_limit']} used")
-            print(f"🚦 General API calls: {status['general_calls_used']}/{status['general_calls_limit']} used")
+                print(f"[SYMBOL] Zone control calls: {status['zone_control_calls_used']}/{status['zone_control_calls_limit']} used")
+            print(f"[SYMBOL] General API calls: {status['general_calls_used']}/{status['general_calls_limit']} used")
         
         # Try the request with connection retry logic
         max_retries = 3
@@ -222,10 +222,10 @@ class HydrawiseAPIExplorer:
         
         while retry_count < max_retries:
             try:
-                print(f"🔍 Making request to: {url}")
+                print(f"[ANALYSIS] Making request to: {url}")
                 if retry_count > 0:
                     print(f"   (Retry {retry_count}/{max_retries-1})")
-                print(f"📋 Parameters: {params}")
+                print(f"[LOG] Parameters: {params}")
                 
                 # Set a reasonable timeout and add connection handling
                 response = self.session.get(url, params=params, timeout=30)
@@ -233,7 +233,7 @@ class HydrawiseAPIExplorer:
                 # Handle rate limiting response
                 if response.status_code == 429:
                     retry_after = response.headers.get('Retry-After', 60)
-                    print(f"⚠️ Rate limited by server. Waiting {retry_after} seconds...")
+                    print(f"[WARNING] Rate limited by server. Waiting {retry_after} seconds...")
                     time.sleep(int(retry_after))
                     
                     # Retry the request once
@@ -242,14 +242,14 @@ class HydrawiseAPIExplorer:
                 response.raise_for_status()
                 
                 data = response.json()
-                print(f"✅ Request successful - Status: {response.status_code}")
+                print(f"[OK] Request successful - Status: {response.status_code}")
                 
                 # Check for nextpoll recommendation in response
                 if 'nextpoll' in data and self.respect_rate_limits:
                     try:
                         nextpoll_seconds = int(data['nextpoll'])
                         self.last_nextpoll[endpoint] = time.time() + nextpoll_seconds
-                        print(f"📝 API recommends next poll in {nextpoll_seconds} seconds")
+                        print(f"[SYMBOL] API recommends next poll in {nextpoll_seconds} seconds")
                     except (ValueError, TypeError):
                         pass  # Invalid nextpoll value, ignore
                 
@@ -257,19 +257,19 @@ class HydrawiseAPIExplorer:
                 
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 retry_count += 1
-                print(f"🔌 Connection issue (attempt {retry_count}): {e}")
+                print(f"[SYMBOL] Connection issue (attempt {retry_count}): {e}")
                 
                 if retry_count < max_retries:
                     wait_time = min(5 * retry_count, 15)  # Progressive backoff: 5s, 10s, 15s
-                    print(f"⏳ Waiting {wait_time} seconds before retry...")
+                    print(f"[SYMBOL] Waiting {wait_time} seconds before retry...")
                     time.sleep(wait_time)
                     continue
                 else:
-                    print(f"❌ Max retries ({max_retries}) exceeded for connection errors")
+                    print(f"[ERROR] Max retries ({max_retries}) exceeded for connection errors")
                     raise
                 
             except requests.exceptions.RequestException as e:
-                print(f"❌ Request failed: {e}")
+                print(f"[ERROR] Request failed: {e}")
                 
                 if hasattr(e, 'response') and e.response is not None:
                     print(f"Response status: {e.response.status_code}")
@@ -277,14 +277,14 @@ class HydrawiseAPIExplorer:
                     
                     # If it's a rate limit error, provide helpful info
                     if e.response.status_code == 429:
-                        print("💡 You've hit the rate limit. Consider:")
+                        print("[INFO] You've hit the rate limit. Consider:")
                         print("   - Reducing request frequency")
                         print("   - Implementing longer delays between calls")
                         print("   - Using the nextpoll recommendations")
                     
                     # If it's 401, this is an auth issue
                     if e.response.status_code == 401:
-                        print("🔑 Authentication failed. Check:")
+                        print("[SYMBOL] Authentication failed. Check:")
                         print("   - API key is correct and active")
                         print("   - Using .php endpoints (non-.php need different auth)")
                         print("   - Account has necessary permissions")
@@ -315,7 +315,7 @@ class HydrawiseAPIExplorer:
             with self.rate_limiter.lock:
                 self.rate_limiter.general_calls.clear()
                 self.rate_limiter.zone_control_calls.clear()
-            print("🔄 Rate limit counters reset")
+            print("[PERIODIC] Rate limit counters reset")
     
     def get_customer_details(self) -> Dict[str, Any]:
         """
@@ -324,7 +324,7 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: Customer details with controllers and zone information
         """
-        print("\n🏠 Getting customer details...")
+        print("\n[SYMBOL] Getting customer details...")
         return self._make_request("customerdetails")
     
     def get_status_schedule(self, controller_id: Optional[int] = None, retry_on_failure: bool = True) -> Dict[str, Any]:
@@ -338,7 +338,7 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: Status and schedule information
         """
-        print(f"\n📅 Getting status and schedule{f' for controller {controller_id}' if controller_id else ''}...")
+        print(f"\n[DATE] Getting status and schedule{f' for controller {controller_id}' if controller_id else ''}...")
         params = {}
         if controller_id:
             params['controller_id'] = controller_id
@@ -347,18 +347,18 @@ class HydrawiseAPIExplorer:
             return self._make_request("statusschedule", params)
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             if retry_on_failure:
-                print(f"🔄 Connection failed, retrying in 10 seconds...")
+                print(f"[PERIODIC] Connection failed, retrying in 10 seconds...")
                 time.sleep(10)
                 try:
                     return self._make_request("statusschedule", params)
                 except Exception as retry_e:
-                    print(f"❌ Retry also failed: {retry_e}")
+                    print(f"[ERROR] Retry also failed: {retry_e}")
                     # Return minimal data structure to prevent crashes
                     return {'relays': [], 'sensors': []}
             else:
                 raise
         except Exception as e:
-            print(f"⚠️ Status check failed: {e}")
+            print(f"[WARNING] Status check failed: {e}")
             # Return minimal data structure to prevent crashes
             return {'relays': [], 'sensors': []}
     
@@ -375,7 +375,7 @@ class HydrawiseAPIExplorer:
         """
         # FIXED: Convert minutes to seconds - Hydrawise 'custom' parameter uses seconds!
         duration_seconds = duration_minutes * 60
-        print(f"\n🚿 Starting zone {zone_id} for {duration_minutes} minutes ({duration_seconds} seconds)...")
+        print(f"\n[SYMBOL] Starting zone {zone_id} for {duration_minutes} minutes ({duration_seconds} seconds)...")
         params = {
             'action': 'run',
             'relay_id': zone_id,
@@ -393,7 +393,7 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: API response confirming the action
         """
-        print(f"\n🛑 Stopping zone {zone_id}...")
+        print(f"\n[SYMBOL] Stopping zone {zone_id}...")
         params = {
             'action': 'stop',
             'relay_id': zone_id
@@ -407,7 +407,7 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: API response confirming the action
         """
-        print("\n🛑 Stopping all zones...")
+        print("\n[SYMBOL] Stopping all zones...")
         params = {'action': 'stopall'}
         return self._make_request("setzone", params, is_zone_control=True)
     
@@ -422,7 +422,7 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: API response confirming the action
         """
-        print(f"\n⏸️ Suspending zone {zone_id} for {days} days...")
+        print(f"\n[SYMBOL][SYMBOL] Suspending zone {zone_id} for {days} days...")
         params = {
             'action': 'suspend',
             'relay_id': zone_id,
@@ -440,7 +440,7 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: API response confirming the action
         """
-        print(f"\n▶️ Resuming zone {zone_id}...")
+        print(f"\n[SYMBOL][SYMBOL] Resuming zone {zone_id}...")
         params = {
             'action': 'suspend',
             'relay_id': zone_id,
@@ -459,14 +459,14 @@ class HydrawiseAPIExplorer:
         Returns:
             dict: Flow meter data if available
         """
-        print(f"\n💧 Extracting flow meter data...")
+        print(f"\n[WATER] Extracting flow meter data...")
         
         # Get status data if not provided
         if not status_data:
             try:
                 status_data = self.get_status_schedule()
             except Exception as e:
-                print(f"  ❌ Failed to get status data: {e}")
+                print(f"  [ERROR] Failed to get status data: {e}")
                 return {}
         
         flow_meters = {}
@@ -474,7 +474,7 @@ class HydrawiseAPIExplorer:
         # Look for sensors in the response
         if 'sensors' in status_data:
             sensors = status_data['sensors']
-            print(f"  🔍 Found {len(sensors)} sensors to check...")
+            print(f"  [ANALYSIS] Found {len(sensors)} sensors to check...")
             
             # Handle both dictionary and list formats
             if isinstance(sensors, dict):
@@ -490,7 +490,7 @@ class HydrawiseAPIExplorer:
                             'rate': sensor_data.get('rate', 0.0),
                             'relays': sensor_data.get('relays', [])
                         }
-                        print(f"  ✅ Flow meter found - Sensor {sensor_id}")
+                        print(f"  [OK] Flow meter found - Sensor {sensor_id}")
                         print(f"     Current Rate: {sensor_data.get('rate', 0.0)} GPM")
                         print(f"     Timer: {sensor_data.get('timer', 0)} seconds")
                         print(f"     Connected to {len(sensor_data.get('relays', []))} zones")
@@ -509,14 +509,14 @@ class HydrawiseAPIExplorer:
                             'rate': sensor_data.get('rate', 0.0),
                             'relays': sensor_data.get('relays', [])
                         }
-                        print(f"  ✅ Flow meter found - Sensor {sensor_id} (Input {sensor_data.get('input')})")
+                        print(f"  [OK] Flow meter found - Sensor {sensor_id} (Input {sensor_data.get('input')})")
                         print(f"     Current Rate: {sensor_data.get('rate', 0.0)} GPM")
                         print(f"     Timer: {sensor_data.get('timer', 0)} seconds")
                         print(f"     Connected to {len(sensor_data.get('relays', []))} zones")
         
         if not flow_meters:
-            print("  ❌ No flow meters (type=3 sensors) found in response")
-            print("  💡 Make sure your HC Flow Meter is properly connected and configured")
+            print("  [ERROR] No flow meters (type=3 sensors) found in response")
+            print("  [INFO] Make sure your HC Flow Meter is properly connected and configured")
         
         return flow_meters
     
@@ -527,7 +527,7 @@ class HydrawiseAPIExplorer:
         Args:
             data (dict): API response data to analyze
         """
-        print("\n📊 ZONE ANALYSIS")
+        print("\n[RESULTS] ZONE ANALYSIS")
         print("=" * 50)
         
         # Try to find zones in the response
@@ -540,11 +540,11 @@ class HydrawiseAPIExplorer:
             zones = data
         
         if not zones:
-            print("❌ No zone data found in response")
+            print("[ERROR] No zone data found in response")
             return
         
         for i, zone in enumerate(zones):
-            print(f"\n🌱 Zone {i + 1}:")
+            print(f"\n[SYMBOL] Zone {i + 1}:")
             print(f"   Name: {zone.get('name', 'Unknown')}")
             print(f"   ID: {zone.get('relay_id', zone.get('id', 'Unknown'))}")
             print(f"   Physical Relay: {zone.get('relay', 'Unknown')}")
@@ -552,23 +552,23 @@ class HydrawiseAPIExplorer:
             # Interpret running status correctly
             running = zone.get('running')
             if running == 1 or running is True:
-                print(f"   Status: 🟢 RUNNING")
+                print(f"   Status: [SYMBOL] RUNNING")
             elif running == 0 or running is False:
-                print(f"   Status: ⚫ IDLE")
+                print(f"   Status: [SYMBOL] IDLE")
             elif running is None:
-                print(f"   Status: 💤 NOT SCHEDULED TODAY")
+                print(f"   Status: [SYMBOL] NOT SCHEDULED TODAY")
             else:
-                print(f"   Status: ❓ Unknown ({running})")
+                print(f"   Status: [SYMBOL] Unknown ({running})")
             
             # Interpret time information correctly
             timestr = zone.get('timestr', '')
             if timestr:
                 # Check if it's a day of week (next scheduled day)
                 if timestr in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
-                    print(f"   Next Run Day: 📅 {timestr}")
+                    print(f"   Next Run Day: [DATE] {timestr}")
                 # Check if it's a time format (scheduled time today/tomorrow)
                 elif ':' in timestr:
-                    print(f"   Next Run Time: ⏰ {timestr}")
+                    print(f"   Next Run Time: [SCHEDULE] {timestr}")
                 else:
                     print(f"   Schedule Info: {timestr}")
             
@@ -582,11 +582,11 @@ class HydrawiseAPIExplorer:
             flow_data_found = False
             for field in flow_fields:
                 if field in zone and zone[field] is not None:
-                    print(f"   💧 {field.title()}: {zone[field]}")
+                    print(f"   [WATER] {field.title()}: {zone[field]}")
                     flow_data_found = True
             
             if not flow_data_found:
-                print(f"   💧 Flow Data: Not available")
+                print(f"   [WATER] Flow Data: Not available")
     
     def analyze_controller_data(self, data: Dict[str, Any]) -> None:
         """
@@ -595,7 +595,7 @@ class HydrawiseAPIExplorer:
         Args:
             data (dict): API response data to analyze
         """
-        print("\n🎛️ CONTROLLER ANALYSIS")
+        print("\n[SYMBOL][SYMBOL] CONTROLLER ANALYSIS")
         print("=" * 50)
         
         # Look for controller information
@@ -606,7 +606,7 @@ class HydrawiseAPIExplorer:
             controllers = [data['controller']]
         
         for controller in controllers:
-            print(f"\n🏠 Controller:")
+            print(f"\n[SYMBOL] Controller:")
             print(f"   Name: {controller.get('name', 'Unknown')}")
             print(f"   ID: {controller.get('controller_id', 'Unknown')}")
             print(f"   Status: {controller.get('status', 'Unknown')}")
@@ -624,7 +624,7 @@ class HydrawiseAPIExplorer:
         Perform a comprehensive exploration of the Hydrawise API.
         This method calls various endpoints to discover available functionality.
         """
-        print("\n🚀 STARTING COMPREHENSIVE HYDRAWISE API EXPLORATION")
+        print("\n[SYMBOL] STARTING COMPREHENSIVE HYDRAWISE API EXPLORATION")
         print("=" * 60)
         
         try:
@@ -640,34 +640,34 @@ class HydrawiseAPIExplorer:
             # 3. Extract flow meter data from status response
             flow_data = self.get_flow_meter_data(status_data)
             if flow_data:
-                print("\n💧 FLOW METER DATA FOUND:")
+                print("\n[WATER] FLOW METER DATA FOUND:")
                 print(json.dumps(flow_data, indent=2))
             else:
-                print("\n💧 No flow meter data found - check if HC Flow Meter is connected")
+                print("\n[WATER] No flow meter data found - check if HC Flow Meter is connected")
             
             # 4. Display raw data for manual inspection
-            print("\n📋 RAW CUSTOMER DATA:")
+            print("\n[LOG] RAW CUSTOMER DATA:")
             print("=" * 30)
             print(json.dumps(customer_data, indent=2))
             
-            print("\n📋 RAW STATUS DATA:")
+            print("\n[LOG] RAW STATUS DATA:")
             print("=" * 30)
             print(json.dumps(status_data, indent=2))
             
         except Exception as e:
-            print(f"\n❌ Exploration failed: {e}")
+            print(f"\n[ERROR] Exploration failed: {e}")
             return
         
-        print("\n✅ EXPLORATION COMPLETE!")
-        print("\nℹ️ Check the raw data above for any flow meter or water usage information.")
-        print("💡 If no flow data is visible, it may require the GraphQL API or special permissions.")
+        print("\n[OK] EXPLORATION COMPLETE!")
+        print("\n[INFO] Check the raw data above for any flow meter or water usage information.")
+        print("[INFO] If no flow data is visible, it may require the GraphQL API or special permissions.")
 
 
 def main():
     """
     Main function to run the Hydrawise API exploration.
     """
-    print("🌊 Hunter Hydrawise API Explorer")
+    print("[SYMBOL] Hunter Hydrawise API Explorer")
     print("=" * 40)
     
     # Load environment variables from .env file
@@ -678,17 +678,17 @@ def main():
     
     if not api_key:
         # Fall back to manual input if not found in .env
-        print("🔍 No API key found in .env file (HUNTER_HYDRAWISE_API_KEY)")
-        api_key = input("\n🔑 Enter your Hydrawise API key: ").strip()
+        print("[ANALYSIS] No API key found in .env file (HUNTER_HYDRAWISE_API_KEY)")
+        api_key = input("\n[SYMBOL] Enter your Hydrawise API key: ").strip()
         
         if not api_key:
-            print("❌ API key is required. Please:")
+            print("[ERROR] API key is required. Please:")
             print("   1. Add HUNTER_HYDRAWISE_API_KEY=your_key_here to your .env file, OR")
             print("   2. Get one from your Hydrawise account settings and enter it manually")
             sys.exit(1)
     else:
-        print(f"✅ API key loaded from .env file")
-        print(f"🔑 Using key: {api_key[:8]}..." + "*" * (len(api_key) - 8) if len(api_key) > 8 else api_key)
+        print(f"[OK] API key loaded from .env file")
+        print(f"[SYMBOL] Using key: {api_key[:8]}..." + "*" * (len(api_key) - 8) if len(api_key) > 8 else api_key)
     
     # Initialize the explorer
     explorer = HydrawiseAPIExplorer(api_key)
@@ -696,22 +696,22 @@ def main():
     # Main menu loop
     while True:
         print("\n" + "=" * 50)
-        print("🎛️ HYDRAWISE API EXPLORER MENU")
+        print("[SYMBOL][SYMBOL] HYDRAWISE API EXPLORER MENU")
         print("=" * 50)
-        print("1. 🔍 Comprehensive API exploration")
-        print("2. 🏠 Get customer details")
-        print("3. 📅 Get status and schedule")
-        print("4. 🚿 Start a zone")
-        print("5. 🛑 Stop a zone")
-        print("6. 🛑 Stop all zones")
-        print("7. ⏸️ Suspend a zone")
-        print("8. ▶️ Resume a zone")
-        print("9. 💧 Try to get flow meter data")
-        print("10. 🚦 Show rate limit status")
-        print("11. 🔄 Reset rate limits (testing only)")
-        print("0. 🚪 Exit")
+        print("1. [ANALYSIS] Comprehensive API exploration")
+        print("2. [SYMBOL] Get customer details")
+        print("3. [DATE] Get status and schedule")
+        print("4. [SYMBOL] Start a zone")
+        print("5. [SYMBOL] Stop a zone")
+        print("6. [SYMBOL] Stop all zones")
+        print("7. [SYMBOL][SYMBOL] Suspend a zone")
+        print("8. [SYMBOL][SYMBOL] Resume a zone")
+        print("9. [WATER] Try to get flow meter data")
+        print("10. [SYMBOL] Show rate limit status")
+        print("11. [PERIODIC] Reset rate limits (testing only)")
+        print("0. [SYMBOL] Exit")
         
-        choice = input("\n👉 Enter your choice (0-11): ").strip()
+        choice = input("\n[SYMBOL] Enter your choice (0-11): ").strip()
         
         try:
             if choice == "1":
@@ -761,44 +761,44 @@ def main():
             
             elif choice == "10":
                 status = explorer.get_rate_limit_status()
-                print("\n🚦 RATE LIMIT STATUS")
+                print("\n[SYMBOL] RATE LIMIT STATUS")
                 print("=" * 30)
                 if status.get("rate_limiting") == "disabled":
-                    print("⚠️ Rate limiting is disabled")
+                    print("[WARNING] Rate limiting is disabled")
                 else:
-                    print(f"📊 General API calls: {status['general_calls_used']}/{status['general_calls_limit']} used")
+                    print(f"[RESULTS] General API calls: {status['general_calls_used']}/{status['general_calls_limit']} used")
                     print(f"   Remaining: {status['general_calls_remaining']}")
-                    print(f"🎛️ Zone control calls: {status['zone_control_calls_used']}/{status['zone_control_calls_limit']} used")
+                    print(f"[SYMBOL][SYMBOL] Zone control calls: {status['zone_control_calls_used']}/{status['zone_control_calls_limit']} used")
                     print(f"   Remaining: {status['zone_control_calls_remaining']}")
                     
                     # Show time until reset
                     current_time = time.time()
                     if status['next_general_reset'] > current_time:
                         general_reset = status['next_general_reset'] - current_time
-                        print(f"⏰ General limit resets in: {general_reset:.1f} seconds")
+                        print(f"[SCHEDULE] General limit resets in: {general_reset:.1f} seconds")
                     if status['next_zone_reset'] > current_time:
                         zone_reset = status['next_zone_reset'] - current_time
-                        print(f"⏰ Zone control limit resets in: {zone_reset:.1f} seconds")
+                        print(f"[SCHEDULE] Zone control limit resets in: {zone_reset:.1f} seconds")
             
             elif choice == "11":
-                confirm = input("⚠️ Really reset rate limit counters? This is for testing only (y/n): ").lower()
+                confirm = input("[WARNING] Really reset rate limit counters? This is for testing only (y/n): ").lower()
                 if confirm == 'y':
                     explorer.reset_rate_limits()
                 else:
-                    print("❌ Cancelled")
+                    print("[ERROR] Cancelled")
             
             elif choice == "0":
-                print("👋 Goodbye!")
+                print("[SYMBOL] Goodbye!")
                 break
             
             else:
-                print("❌ Invalid choice. Please try again.")
+                print("[ERROR] Invalid choice. Please try again.")
         
         except KeyboardInterrupt:
-            print("\n\n👋 Goodbye!")
+            print("\n\n[SYMBOL] Goodbye!")
             break
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"[ERROR] Error: {e}")
             print("Please try again.")
 
 

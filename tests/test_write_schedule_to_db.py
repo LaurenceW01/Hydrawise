@@ -25,7 +25,7 @@ from database.db_interface import HydrawiseDB
 
 def main():
     """Collect today's schedule and write to database"""
-    print("🔄 Collecting Today's Schedule and Writing to Database")
+    print("[SYMBOL] Collecting Today's Schedule and Writing to Database")
     print("=" * 60)
     
     try:
@@ -38,18 +38,18 @@ def main():
             raise Exception("Please set HYDRAWISE_USER and HYDRAWISE_PASSWORD in .env file")
         
         # Initialize database interface
-        print("📊 Initializing database interface...")
+        print("[SYMBOL] Initializing database interface...")
         db = HydrawiseDB()
         
         # Show current database info
-        print("\n📋 Current Database Info:")
+        print("\n[SYMBOL] Current Database Info:")
         info = db.get_database_info()
         print(f"   Scheduled runs: {info.get('scheduled_runs_count', 0)}")
         print(f"   Actual runs: {info.get('actual_runs_count', 0)}")
         print(f"   Cloud sync: {'Enabled' if info.get('cloud_sync_enabled') else 'Disabled'}")
         
         # Initialize scraper
-        print(f"\n🔄 Collecting schedule data from Hydrawise (first 5 zones only for speed)...")
+        print(f"\n[SYMBOL] Collecting schedule data from Hydrawise (first 5 zones only for speed)...")
         scraper = HydrawiseWebScraper(username, password, headless=False)
         
         # Collect 24-hour schedule data (limit to first 5 zones for speed)
@@ -62,35 +62,35 @@ def main():
         tomorrow_runs = results.get('tomorrow', [])
         total_runs = len(today_runs) + len(tomorrow_runs)
         
-        print(f"✅ Collection completed (limited to first 5 zones):")
+        print(f"[SYMBOL] Collection completed (limited to first 5 zones):")
         print(f"   Today: {len(today_runs)} runs")
         print(f"   Tomorrow: {len(tomorrow_runs)} runs")
         print(f"   Total: {total_runs} runs")
         print(f"   Rain sensor: {results.get('sensor_status', 'Unknown')}")
         
         if total_runs == 0:
-            print("⚠️  No schedule data collected - nothing to write to database")
+            print("[SYMBOL][SYMBOL]  No schedule data collected - nothing to write to database")
             return
         
         # Write today's schedule to database
         if today_runs:
-            print(f"\n💾 Writing today's schedule to database...")
+            print(f"\n[SYMBOL] Writing today's schedule to database...")
             today_stored = db.write_scheduled_runs(today_runs, date.today())
-            print(f"✅ Stored {today_stored} scheduled runs for today")
+            print(f"[SYMBOL] Stored {today_stored} scheduled runs for today")
         
         # Write tomorrow's schedule to database
         if tomorrow_runs:
-            print(f"\n💾 Writing tomorrow's schedule to database...")
+            print(f"\n[SYMBOL] Writing tomorrow's schedule to database...")
             tomorrow_date = date.today() + timedelta(days=1)
             tomorrow_stored = db.write_scheduled_runs(tomorrow_runs, tomorrow_date)
-            print(f"✅ Stored {tomorrow_stored} scheduled runs for tomorrow")
+            print(f"[SYMBOL] Stored {tomorrow_stored} scheduled runs for tomorrow")
         
         # Verify storage by reading back
-        print(f"\n🔍 Verifying database storage...")
+        print(f"\n[SYMBOL] Verifying database storage...")
         
         # Read today's data
         stored_today = db.read_scheduled_runs(date.today())
-        print(f"📋 Database contains {len(stored_today)} runs for today")
+        print(f"[SYMBOL] Database contains {len(stored_today)} runs for today")
         
         if stored_today:
             print("   Sample runs for today:")
@@ -98,7 +98,7 @@ def main():
                 zone_name = run['zone_name'][:30] + "..." if len(run['zone_name']) > 30 else run['zone_name']
                 start_time = datetime.fromisoformat(run['scheduled_start_time']).strftime('%I:%M %p')
                 duration = run['scheduled_duration_minutes']
-                rain_status = "🌧️" if run['is_rain_cancelled'] else "☀️"
+                rain_status = "[SYMBOL][SYMBOL]" if run['is_rain_cancelled'] else "[SYMBOL][SYMBOL]"
                 
                 print(f"      {i}. {zone_name:<35} {start_time:<10} {duration:>2}min {rain_status}")
             
@@ -109,19 +109,19 @@ def main():
         if tomorrow_runs:
             tomorrow_date = date.today() + timedelta(days=1)
             stored_tomorrow = db.read_scheduled_runs(tomorrow_date)
-            print(f"📋 Database contains {len(stored_tomorrow)} runs for tomorrow")
+            print(f"[SYMBOL] Database contains {len(stored_tomorrow)} runs for tomorrow")
         
         # Show updated database info
-        print(f"\n📊 Updated Database Info:")
+        print(f"\n[SYMBOL] Updated Database Info:")
         new_info = db.get_database_info()
         print(f"   Total scheduled runs: {new_info.get('scheduled_runs_count', 0)}")
         print(f"   Date range: {new_info.get('scheduled_date_range')}")
         
-        print(f"\n🎉 SUCCESS! Schedule data collection and storage completed!")
-        print(f"📋 Your irrigation schedule is now stored in the database")
+        print(f"\n[SYMBOL] SUCCESS! Schedule data collection and storage completed!")
+        print(f"[SYMBOL] Your irrigation schedule is now stored in the database")
         
         # Show week summary
-        print(f"\n📅 Weekly Schedule Summary:")
+        print(f"\n[SYMBOL] Weekly Schedule Summary:")
         summary = db.read_schedule_summary(days=7)
         for day_data in summary.get('scheduled_by_date', []):
             day_date = day_data['date']
@@ -133,17 +133,17 @@ def main():
             print(f"   {day_date}: {scheduled_count} runs, {total_minutes} min{rain_info}")
         
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[SYMBOL] Error: {e}")
         import traceback
         traceback.print_exc()
         
         # Cleanup browser if it's still running (additional safety)
         try:
             if 'scraper' in locals() and hasattr(scraper, 'driver') and scraper.driver:
-                print("🧹 Cleaning up browser...")
+                print("[SYMBOL] Cleaning up browser...")
                 scraper.stop_browser()
         except Exception as cleanup_error:
-            print(f"⚠️  Browser cleanup warning: {cleanup_error}")
+            print(f"[SYMBOL][SYMBOL]  Browser cleanup warning: {cleanup_error}")
 
 if __name__ == "__main__":
     main()

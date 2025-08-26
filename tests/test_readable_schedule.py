@@ -23,22 +23,22 @@ def format_schedule_data(results, logger):
     # Create readable output
     output_lines = []
     output_lines.append("="*80)
-    output_lines.append("📅 HYDRAWISE IRRIGATION SCHEDULE - READABLE FORMAT")
-    output_lines.append("🔧 FULL 24-HOUR SCHEDULE: Today + Tomorrow, All zones, Visible browser")
+    output_lines.append("[SYMBOL] HYDRAWISE IRRIGATION SCHEDULE - READABLE FORMAT")
+    output_lines.append("[SYMBOL] FULL 24-HOUR SCHEDULE: Today + Tomorrow, All zones, Visible browser")
     output_lines.append("="*80)
     
     # Rain sensor status
     if results.get('rain_sensor_active'):
-        output_lines.append(f"🌧️  RAIN SENSOR: {results.get('sensor_status', 'Unknown')}")
-        output_lines.append("⚠️  All zones suspended due to rain sensor")
+        output_lines.append(f"[SYMBOL][SYMBOL]  RAIN SENSOR: {results.get('sensor_status', 'Unknown')}")
+        output_lines.append("[SYMBOL][SYMBOL]  All zones suspended due to rain sensor")
     else:
-        output_lines.append(f"☀️  RAIN SENSOR: {results.get('sensor_status', 'Testing mode - full collection')}")
+        output_lines.append(f"[SYMBOL][SYMBOL]  RAIN SENSOR: {results.get('sensor_status', 'Testing mode - full collection')}")
     
     output_lines.append("")
     
     # Today's schedule
     if results.get('today'):
-        output_lines.append("📅 TODAY'S SCHEDULE:")
+        output_lines.append("[SYMBOL] TODAY'S SCHEDULE:")
         output_lines.append("-" * 120)
         output_lines.append(f"{'Zone Name':<30} {'Date':<12} {'Start Time':<12} {'Duration':<10} {'Popup Text':<50}")
         output_lines.append("-" * 120)
@@ -66,7 +66,7 @@ def format_schedule_data(results, logger):
     
     # Tomorrow's schedule  
     if results.get('tomorrow'):
-        output_lines.append("📅 TOMORROW'S SCHEDULE:")
+        output_lines.append("[SYMBOL] TOMORROW'S SCHEDULE:")
         output_lines.append("-" * 120)
         output_lines.append(f"{'Zone Name':<30} {'Date':<12} {'Start Time':<12} {'Duration':<10} {'Popup Text':<50}")
         output_lines.append("-" * 120)
@@ -92,7 +92,7 @@ def format_schedule_data(results, logger):
     
     # DETAILED POPUP ANALYSIS for scheduled runs (similar to previous day reported test)
     output_lines.append("")
-    output_lines.append("📄 DETAILED POPUP ANALYSIS:")
+    output_lines.append("[SYMBOL] DETAILED POPUP ANALYSIS:")
     output_lines.append("-" * 80)
     
     # Show detailed popup parsing for first few today runs to verify parsing works
@@ -105,7 +105,7 @@ def format_schedule_data(results, logger):
                 parsed_val = line_data.get('parsed_value', 'N/A')
                 line_text = line_data.get('text', '')
                 if parsed_val != 'N/A' and parsed_val is not None:
-                    output_lines.append(f"  [{line_type.upper()}]: {line_text} → {parsed_val}")
+                    output_lines.append(f"  [{line_type.upper()}]: {line_text} [SYMBOL] {parsed_val}")
                 else:
                     output_lines.append(f"  [{line_type.upper()}]: {line_text}")
         elif hasattr(run, 'raw_popup_text'):
@@ -117,7 +117,7 @@ def format_schedule_data(results, logger):
     # Summary
     output_lines.append("")
     output_lines.append("="*80)
-    output_lines.append("📊 SUMMARY:")
+    output_lines.append("[SYMBOL] SUMMARY:")
     output_lines.append(f"   Today: {len(results.get('today', []))} runs")
     output_lines.append(f"   Tomorrow: {len(results.get('tomorrow', []))} runs") 
     output_lines.append(f"   Total: {len(results.get('today', [])) + len(results.get('tomorrow', []))} runs")
@@ -168,8 +168,8 @@ def main():
     # Prevent propagation to root logger to avoid capturing system logs
     logger.propagate = False
     
-    print("🔄 Starting readable schedule collection...")
-    print("📝 Readable schedule will be saved to:", log_filename)
+    print("[SYMBOL] Starting readable schedule collection...")
+    print("[SYMBOL] Readable schedule will be saved to:", log_filename)
     print()
     
     try:
@@ -185,7 +185,7 @@ def main():
         scraper = HydrawiseWebScraper(username, password, headless=False)
         
         # Collect FULL 24-hour schedule data
-        print("🔄 Collecting FULL 24-hour schedule data (today + tomorrow)...")
+        print("[SYMBOL] Collecting FULL 24-hour schedule data (today + tomorrow)...")
         
         # Use the full collection method from the scraper
         results = scraper.collect_24_hour_schedule()
@@ -205,13 +205,13 @@ def main():
         
         # Note: Browser cleanup is handled by collect_24_hour_schedule() method
         
-        logger.info("✅ Readable schedule test completed successfully")
-        print("✅ Schedule data saved to log file:", log_filename)
+        logger.info("[SYMBOL] Readable schedule test completed successfully")
+        print("[SYMBOL] Schedule data saved to log file:", log_filename)
         
     except Exception as e:
-        logger.error(f"❌ Test failed: {e}")
-        print(f"\n❌ Error: {e}")
-        print("📝 Check the log file for detailed error information:", log_filename)
+        logger.error(f"[SYMBOL] Test failed: {e}")
+        print(f"\n[SYMBOL] Error: {e}")
+        print("[SYMBOL] Check the log file for detailed error information:", log_filename)
 
 if __name__ == "__main__":
     main()

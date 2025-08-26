@@ -26,7 +26,7 @@ def debug_page_structure():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials")
+        print("[SYMBOL] Missing credentials")
         return
         
     # Use visible browser so we can see what's happening
@@ -36,7 +36,7 @@ def debug_page_structure():
         scraper.start_browser()
         
         if scraper.login() and scraper.navigate_to_reports():
-            print("\n🔍 DEBUGGING PAGE STRUCTURE")
+            print("\n[SYMBOL] DEBUGGING PAGE STRUCTURE")
             print("=" * 50)
             
             # 1. Get page title and URL
@@ -46,7 +46,7 @@ def debug_page_structure():
             # 2. Look for all buttons on the page
             from selenium.webdriver.common.by import By
             buttons = scraper.driver.find_elements(By.TAG_NAME, "button")
-            print(f"\n📋 Found {len(buttons)} buttons:")
+            print(f"\n[SYMBOL] Found {len(buttons)} buttons:")
             for i, button in enumerate(buttons):
                 text = button.text.strip()
                 classes = button.get_attribute('class')
@@ -54,7 +54,7 @@ def debug_page_structure():
                     print(f"  {i+1}. '{text}' (classes: {classes})")
             
             # 3. Look for Schedule/Reported specifically
-            print(f"\n🔍 Looking for Schedule/Reported buttons:")
+            print(f"\n[SYMBOL] Looking for Schedule/Reported buttons:")
             schedule_patterns = ['Schedule', 'Reported', 'Water Savings']
             for pattern in schedule_patterns:
                 try:
@@ -69,7 +69,7 @@ def debug_page_structure():
                     print(f"    - Error searching for {pattern}: {e}")
             
             # 4. Look for Day/Week/Month buttons
-            print(f"\n📅 Looking for Day/Week/Month buttons:")
+            print(f"\n[SYMBOL] Looking for Day/Week/Month buttons:")
             time_patterns = ['Day', 'Week', 'Month', 'Today', 'Previous', 'Next']
             for pattern in time_patterns:
                 try:
@@ -79,7 +79,7 @@ def debug_page_structure():
                     print(f"  {pattern}: Not found")
             
             # 5. Look for timeline/schedule elements
-            print(f"\n⏰ Looking for timeline elements:")
+            print(f"\n[SYMBOL] Looking for timeline elements:")
             timeline_selectors = [
                 "//div[contains(@style, 'background-color')]",
                 "//div[contains(@class, 'timeline')]", 
@@ -109,22 +109,22 @@ def debug_page_structure():
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(page_source)
             
-            print(f"\n💾 Page source saved to: {filename}")
+            print(f"\n[SYMBOL] Page source saved to: {filename}")
             print("   You can open this file in a browser to inspect the HTML structure")
             
             # 7. Take a screenshot
             screenshot_file = f'data/debug_screenshot_{timestamp}.png'
             scraper.driver.save_screenshot(screenshot_file)
-            print(f"📸 Screenshot saved to: {screenshot_file}")
+            print(f"[SYMBOL] Screenshot saved to: {screenshot_file}")
             
-            print(f"\n⏸️  Browser window is open - you can inspect the page manually")
+            print(f"\n[SYMBOL][SYMBOL]  Browser window is open - you can inspect the page manually")
             print("   Press Enter when ready to continue...")
             input()
             
         scraper.stop_browser()
         
     except Exception as e:
-        print(f"❌ Debug failed: {e}")
+        print(f"[SYMBOL] Debug failed: {e}")
         try:
             scraper.stop_browser()
         except:

@@ -408,22 +408,22 @@ class HydrawiseDB:
 
 def main():
     """Test the database interface"""
-    print("🗄️  Testing Hydrawise Database Interface")
+    print("[DATABASE]  Testing Hydrawise Database Interface")
     print("=" * 50)
     
     try:
         # Initialize database interface
-        print("📊 Initializing database interface...")
+        print("[RESULTS] Initializing database interface...")
         db = HydrawiseDB(use_cloud_sync=False)  # Disable cloud sync for testing
         
         # Get database info
-        print("\n📋 Database Information:")
+        print("\n[LOG] Database Information:")
         info = db.get_database_info()
         for key, value in info.items():
             print(f"   {key}: {value}")
         
         # Test reading data
-        print(f"\n📖 Reading today's scheduled runs...")
+        print(f"\n[SYMBOL] Reading today's scheduled runs...")
         scheduled = db.read_scheduled_runs()
         print(f"   Found {len(scheduled)} scheduled runs")
         
@@ -434,7 +434,7 @@ def main():
             print(f"      Time: {sample.get('scheduled_start_time')}")
             print(f"      Duration: {sample.get('scheduled_duration_minutes')} min")
         
-        print(f"\n📖 Reading today's actual runs...")
+        print(f"\n[SYMBOL] Reading today's actual runs...")
         actual = db.read_actual_runs()
         print(f"   Found {len(actual)} actual runs")
         
@@ -447,16 +447,16 @@ def main():
             print(f"      Gallons: {sample.get('actual_gallons')}")
         
         # Test summary
-        print(f"\n📊 Schedule summary (last 7 days):")
+        print(f"\n[RESULTS] Schedule summary (last 7 days):")
         summary = db.read_schedule_summary()
         print(f"   Date range: {summary.get('date_range')}")
         print(f"   Scheduled data points: {len(summary.get('scheduled_by_date', []))}")
         print(f"   Actual data points: {len(summary.get('actual_by_date', []))}")
         
-        print("\n✅ Database interface test completed successfully!")
+        print("\n[OK] Database interface test completed successfully!")
         
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n[ERROR] Test failed: {e}")
         import traceback
         traceback.print_exc()
 

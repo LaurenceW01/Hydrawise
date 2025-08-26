@@ -131,7 +131,7 @@ def get_display_timestamp(dt: datetime = None) -> str:
 
 def main():
     """Test timezone utilities"""
-    print("🕐 Testing Houston Timezone Utilities")
+    print("[SYMBOL] Testing Houston Timezone Utilities")
     print("=" * 50)
     
     # Current time
@@ -152,7 +152,7 @@ def main():
     print(f"\nDatabase timestamp: {db_timestamp}")
     print(f"Parsed back: {parsed_time}")
     
-    print("\n✅ Timezone utilities working correctly!")
+    print("\n[SYMBOL] Timezone utilities working correctly!")
 
 if __name__ == "__main__":
     main()

@@ -50,7 +50,7 @@ class HydrawiseZoneController:
             self.zones_info = self._extract_zone_info(status_data)
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not refresh zone info: {e}")
+            print(f"[WARNING] Warning: Could not refresh zone info: {e}")
     
     def _extract_zone_info(self, status_data: Dict) -> Dict[int, Dict]:
         """
@@ -85,15 +85,15 @@ class HydrawiseZoneController:
         """
         Display all available zones with their current status.
         """
-        print("\n🌱 AVAILABLE ZONES")
+        print("\n[SYMBOL] AVAILABLE ZONES")
         print("=" * 40)
         
         if not self.zones_info:
-            print("❌ No zones found. Check your API key and controller setup.")
+            print("[ERROR] No zones found. Check your API key and controller setup.")
             return
         
         for zone_id, info in self.zones_info.items():
-            status_icon = "🟢" if info.get('running') else "⚫"
+            status_icon = "[SYMBOL]" if info.get('running') else "[SYMBOL]"
             print(f"{status_icon} Zone {zone_id}: {info.get('name', 'Unknown')}")
             print(f"   Status: {info.get('status', 'Unknown')}")
             if info.get('running'):
@@ -113,16 +113,16 @@ class HydrawiseZoneController:
         Returns:
             dict: API response
         """
-        print(f"💧 Starting quick {minutes}-minute watering for zone {zone_id}")
+        print(f"[WATER] Starting quick {minutes}-minute watering for zone {zone_id}")
         
         # Check if zone exists
         if zone_id not in self.zones_info:
-            print(f"❌ Zone {zone_id} not found. Available zones:")
+            print(f"[ERROR] Zone {zone_id} not found. Available zones:")
             self.list_zones()
             return {}
         
         zone_name = self.zones_info[zone_id].get('name', f'Zone {zone_id}')
-        print(f"🌱 Watering: {zone_name}")
+        print(f"[SYMBOL] Watering: {zone_name}")
         
         return self.explorer.start_zone(zone_id, minutes)
     
@@ -136,7 +136,7 @@ class HydrawiseZoneController:
             minutes_per_zone (int): Minutes to water each zone
             rest_minutes (int): Minutes to rest between zones
         """
-        print(f"\n🌊 STARTING DEEP WATER CYCLE")
+        print(f"\n[SYMBOL] STARTING DEEP WATER CYCLE")
         print(f"Zones: {zone_ids}")
         print(f"Duration per zone: {minutes_per_zone} minutes")
         print(f"Rest between zones: {rest_minutes} minutes")
@@ -145,35 +145,35 @@ class HydrawiseZoneController:
         for i, zone_id in enumerate(zone_ids):
             zone_name = self.zones_info.get(zone_id, {}).get('name', f'Zone {zone_id}')
             
-            print(f"\n🚿 Step {i+1}/{len(zone_ids)}: Watering {zone_name}")
+            print(f"\n[SYMBOL] Step {i+1}/{len(zone_ids)}: Watering {zone_name}")
             
             try:
                 # Start the zone
                 result = self.explorer.start_zone(zone_id, minutes_per_zone)
-                print(f"✅ Zone {zone_id} started successfully")
+                print(f"[OK] Zone {zone_id} started successfully")
                 
                 # Wait for the zone to finish (plus a small buffer)
                 wait_time = minutes_per_zone * 60 + 30  # Add 30 seconds buffer
-                print(f"⏰ Waiting {minutes_per_zone} minutes for zone to complete...")
+                print(f"[SCHEDULE] Waiting {minutes_per_zone} minutes for zone to complete...")
                 
                 # Could add real-time monitoring here
                 time.sleep(wait_time)
                 
                 # Add rest period between zones (except for the last zone)
                 if i < len(zone_ids) - 1 and rest_minutes > 0:
-                    print(f"😴 Resting for {rest_minutes} minutes before next zone...")
+                    print(f"[SYMBOL] Resting for {rest_minutes} minutes before next zone...")
                     time.sleep(rest_minutes * 60)
                 
             except Exception as e:
-                print(f"❌ Error watering zone {zone_id}: {e}")
+                print(f"[ERROR] Error watering zone {zone_id}: {e}")
                 
                 # Ask user if they want to continue
                 response = input("Continue with remaining zones? (y/n): ").lower().strip()
                 if response != 'y':
-                    print("🛑 Deep water cycle stopped by user")
+                    print("[SYMBOL] Deep water cycle stopped by user")
                     break
         
-        print("\n✅ Deep water cycle complete!")
+        print("\n[OK] Deep water cycle complete!")
     
     def morning_routine(self, lawn_zones: List[int], garden_zones: List[int]) -> None:
         """
@@ -183,11 +183,11 @@ class HydrawiseZoneController:
             lawn_zones (list): Zone IDs for lawn areas (shorter duration)
             garden_zones (list): Zone IDs for garden areas (longer duration)
         """
-        print("\n🌅 MORNING WATERING ROUTINE")
+        print("\n[DAILY] MORNING WATERING ROUTINE")
         print("=" * 30)
         
         # Water lawn zones for 10 minutes each
-        print("🏞️ Watering lawn zones...")
+        print("[SYMBOL][SYMBOL] Watering lawn zones...")
         for zone_id in lawn_zones:
             self.quick_water(zone_id, 10)
             time.sleep(2)  # Small delay between starts
@@ -195,12 +195,12 @@ class HydrawiseZoneController:
         # Wait a bit, then water garden zones for 15 minutes each
         time.sleep(60)  # 1 minute pause
         
-        print("🌻 Watering garden zones...")
+        print("[SYMBOL] Watering garden zones...")
         for zone_id in garden_zones:
             self.quick_water(zone_id, 15)
             time.sleep(2)  # Small delay between starts
         
-        print("✅ Morning routine started!")
+        print("[OK] Morning routine started!")
     
     def emergency_stop_all(self) -> Dict[str, Any]:
         """
@@ -209,7 +209,7 @@ class HydrawiseZoneController:
         Returns:
             dict: API response
         """
-        print("🚨 EMERGENCY STOP - Stopping all zones immediately!")
+        print("[ALERT] EMERGENCY STOP - Stopping all zones immediately!")
         return self.explorer.stop_all_zones()
     
     def maintenance_suspend(self, zone_ids: List[int], days: int = 7) -> None:
@@ -220,17 +220,17 @@ class HydrawiseZoneController:
             zone_ids (list): List of zone IDs to suspend
             days (int): Number of days to suspend
         """
-        print(f"🔧 MAINTENANCE MODE - Suspending {len(zone_ids)} zones for {days} days")
+        print(f"[SYMBOL] MAINTENANCE MODE - Suspending {len(zone_ids)} zones for {days} days")
         
         for zone_id in zone_ids:
             zone_name = self.zones_info.get(zone_id, {}).get('name', f'Zone {zone_id}')
-            print(f"⏸️ Suspending {zone_name}...")
+            print(f"[SYMBOL][SYMBOL] Suspending {zone_name}...")
             
             try:
                 result = self.explorer.suspend_zone(zone_id, days)
-                print(f"✅ Zone {zone_id} suspended successfully")
+                print(f"[OK] Zone {zone_id} suspended successfully")
             except Exception as e:
-                print(f"❌ Error suspending zone {zone_id}: {e}")
+                print(f"[ERROR] Error suspending zone {zone_id}: {e}")
     
     def resume_from_maintenance(self, zone_ids: List[int]) -> None:
         """
@@ -239,24 +239,24 @@ class HydrawiseZoneController:
         Args:
             zone_ids (list): List of zone IDs to resume
         """
-        print(f"🔧 RESUMING FROM MAINTENANCE - Activating {len(zone_ids)} zones")
+        print(f"[SYMBOL] RESUMING FROM MAINTENANCE - Activating {len(zone_ids)} zones")
         
         for zone_id in zone_ids:
             zone_name = self.zones_info.get(zone_id, {}).get('name', f'Zone {zone_id}')
-            print(f"▶️ Resuming {zone_name}...")
+            print(f"[SYMBOL][SYMBOL] Resuming {zone_name}...")
             
             try:
                 result = self.explorer.resume_zone(zone_id)
-                print(f"✅ Zone {zone_id} resumed successfully")
+                print(f"[OK] Zone {zone_id} resumed successfully")
             except Exception as e:
-                print(f"❌ Error resuming zone {zone_id}: {e}")
+                print(f"[ERROR] Error resuming zone {zone_id}: {e}")
 
 
 def demonstrate_zone_control():
     """
     Interactive demonstration of zone control capabilities.
     """
-    print("🎛️ HYDRAWISE ZONE CONTROL DEMONSTRATION")
+    print("[SYMBOL][SYMBOL] HYDRAWISE ZONE CONTROL DEMONSTRATION")
     print("=" * 50)
     
     # Load environment variables from .env file
@@ -267,15 +267,15 @@ def demonstrate_zone_control():
     
     if not api_key:
         # Fall back to manual input if not found in .env
-        print("🔍 No API key found in .env file (HUNTER_HYDRAWISE_API_KEY)")
-        api_key = input("🔑 Enter your Hydrawise API key: ").strip()
+        print("[ANALYSIS] No API key found in .env file (HUNTER_HYDRAWISE_API_KEY)")
+        api_key = input("[SYMBOL] Enter your Hydrawise API key: ").strip()
         
         if not api_key:
-            print("❌ API key required! Please add HUNTER_HYDRAWISE_API_KEY to your .env file")
+            print("[ERROR] API key required! Please add HUNTER_HYDRAWISE_API_KEY to your .env file")
             return
     else:
-        print(f"✅ API key loaded from .env file")
-        print(f"🔑 Using key: {api_key[:8]}..." + "*" * (len(api_key) - 8) if len(api_key) > 8 else api_key)
+        print(f"[OK] API key loaded from .env file")
+        print(f"[SYMBOL] Using key: {api_key[:8]}..." + "*" * (len(api_key) - 8) if len(api_key) > 8 else api_key)
     
     # Initialize controller
     controller = HydrawiseZoneController(api_key)
@@ -285,18 +285,18 @@ def demonstrate_zone_control():
     
     while True:
         print("\n" + "=" * 40)
-        print("🎮 ZONE CONTROL MENU")
+        print("[SYMBOL] ZONE CONTROL MENU")
         print("=" * 40)
-        print("1. 💧 Quick water a zone")
-        print("2. 🌊 Deep water cycle")
-        print("3. 🌅 Morning routine")
-        print("4. 🚨 Emergency stop all")
-        print("5. 🔧 Maintenance suspend")
-        print("6. ▶️ Resume from maintenance")
-        print("7. 🔍 Refresh zone list")
-        print("0. 🚪 Exit")
+        print("1. [WATER] Quick water a zone")
+        print("2. [SYMBOL] Deep water cycle")
+        print("3. [DAILY] Morning routine")
+        print("4. [ALERT] Emergency stop all")
+        print("5. [SYMBOL] Maintenance suspend")
+        print("6. [SYMBOL][SYMBOL] Resume from maintenance")
+        print("7. [ANALYSIS] Refresh zone list")
+        print("0. [SYMBOL] Exit")
         
-        choice = input("\n👉 Choose an option: ").strip()
+        choice = input("\n[SYMBOL] Choose an option: ").strip()
         
         try:
             if choice == "1":
@@ -321,11 +321,11 @@ def demonstrate_zone_control():
                 controller.morning_routine(lawn_zones, garden_zones)
             
             elif choice == "4":
-                confirm = input("⚠️ Really stop ALL zones? (yes/no): ").lower()
+                confirm = input("[WARNING] Really stop ALL zones? (yes/no): ").lower()
                 if confirm == "yes":
                     controller.emergency_stop_all()
                 else:
-                    print("❌ Cancelled")
+                    print("[ERROR] Cancelled")
             
             elif choice == "5":
                 zones_input = input("Enter zone IDs to suspend (comma-separated): ")
@@ -339,22 +339,22 @@ def demonstrate_zone_control():
                 controller.resume_from_maintenance(zone_ids)
             
             elif choice == "7":
-                print("🔄 Refreshing zone information...")
+                print("[PERIODIC] Refreshing zone information...")
                 controller._refresh_zone_info()
                 controller.list_zones()
             
             elif choice == "0":
-                print("👋 Goodbye!")
+                print("[SYMBOL] Goodbye!")
                 break
             
             else:
-                print("❌ Invalid choice")
+                print("[ERROR] Invalid choice")
         
         except KeyboardInterrupt:
-            print("\n👋 Goodbye!")
+            print("\n[SYMBOL] Goodbye!")
             break
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"[ERROR] Error: {e}")
 
 
 if __name__ == "__main__":

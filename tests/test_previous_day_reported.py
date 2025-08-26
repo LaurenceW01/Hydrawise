@@ -22,14 +22,14 @@ def format_reported_data(reported_runs, logger, reference_date):
     # Create readable output
     output_lines = []
     output_lines.append("="*80)
-    output_lines.append("📅 HYDRAWISE PREVIOUS DAY REPORTED RUNS")
-    output_lines.append(f"🔍 Reference Date: {reference_date.strftime('%Y-%m-%d')}")
-    output_lines.append(f"📊 Collecting: Previous day's actual irrigation data")
+    output_lines.append("[SYMBOL] HYDRAWISE PREVIOUS DAY REPORTED RUNS")
+    output_lines.append(f"[SYMBOL] Reference Date: {reference_date.strftime('%Y-%m-%d')}")
+    output_lines.append(f"[SYMBOL] Collecting: Previous day's actual irrigation data")
     output_lines.append("="*80)
     output_lines.append("")
     
     if reported_runs:
-        output_lines.append("🚿 PREVIOUS DAY'S ACTUAL IRRIGATION RUNS:")
+        output_lines.append("[SYMBOL] PREVIOUS DAY'S ACTUAL IRRIGATION RUNS:")
         output_lines.append("-" * 140)
         output_lines.append(f"{'Zone Name':<35} {'Start Time':<12} {'Duration':<10} {'Water Usage':<15} {'Status':<20} {'Notes':<40}")
         output_lines.append("-" * 140)
@@ -61,9 +61,9 @@ def format_reported_data(reported_runs, logger, reference_date):
             # Check for failures
             if hasattr(run, 'failure_reason') and run.failure_reason:
                 failures += 1
-                status_str = f"❌ {status_str}"
+                status_str = f"[SYMBOL] {status_str}"
             elif 'normal' in status_str.lower():
-                status_str = f"✅ {status_str}"
+                status_str = f"[SYMBOL] {status_str}"
             
             output_lines.append(f"{display_zone:<35} {start_time_str:<12} {duration_str:<10} {water_str:<15} {status_str:<20} {notes_str:<40}")
             
@@ -74,7 +74,7 @@ def format_reported_data(reported_runs, logger, reference_date):
                 total_water += run.actual_gallons
         
         output_lines.append("-" * 140)
-        output_lines.append(f"📊 SUMMARY:")
+        output_lines.append(f"[SYMBOL] SUMMARY:")
         output_lines.append(f"   Total Runs: {len(reported_runs)}")
         output_lines.append(f"   Total Duration: {total_duration} minutes ({total_duration/60:.1f} hours)")
         output_lines.append(f"   Total Water Usage: {total_water:.2f} gallons")
@@ -82,14 +82,14 @@ def format_reported_data(reported_runs, logger, reference_date):
         
         if failures > 0:
             output_lines.append("")
-            output_lines.append("⚠️  FAILURE ANALYSIS:")
+            output_lines.append("[SYMBOL][SYMBOL]  FAILURE ANALYSIS:")
             for run in reported_runs:
                 if hasattr(run, 'failure_reason') and run.failure_reason:
-                    output_lines.append(f"   • {run.zone_name}: {run.failure_reason}")
+                    output_lines.append(f"   [SYMBOL] {run.zone_name}: {run.failure_reason}")
         
         # Add detailed popup analysis section
         output_lines.append("")
-        output_lines.append("📄 DETAILED POPUP ANALYSIS:")
+        output_lines.append("[SYMBOL] DETAILED POPUP ANALYSIS:")
         output_lines.append("-" * 80)
         for i, run in enumerate(reported_runs[:5]):  # Show first 5 for detail
             output_lines.append(f"Zone {i+1}: {run.zone_name}")
@@ -99,7 +99,7 @@ def format_reported_data(reported_runs, logger, reference_date):
                     parsed_val = line_data.get('parsed_value', 'N/A')
                     line_text = line_data.get('text', '')
                     if parsed_val != 'N/A' and parsed_val is not None:
-                        output_lines.append(f"  [{line_type.upper()}]: {line_text} → {parsed_val}")
+                        output_lines.append(f"  [{line_type.upper()}]: {line_text} [SYMBOL] {parsed_val}")
                     else:
                         output_lines.append(f"  [{line_type.upper()}]: {line_text}")
             elif hasattr(run, 'raw_popup_text'):
@@ -108,11 +108,11 @@ def format_reported_data(reported_runs, logger, reference_date):
                 output_lines.append("  No popup data available")
             output_lines.append("")
     else:
-        output_lines.append("❌ No reported runs found for previous day")
+        output_lines.append("[SYMBOL] No reported runs found for previous day")
         output_lines.append("   This could mean:")
-        output_lines.append("   • No irrigation occurred on previous day")
-        output_lines.append("   • Navigation to previous day failed")
-        output_lines.append("   • Page structure has changed")
+        output_lines.append("   [SYMBOL] No irrigation occurred on previous day")
+        output_lines.append("   [SYMBOL] Navigation to previous day failed")
+        output_lines.append("   [SYMBOL] Page structure has changed")
     
     output_lines.append("")
     output_lines.append("="*80)
@@ -152,8 +152,8 @@ def main():
     # Prevent propagation to root logger to avoid capturing system logs
     logger.propagate = False
     
-    print("🔄 Starting previous day reported data collection...")
-    print("📝 Results will be saved to:", log_filename)
+    print("[SYMBOL] Starting previous day reported data collection...")
+    print("[SYMBOL] Results will be saved to:", log_filename)
     print()
     
     try:
@@ -170,7 +170,7 @@ def main():
         
         # Use current date as reference
         reference_date = datetime.now()
-        print(f"🔄 Collecting previous day's reported runs (reference: {reference_date.strftime('%Y-%m-%d')})...")
+        print(f"[SYMBOL] Collecting previous day's reported runs (reference: {reference_date.strftime('%Y-%m-%d')})...")
         
         # Start browser and login
         scraper.start_browser()
@@ -202,13 +202,13 @@ def main():
         # Cleanup browser
         scraper.stop_browser()
         
-        logger.info("✅ Previous day reported data collection completed successfully")
-        print("✅ Previous day reported data saved to log file:", log_filename)
+        logger.info("[SYMBOL] Previous day reported data collection completed successfully")
+        print("[SYMBOL] Previous day reported data saved to log file:", log_filename)
         
     except Exception as e:
-        logger.error(f"❌ Test failed: {e}")
-        print(f"\n❌ Error: {e}")
-        print("📝 Check the log file for detailed error information:", log_filename)
+        logger.error(f"[SYMBOL] Test failed: {e}")
+        print(f"\n[SYMBOL] Error: {e}")
+        print("[SYMBOL] Check the log file for detailed error information:", log_filename)
 
 if __name__ == "__main__":
     main()

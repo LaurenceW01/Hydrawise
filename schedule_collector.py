@@ -61,10 +61,10 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                     continue
             
             if not schedule_clicked:
-                self.logger.error("❌ Could not find or click Schedule tab")
+                self.logger.error("[ERROR] Could not find or click Schedule tab")
                 return []
         else:
-            self.logger.info("⏭️ Skipping Schedule tab click (already in Schedule view)")
+            self.logger.info("[SYMBOL][SYMBOL] Skipping Schedule tab click (already in Schedule view)")
         
         # SECOND: CRITICAL - Must click Day button to get daily schedule (not week view)
         try:
@@ -128,7 +128,7 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
         self.logger.info(f"FINAL: Using {len(timeline_elements)} schedule elements (target: 24)")
         
         if not timeline_elements:
-            self.logger.warning("❌ No schedule elements found")
+            self.logger.warning("[ERROR] No schedule elements found")
             return []
         
         # Use a set to track zone+time combinations to avoid duplicates
@@ -138,15 +138,15 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
         zones_to_process = timeline_elements
         if limit_zones:
             zones_to_process = timeline_elements[:limit_zones]
-            self.logger.info(f"🚀 TESTING MODE: Processing only first {limit_zones} zones out of {len(timeline_elements)}")
+            self.logger.info(f"[SYMBOL] TESTING MODE: Processing only first {limit_zones} zones out of {len(timeline_elements)}")
             
         # Debug: Show what elements we're about to process
         # CRITICAL: Scroll to top to ensure we capture all zones (especially early morning ones)
-        self.logger.info("📜 Scrolling to top of page to capture all zones...")
+        self.logger.info("[SYMBOL] Scrolling to top of page to capture all zones...")
         self.driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(1)  # Brief pause after scroll
         
-        self.logger.info(f"📋 About to process {len(zones_to_process)} elements with progressive scrolling:")
+        self.logger.info(f"[LOG] About to process {len(zones_to_process)} elements with progressive scrolling:")
         
         for i, element in enumerate(zones_to_process):
             try:
@@ -165,11 +165,11 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                 
                 # Method 1: Try text content first (more accurate for zone names)
                 element_text = element.text.strip()
-                self.logger.info(f"🔍 Element {i+1} text content: '{element_text[:100]}...'")
+                self.logger.info(f"[ANALYSIS] Element {i+1} text content: '{element_text[:100]}...'")
                 if element_text:
                     # Take only the first line to avoid getting all zone names concatenated
                     first_line = element_text.split('\n')[0].strip()
-                    self.logger.info(f"🔍 Element {i+1} first line: '{first_line}'")
+                    self.logger.info(f"[ANALYSIS] Element {i+1} first line: '{first_line}'")
                     if first_line and len(first_line) > 3:
                         zone_name = first_line
                 
@@ -265,7 +265,7 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                     viewport_height = self.driver.execute_script("return window.innerHeight;")
                     element_y = element_rect['y']
                     
-                    self.logger.debug(f"🔍 Hovering over zone {zone_name}: element_y={element_y}, viewport_height={viewport_height}")
+                    self.logger.debug(f"[ANALYSIS] Hovering over zone {zone_name}: element_y={element_y}, viewport_height={viewport_height}")
                     
                     # Additional small scroll if element is too close to edges
                     if element_y < 100:  # Too close to top
@@ -290,7 +290,7 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                         # Check for rain suspension first - this overrides everything
                         if is_rain_suspended or 'not scheduled to run' in popup_status.lower():
                             duration_minutes = 0  # Override to 0 for rain-suspended zones
-                            self.logger.info(f"🌧️ RAIN SUSPENDED: Zone duration set to 0 min due to: {popup_status}")
+                            self.logger.info(f"[SYMBOL][SYMBOL] RAIN SUSPENDED: Zone duration set to 0 min due to: {popup_status}")
                         elif popup_duration > 0:
                             # Use popup duration if available and not rain-suspended
                             self.logger.info(f"Using popup duration: {popup_duration} min (overriding visual: {duration_minutes})")
@@ -320,11 +320,11 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                 run_id = f"{clean_zone_id}_{start_datetime.strftime('%H:%M')}"
                 
                 if run_id in seen_runs:
-                    self.logger.info(f"🔄 SKIPPING DUPLICATE: {run_id} (original zone: {original_zone_name})")
+                    self.logger.info(f"[PERIODIC] SKIPPING DUPLICATE: {run_id} (original zone: {original_zone_name})")
                     continue
                 
                 seen_runs.add(run_id)
-                self.logger.info(f"✅ PROCESSING ZONE {len(scheduled_runs)+1}: {zone_name} at {start_datetime.strftime('%I:%M %p')}")
+                self.logger.info(f"[OK] PROCESSING ZONE {len(scheduled_runs)+1}: {zone_name} at {start_datetime.strftime('%I:%M %p')}")
                 
                 # Create ScheduledRun object
                 from hydrawise_web_scraper_refactored import ScheduledRun  # Import here to avoid circular imports
@@ -347,18 +347,18 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                 self.logger.info(f"Extracted {len(scheduled_runs)}: '{zone_name}' at {start_datetime.strftime('%I:%M%p').lower()} for {duration_minutes} minutes")
                 
             except Exception as e:
-                self.logger.error(f"❌ Failed to process schedule element {i+1}: {e}")
+                self.logger.error(f"[ERROR] Failed to process schedule element {i+1}: {e}")
                 continue
         
         # Final scroll back to top after processing all zones
         self.driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(0.5)
         
-        self.logger.info(f"✅ Successfully extracted {len(scheduled_runs)} scheduled runs for {target_date.date()}")
+        self.logger.info(f"[OK] Successfully extracted {len(scheduled_runs)} scheduled runs for {target_date.date()}")
         return scheduled_runs
         
     except Exception as e:
-        self.logger.error(f"❌ Failed to extract scheduled runs: {e}")
+        self.logger.error(f"[ERROR] Failed to extract scheduled runs: {e}")
         return []
 
 def collect_24_hour_schedule(self, start_date: datetime = None, limit_zones: int = None) -> Dict[str, List]:
@@ -403,12 +403,12 @@ def collect_24_hour_schedule(self, start_date: datetime = None, limit_zones: int
         
         # Log rain sensor findings with special alerts
         if results['rain_sensor_active']:
-            self.logger.warning("🌧️  RAIN SENSOR ACTIVE - Irrigation is currently suspended!")
-            self.logger.warning(f"📍 Sensor Status: {results['sensor_status']}")
-            self.logger.warning("⚠️  All scheduled runs will show 'not scheduled to run' until sensor dries out")
-            self.logger.warning("🚨 MANUAL PLANT MONITORING REQUIRED during suspension period")
+            self.logger.warning("[SYMBOL][SYMBOL]  RAIN SENSOR ACTIVE - Irrigation is currently suspended!")
+            self.logger.warning(f"[SYMBOL] Sensor Status: {results['sensor_status']}")
+            self.logger.warning("[WARNING]  All scheduled runs will show 'not scheduled to run' until sensor dries out")
+            self.logger.warning("[ALERT] MANUAL PLANT MONITORING REQUIRED during suspension period")
         else:
-            self.logger.info(f"✅ Rain sensor status: {results['sensor_status']}")
+            self.logger.info(f"[OK] Rain sensor status: {results['sensor_status']}")
             
         # Navigate to reports and get today's schedule (using proven working method)
         self.navigate_to_reports()
@@ -536,10 +536,10 @@ def collect_24_hour_schedule(self, start_date: datetime = None, limit_zones: int
             
     # Final status logging
     if results['rain_sensor_active']:
-        self.logger.warning("🌧️  COLLECTION COMPLETED DURING RAIN SENSOR SUSPENSION")
-        self.logger.warning("📋 Data collected, but all runs show 'not scheduled' due to rain sensor")
+        self.logger.warning("[SYMBOL][SYMBOL]  COLLECTION COMPLETED DURING RAIN SENSOR SUSPENSION")
+        self.logger.warning("[LOG] Data collected, but all runs show 'not scheduled' due to rain sensor")
     else:
-        self.logger.info(f"✅ 24-hour collection completed: {len(results['today'])} today, {len(results['tomorrow'])} tomorrow")
+        self.logger.info(f"[OK] 24-hour collection completed: {len(results['today'])} today, {len(results['tomorrow'])} tomorrow")
             
     return results
 

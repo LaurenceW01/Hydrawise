@@ -11,12 +11,12 @@ import os
 def rebuild_database():
     """Rebuild the database to fix SQLite Browser compatibility issues"""
     
-    print("🔧 Rebuilding database for SQLite Browser compatibility...")
+    print("[SYMBOL] Rebuilding database for SQLite Browser compatibility...")
     
     # Backup original
     backup_path = 'database/irrigation_data_backup.db'
     shutil.copy2('database/irrigation_data.db', backup_path)
-    print(f"📁 Backup created: {backup_path}")
+    print(f"[SYMBOL] Backup created: {backup_path}")
     
     # Read data from original
     source_conn = sqlite3.connect('database/irrigation_data.db')
@@ -34,7 +34,7 @@ def rebuild_database():
         baselines_data = []
     
     source_conn.close()
-    print(f"📊 Found {len(zones_data)} zones, {len(baselines_data)} baselines")
+    print(f"[RESULTS] Found {len(zones_data)} zones, {len(baselines_data)} baselines")
     
     # Create new clean database
     new_path = 'database/irrigation_data_clean.db'
@@ -52,7 +52,7 @@ def rebuild_database():
             new_cursor.execute(statement)
         except Exception as e:
             if 'already exists' not in str(e):
-                print(f"⚠️  Schema warning: {e}")
+                print(f"[WARNING]  Schema warning: {e}")
     
     # Insert zones data
     for zone in zones_data:
@@ -71,16 +71,16 @@ def rebuild_database():
                 new_cursor.execute('''
                 INSERT INTO usage_baselines VALUES (?, ?, ?, ?, ?, ?)
                 ''', baseline)
-            print(f"📊 Inserted {len(baselines_data)} baselines")
+            print(f"[RESULTS] Inserted {len(baselines_data)} baselines")
         except sqlite3.OperationalError:
-            print("⚠️  Skipping baselines - table not in schema")
+            print("[WARNING]  Skipping baselines - table not in schema")
     
     new_conn.commit()
     
     # Verify
     new_cursor.execute('SELECT COUNT(*) FROM zones')
     zone_count = new_cursor.fetchone()[0]
-    print(f"✅ New database created with {zone_count} zones")
+    print(f"[OK] New database created with {zone_count} zones")
     
     new_conn.close()
     
@@ -88,7 +88,7 @@ def rebuild_database():
     os.replace('database/irrigation_data.db', 'database/irrigation_data_old.db')
     os.replace(new_path, 'database/irrigation_data.db')
     
-    print("✅ Database rebuilt successfully!")
+    print("[OK] Database rebuilt successfully!")
     print("   Original: irrigation_data_old.db")
     print("   Backup: irrigation_data_backup.db") 
     print("   Current: irrigation_data.db (clean)")

@@ -11,7 +11,7 @@ from hydrawise_api_explorer import HydrawiseAPIExplorer
 
 def debug_flow_readings():
     """Debug flow meter readings during different states."""
-    print("🔍 DEBUGGING FLOW METER READINGS")
+    print("[SYMBOL] DEBUGGING FLOW METER READINGS")
     print("=" * 60)
     
     # Load API key
@@ -19,19 +19,19 @@ def debug_flow_readings():
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     
     if not api_key:
-        print("❌ No API key found")
+        print("[SYMBOL] No API key found")
         return
     
     explorer = HydrawiseAPIExplorer(api_key, respect_rate_limits=True, aggressive_rate_limiting=False)
     
     try:
         # Step 1: Get readings when ALL zones are idle
-        print("\n📊 Step 1: Baseline - All zones idle")
+        print("\n[SYMBOL] Step 1: Baseline - All zones idle")
         idle_data = explorer.get_status_schedule()
         
         # Show ALL sensor data, not just flow meters
         if 'sensors' in idle_data:
-            print(f"🔍 Found {len(idle_data['sensors'])} sensors:")
+            print(f"[SYMBOL] Found {len(idle_data['sensors'])} sensors:")
             for i, sensor in enumerate(idle_data['sensors']):
                 print(f"\n   Sensor {i} (Input {sensor.get('input', 'Unknown')}):")
                 print(f"     Type: {sensor.get('type')} ({get_sensor_type_name(sensor.get('type'))})")
@@ -44,17 +44,17 @@ def debug_flow_readings():
         
         # Step 2: Start a zone and monitor readings
         zone_id = 2419310  # Zone 1
-        print(f"\n🚿 Step 2: Starting zone {zone_id} for 1 minute...")
+        print(f"\n[SYMBOL] Step 2: Starting zone {zone_id} for 1 minute...")
         start_result = explorer.start_zone(zone_id, 1)
         print(f"Start result: {start_result.get('message', 'No message')}")
         
         # Check readings every 10 seconds for 1 minute
         for check_num in range(6):  # 6 checks over 60 seconds
             wait_time = 10
-            print(f"\n⏱️ Check {check_num + 1}/6 - Waiting {wait_time} seconds...")
+            print(f"\n[SYMBOL][SYMBOL] Check {check_num + 1}/6 - Waiting {wait_time} seconds...")
             time.sleep(wait_time)
             
-            print(f"📊 Getting readings at {(check_num + 1) * wait_time} seconds...")
+            print(f"[SYMBOL] Getting readings at {(check_num + 1) * wait_time} seconds...")
             current_data = explorer.get_status_schedule()
             
             # Show sensor readings during operation
@@ -74,10 +74,10 @@ def debug_flow_readings():
                         print(f"   Zone {zone_id}: Running={running}, TimeLeft='{timestr}'")
                         break
         
-        print(f"\n🛑 Zone {zone_id} should have finished by now...")
+        print(f"\n[SYMBOL] Zone {zone_id} should have finished by now...")
         
         # Step 3: Final readings after zone stops
-        print("\n📊 Step 3: Final readings after zone stops...")
+        print("\n[SYMBOL] Step 3: Final readings after zone stops...")
         time.sleep(10)  # Wait a bit more
         final_data = explorer.get_status_schedule()
         
@@ -87,7 +87,7 @@ def debug_flow_readings():
                     print(f"   Final Flow Meter {i}: Rate = {sensor.get('rate', 0)} GPM, Timer = {sensor.get('timer', 0)}s")
     
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[SYMBOL] Error: {e}")
         import traceback
         traceback.print_exc()
 

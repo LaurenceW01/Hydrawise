@@ -140,7 +140,7 @@ class HydrawiseWebScraper:
             self.logger.info("Browser started successfully")
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to start browser: {e}")
+            self.logger.error(f"[ERROR] Failed to start browser: {e}")
             raise
             
     def stop_browser(self):
@@ -730,7 +730,7 @@ class HydrawiseWebScraper:
             return actual_runs
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to extract actual runs: {e}")
+            self.logger.error(f"[ERROR] Failed to extract actual runs: {e}")
             return []
             
     def extract_hover_popup_data(self) -> Optional[Dict]:
@@ -926,14 +926,14 @@ class HydrawiseWebScraper:
                 
                 if popup_data:
                     if is_problematic:
-                        self.logger.info(f"✅ Successfully extracted popup data for problematic zone: {zone_name}")
+                        self.logger.info(f"[OK] Successfully extracted popup data for problematic zone: {zone_name}")
                     return popup_data
                 else:
                     if attempt < max_retries - 1:  # Not the last attempt
                         self.logger.debug(f"Attempt {attempt + 1} failed, retrying...")
                         time.sleep(0.5)  # Brief wait before retry
                     else:
-                        self.logger.warning(f"❌ All {max_retries} attempts failed for zone: {zone_name}")
+                        self.logger.warning(f"[ERROR] All {max_retries} attempts failed for zone: {zone_name}")
                         
             except Exception as e:
                 self.logger.debug(f"Popup extraction attempt {attempt + 1} error: {e}")
@@ -1246,7 +1246,7 @@ class HydrawiseWebScraper:
                 if 'not stopping irrigation' in sensor_lower or 'is not stopping' in sensor_lower:
                     sensor_info['rain_sensor_active'] = False
                     sensor_info['irrigation_suspended'] = False
-                    self.logger.info(f"✅ Normal sensor status: {sensor_text}")
+                    self.logger.info(f"[OK] Normal sensor status: {sensor_text}")
                 else:
                     # Then check for suspension indicators (only if not explicitly "not stopping")
                     suspension_keywords = [
@@ -1259,11 +1259,11 @@ class HydrawiseWebScraper:
                     if any(keyword in sensor_lower for keyword in suspension_keywords):
                         sensor_info['rain_sensor_active'] = True
                         sensor_info['irrigation_suspended'] = True
-                        self.logger.warning(f"🌧️  Rain sensor detected: {sensor_text}")
+                        self.logger.warning(f"[SYMBOL][SYMBOL]  Rain sensor detected: {sensor_text}")
                     else:
                         sensor_info['rain_sensor_active'] = False
                         sensor_info['irrigation_suspended'] = False
-                        self.logger.info(f"✅ Normal sensor status: {sensor_text}")
+                        self.logger.info(f"[OK] Normal sensor status: {sensor_text}")
             else:
                 # No sensor status found - assume normal operation
                 sensor_info['sensor_status'] = 'No sensor alerts detected'
@@ -1318,12 +1318,12 @@ class HydrawiseWebScraper:
             
             # Log rain sensor findings with special alerts
             if results['rain_sensor_active']:
-                self.logger.warning("🌧️  RAIN SENSOR ACTIVE - Irrigation is currently suspended!")
-                self.logger.warning(f"📍 Sensor Status: {results['sensor_status']}")
-                self.logger.warning("⚠️  All scheduled runs will show 'not scheduled to run' until sensor dries out")
-                self.logger.warning("🚨 MANUAL PLANT MONITORING REQUIRED during suspension period")
+                self.logger.warning("[SYMBOL][SYMBOL]  RAIN SENSOR ACTIVE - Irrigation is currently suspended!")
+                self.logger.warning(f"[SYMBOL] Sensor Status: {results['sensor_status']}")
+                self.logger.warning("[WARNING]  All scheduled runs will show 'not scheduled to run' until sensor dries out")
+                self.logger.warning("[ALERT] MANUAL PLANT MONITORING REQUIRED during suspension period")
             else:
-                self.logger.info(f"✅ Rain sensor status: {results['sensor_status']}")
+                self.logger.info(f"[OK] Rain sensor status: {results['sensor_status']}")
                 
             # Navigate to reports and get today's schedule (using proven working method)
             self.navigate_to_reports()
@@ -1385,10 +1385,10 @@ class HydrawiseWebScraper:
                 
         # Final status logging
         if results['rain_sensor_active']:
-            self.logger.warning("🌧️  COLLECTION COMPLETED DURING RAIN SENSOR SUSPENSION")
-            self.logger.warning("📋 Data collected, but all runs show 'not scheduled' due to rain sensor")
+            self.logger.warning("[SYMBOL][SYMBOL]  COLLECTION COMPLETED DURING RAIN SENSOR SUSPENSION")
+            self.logger.warning("[LOG] Data collected, but all runs show 'not scheduled' due to rain sensor")
         else:
-            self.logger.info(f"✅ 24-hour collection completed: {len(results['today'])} today, {len(results['tomorrow'])} tomorrow")
+            self.logger.info(f"[OK] 24-hour collection completed: {len(results['today'])} today, {len(results['tomorrow'])} tomorrow")
                 
         return results
         
@@ -1587,7 +1587,7 @@ class HydrawiseWebScraper:
         with open(f'data/failures_{date_str}.json', 'w') as f:
             json.dump([asdict(failure) for failure in failures], f, indent=2, default=str)
             
-        self.logger.info(f"💾 Data saved for {date_str}")
+        self.logger.info(f"[SAVED] Data saved for {date_str}")
 
 if __name__ == "__main__":
     # Example usage
@@ -1602,7 +1602,7 @@ if __name__ == "__main__":
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials. Please set HYDRAWISE_USER and HYDRAWISE_PASSWORD in .env file")
+        print("[ERROR] Missing credentials. Please set HYDRAWISE_USER and HYDRAWISE_PASSWORD in .env file")
         sys.exit(1)
         
     # Create scraper and run
@@ -1611,7 +1611,7 @@ if __name__ == "__main__":
     try:
         scheduled, actual, failures = scraper.scrape_daily_data()
         
-        print(f"\n📊 Results for {datetime.now().strftime('%Y-%m-%d')}:")
+        print(f"\n[RESULTS] Results for {datetime.now().strftime('%Y-%m-%d')}:")
         print(f"   Scheduled runs: {len(scheduled)}")
         print(f"   Actual runs: {len(actual)}")
         print(f"   Failures detected: {len(failures)}")
@@ -1619,9 +1619,9 @@ if __name__ == "__main__":
         # Show any critical failures
         critical_failures = [f for f in failures if f.priority == "CRITICAL"]
         for failure in critical_failures:
-            print(f"\n🚨 CRITICAL: {failure.description}")
+            print(f"\n[ALERT] CRITICAL: {failure.description}")
             print(f"   Action: {failure.action_required}")
             
     except Exception as e:
-        print(f"❌ Scraping failed: {e}")
+        print(f"[ERROR] Scraping failed: {e}")
         sys.exit(1)

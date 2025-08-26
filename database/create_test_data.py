@@ -411,8 +411,8 @@ def setup_test_database(test_date: date) -> str:
     # Initialize database with enhanced storage
     storage = IntelligentDataStorage(test_db_path)
     
-    print(f"📊 Setting up test database: {test_db_path}")
-    print(f"📅 Test date: {test_date}")
+    print(f"[RESULTS] Setting up test database: {test_db_path}")
+    print(f"[DATE] Test date: {test_date}")
     
     # Add test zones
     zones = create_test_zones()
@@ -426,7 +426,7 @@ def setup_test_database(test_date: date) -> str:
             """, zone_data)
         conn.commit()
     
-    print(f"✅ Added {len(zones)} test zones")
+    print(f"[OK] Added {len(zones)} test zones")
     
     # Create and store test scheduled runs
     scheduled_runs = create_test_scheduled_runs(test_date)
@@ -438,28 +438,28 @@ def setup_test_database(test_date: date) -> str:
             pass
     
     stored_scheduled = storage.store_scheduled_runs_enhanced(scheduled_runs, test_date)
-    print(f"✅ Added {stored_scheduled} scheduled runs")
+    print(f"[OK] Added {stored_scheduled} scheduled runs")
     
     # Create and store test actual runs  
     actual_runs = create_test_actual_runs(test_date)
     stored_actual = storage.store_actual_runs_enhanced(actual_runs, test_date)
-    print(f"✅ Added {stored_actual} actual runs")
+    print(f"[OK] Added {stored_actual} actual runs")
     
-    print(f"\n📋 TEST SCENARIOS CREATED:")
-    print(f"   ✅ Perfect Matches: 4 zones (Front Right Turf, Pool Beds, Pool Plants, Vegetable Garden)")
-    print(f"   ⏰ Time Variances: 2 zones (Front Left Turf +10min, Left Side Turf -20min)")
-    print(f"   ❌ Missing Runs: 3 zones (Rear Left Pots, Rear Right Bed, Front Entrance Beds)")
-    print(f"   🌧️  Rain Cancelled: 1 zone (Rear Right Pots - legitimate)")
-    print(f"   ❓ Unexpected Runs: 1 zone (Pool Plants manual override)")
-    print(f"   🚨 HIGH Priority Alerts: 3 zones (missing planters/beds)")
-    print(f"   ⚠️  MEDIUM Priority Alerts: 1 zone (unexpected run)")
+    print(f"\n[LOG] TEST SCENARIOS CREATED:")
+    print(f"   [OK] Perfect Matches: 4 zones (Front Right Turf, Pool Beds, Pool Plants, Vegetable Garden)")
+    print(f"   [SCHEDULE] Time Variances: 2 zones (Front Left Turf +10min, Left Side Turf -20min)")
+    print(f"   [ERROR] Missing Runs: 3 zones (Rear Left Pots, Rear Right Bed, Front Entrance Beds)")
+    print(f"   [SYMBOL][SYMBOL]  Rain Cancelled: 1 zone (Rear Right Pots - legitimate)")
+    print(f"   [SYMBOL] Unexpected Runs: 1 zone (Pool Plants manual override)")
+    print(f"   [ALERT] HIGH Priority Alerts: 3 zones (missing planters/beds)")
+    print(f"   [WARNING]  MEDIUM Priority Alerts: 1 zone (unexpected run)")
     
     return test_db_path
 
 def main():
     """Create test data for irrigation matching algorithm"""
     
-    print("🧪 CREATING TEST DATA FOR IRRIGATION MATCHING")
+    print("[TEST] CREATING TEST DATA FOR IRRIGATION MATCHING")
     print("=" * 60)
     
     # Use tomorrow as test date for clean testing
@@ -468,9 +468,9 @@ def main():
     try:
         test_db_path = setup_test_database(test_date)
         
-        print(f"\n🎯 Test database ready: {test_db_path}")
-        print(f"📅 Test date: {test_date}")
-        print(f"\n💡 Next steps:")
+        print(f"\n[SYMBOL] Test database ready: {test_db_path}")
+        print(f"[DATE] Test date: {test_date}")
+        print(f"\n[INFO] Next steps:")
         print(f"   1. Run matching algorithm: python -c \"from database.irrigation_matcher import IrrigationMatcher; m=IrrigationMatcher('{test_db_path}'); print(m.generate_match_report('{test_date}'))\"")
         print(f"   2. Review match results and alert priorities")
         print(f"   3. Validate algorithm accuracy")
@@ -478,7 +478,7 @@ def main():
         return True
         
     except Exception as e:
-        print(f"❌ Error creating test data: {e}")
+        print(f"[ERROR] Error creating test data: {e}")
         import traceback
         traceback.print_exc()
         return False

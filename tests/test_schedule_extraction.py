@@ -19,7 +19,7 @@ from hydrawise_web_scraper import HydrawiseWebScraper
 
 def test_schedule_extraction():
     """Test extracting schedule data from the portal"""
-    print("🧪 Testing schedule extraction...")
+    print("[SYMBOL] Testing schedule extraction...")
     
     from dotenv import load_dotenv
     load_dotenv()
@@ -28,7 +28,7 @@ def test_schedule_extraction():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials for schedule extraction test")
+        print("[SYMBOL] Missing credentials for schedule extraction test")
         return False
         
     try:
@@ -36,18 +36,18 @@ def test_schedule_extraction():
         scraper = HydrawiseWebScraper(username, password, headless=False)
         scraper.start_browser()
         
-        print("🔐 Logging in...")
+        print("[SYMBOL] Logging in...")
         if not scraper.login():
-            print("❌ Login failed")
+            print("[SYMBOL] Login failed")
             return False
             
-        print("📊 Navigating to reports...")
+        print("[SYMBOL] Navigating to reports...")
         scraper.navigate_to_reports()
         
-        print("📋 Extracting scheduled runs...")
+        print("[SYMBOL] Extracting scheduled runs...")
         scheduled_runs = scraper.extract_scheduled_runs(datetime.now())
         
-        print(f"✅ Extraction completed!")
+        print(f"[SYMBOL] Extraction completed!")
         print(f"   Found {len(scheduled_runs)} scheduled runs")
         
         # Show details of extracted runs
@@ -72,7 +72,7 @@ def test_schedule_extraction():
         with open(filename, 'w') as f:
             json.dump([asdict(run) for run in scheduled_runs], f, indent=2, default=str)
         
-        print(f"\n💾 Data saved to {filename}")
+        print(f"\n[SYMBOL] Data saved to {filename}")
         
         # Wait for user to inspect
         input("\nPress Enter to continue (you can inspect the browser window)...")
@@ -81,7 +81,7 @@ def test_schedule_extraction():
         return len(scheduled_runs) > 0
         
     except Exception as e:
-        print(f"❌ Schedule extraction test failed: {e}")
+        print(f"[SYMBOL] Schedule extraction test failed: {e}")
         try:
             scraper.stop_browser()
         except:
@@ -90,7 +90,7 @@ def test_schedule_extraction():
 
 def test_popup_detection():
     """Test popup detection and data extraction"""
-    print("\n🧪 Testing popup detection...")
+    print("\n[SYMBOL] Testing popup detection...")
     
     from dotenv import load_dotenv
     load_dotenv()
@@ -99,7 +99,7 @@ def test_popup_detection():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials")
+        print("[SYMBOL] Missing credentials")
         return False
         
     try:
@@ -108,7 +108,7 @@ def test_popup_detection():
         
         if scraper.login() and scraper.navigate_to_reports():
             
-            print("🖱️  Testing hover actions and popup detection...")
+            print("[SYMBOL][SYMBOL]  Testing hover actions and popup detection...")
             
             # Try to find some elements to hover over
             from selenium.webdriver.common.by import By
@@ -140,15 +140,15 @@ def test_popup_detection():
                             popup_data = scraper.extract_hover_popup_data()
                             
                             if popup_data:
-                                print(f"   ✅ Popup data found:")
+                                print(f"   [SYMBOL] Popup data found:")
                                 for key, value in popup_data.items():
                                     if value:
                                         print(f"     {key}: {value}")
                             else:
-                                print(f"   ⚪ No popup data for this element")
+                                print(f"   [SYMBOL] No popup data for this element")
                             
                 except Exception as e:
-                    print(f"   ❌ Error with selector {i+1}: {e}")
+                    print(f"   [SYMBOL] Error with selector {i+1}: {e}")
                     
             input("\nPress Enter to finish popup test...")
             
@@ -156,7 +156,7 @@ def test_popup_detection():
         return True
         
     except Exception as e:
-        print(f"❌ Popup test failed: {e}")
+        print(f"[SYMBOL] Popup test failed: {e}")
         try:
             scraper.stop_browser()
         except:
@@ -181,16 +181,16 @@ def main():
             if test():
                 passed += 1
             else:
-                print("   ⚠️ Test failed - continuing...")
+                print("   [SYMBOL][SYMBOL] Test failed - continuing...")
         except Exception as e:
-            print(f"   ❌ Test error: {e}")
+            print(f"   [SYMBOL] Test error: {e}")
             
-    print(f"\n📊 Test Results: {passed}/{total} tests passed")
+    print(f"\n[SYMBOL] Test Results: {passed}/{total} tests passed")
     
     if passed >= 1:
-        print("✅ Schedule extraction is working!")
+        print("[SYMBOL] Schedule extraction is working!")
     else:
-        print("❌ Schedule extraction needs debugging")
+        print("[SYMBOL] Schedule extraction needs debugging")
         
     return passed >= 1
 

@@ -422,21 +422,21 @@ class IrrigationMatcher:
         # Generate report
         report_lines = []
         report_lines.append("=" * 80)
-        report_lines.append("🔍 IRRIGATION SCHEDULE vs ACTUAL MATCHING REPORT")
-        report_lines.append(f"📅 Date: {target_date.strftime('%A, %B %d, %Y')}")
-        report_lines.append(f"⏰ Time Tolerance: ±{self.time_tolerance_minutes} minutes")
+        report_lines.append("[ANALYSIS] IRRIGATION SCHEDULE vs ACTUAL MATCHING REPORT")
+        report_lines.append(f"[DATE] Date: {target_date.strftime('%A, %B %d, %Y')}")
+        report_lines.append(f"[SCHEDULE] Time Tolerance: [SYMBOL]{self.time_tolerance_minutes} minutes")
         report_lines.append("=" * 80)
         report_lines.append("")
         
         # Summary
-        report_lines.append("📊 MATCH SUMMARY:")
-        report_lines.append(f"   ✅ Perfect Matches: {len(perfect_matches)}")
-        report_lines.append(f"   ⚠️  Time Variances: {len(time_variance)}")
-        report_lines.append(f"   ❌ Missing Runs: {len(missing_runs)}")
-        report_lines.append(f"   ❓ Unexpected Runs: {len(unexpected_runs)}")
-        report_lines.append(f"   🌧️  Rain Cancelled: {len(rain_cancelled)}")
-        report_lines.append(f"   ⏰ Future Scheduled: {len(future_scheduled)}")
-        report_lines.append(f"   📋 Total Processed: {len(matches)}")
+        report_lines.append("[RESULTS] MATCH SUMMARY:")
+        report_lines.append(f"   [OK] Perfect Matches: {len(perfect_matches)}")
+        report_lines.append(f"   [WARNING]  Time Variances: {len(time_variance)}")
+        report_lines.append(f"   [ERROR] Missing Runs: {len(missing_runs)}")
+        report_lines.append(f"   [SYMBOL] Unexpected Runs: {len(unexpected_runs)}")
+        report_lines.append(f"   [SYMBOL][SYMBOL]  Rain Cancelled: {len(rain_cancelled)}")
+        report_lines.append(f"   [SCHEDULE] Future Scheduled: {len(future_scheduled)}")
+        report_lines.append(f"   [LOG] Total Processed: {len(matches)}")
         report_lines.append("")
         
         # Alerts section
@@ -444,29 +444,29 @@ class IrrigationMatcher:
         medium_priority = [m for m in matches if m.alert_priority == "MEDIUM"]
         
         if high_priority or medium_priority:
-            report_lines.append("🚨 ALERTS REQUIRING ATTENTION:")
+            report_lines.append("[ALERT] ALERTS REQUIRING ATTENTION:")
             report_lines.append("-" * 60)
             
             for match in high_priority:
-                report_lines.append(f"🔥 HIGH: {match.zone_name}")
+                report_lines.append(f"[SYMBOL] HIGH: {match.zone_name}")
                 report_lines.append(f"   {match.notes}")
                 if match.scheduled_time:
                     report_lines.append(f"   Scheduled: {match.scheduled_time.strftime('%I:%M %p')}")
                 report_lines.append("")
             
             for match in medium_priority:
-                report_lines.append(f"⚠️  MEDIUM: {match.zone_name}")
+                report_lines.append(f"[WARNING]  MEDIUM: {match.zone_name}")
                 report_lines.append(f"   {match.notes}")
                 if match.scheduled_time:
                     report_lines.append(f"   Scheduled: {match.scheduled_time.strftime('%I:%M %p')}")
                 report_lines.append("")
         else:
-            report_lines.append("✅ NO HIGH/MEDIUM PRIORITY ALERTS")
+            report_lines.append("[OK] NO HIGH/MEDIUM PRIORITY ALERTS")
             report_lines.append("")
         
         # Detailed results
         if matches:
-            report_lines.append("📋 DETAILED MATCH RESULTS:")
+            report_lines.append("[LOG] DETAILED MATCH RESULTS:")
             report_lines.append("-" * 80)
             
             for match in sorted(matches, key=lambda x: (x.scheduled_time or datetime.min, x.actual_time or datetime.min)):
@@ -475,12 +475,12 @@ class IrrigationMatcher:
                 time_diff_str = f"{match.time_difference_minutes}min" if match.time_difference_minutes is not None else "N/A"
                 
                 status_emoji = {
-                    MatchType.PERFECT_MATCH: "✅",
-                    MatchType.TIME_VARIANCE: "⏰",
-                    MatchType.MISSING_RUN: "❌",
-                    MatchType.UNEXPECTED_RUN: "❓",
-                    MatchType.RAIN_CANCELLED: "🌧️",
-                    MatchType.FUTURE_SCHEDULED: "⏳"
+                    MatchType.PERFECT_MATCH: "[OK]",
+                    MatchType.TIME_VARIANCE: "[SCHEDULE]",
+                    MatchType.MISSING_RUN: "[ERROR]",
+                    MatchType.UNEXPECTED_RUN: "[SYMBOL]",
+                    MatchType.RAIN_CANCELLED: "[SYMBOL][SYMBOL]",
+                    MatchType.FUTURE_SCHEDULED: "[SYMBOL]"
                 }
                 
                 report_lines.append(f"{status_emoji[match.match_type]} {match.zone_name}")

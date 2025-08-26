@@ -31,7 +31,7 @@ from database.intelligent_data_storage import IntelligentDataStorage
 def print_banner():
     """Print the admin banner"""
     print("=" * 70)
-    print("📅 HYDRAWISE SCHEDULE COLLECTION ADMIN")
+    print("HYDRAWISE SCHEDULE COLLECTION ADMIN")
     print("=" * 70)
 
 def cmd_collect(args):
@@ -49,13 +49,13 @@ def cmd_collect(args):
         else:
             target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
     except ValueError:
-        print(f"❌ Invalid date format: {args.date}")
+        print(f"[ERROR] Invalid date format: {args.date}")
         print("   Use YYYY-MM-DD format, 'today', 'tomorrow', or 'yesterday'")
         return 1
     
     limit_text = f"first {args.limit} zones" if args.limit else "ALL zones"
-    print(f"🔄 COLLECTING SCHEDULED RUNS - {target_date}")
-    print(f"📊 Collection scope: {limit_text}")
+    print(f"[PERIODIC] COLLECTING SCHEDULED RUNS - {target_date}")
+    print(f"[RESULTS] Collection scope: {limit_text}")
     print()
     
     # Load credentials
@@ -64,7 +64,7 @@ def cmd_collect(args):
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials in .env file")
+        print("[ERROR] Missing credentials in .env file")
         print("   Required: HYDRAWISE_USER and HYDRAWISE_PASSWORD")
         return 1
     
@@ -74,7 +74,7 @@ def cmd_collect(args):
         
         # Clear existing data if requested
         if args.clear:
-            print("🗑️  Clearing existing scheduled runs for this date...")
+            print("[DELETE]  Clearing existing scheduled runs for this date...")
             with sqlite3.connect(storage.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute('DELETE FROM scheduled_runs WHERE schedule_date = ?', (target_date,))
@@ -88,23 +88,23 @@ def cmd_collect(args):
             cursor.execute('SELECT COUNT(*) FROM scheduled_runs WHERE schedule_date = ?', (target_date,))
             existing_count = cursor.fetchone()[0]
             if existing_count > 0:
-                print(f"⚠️  Found {existing_count} existing scheduled runs for {target_date}")
+                print(f"[WARNING]  Found {existing_count} existing scheduled runs for {target_date}")
                 if not args.clear:
                     print("   Use --clear to remove existing data before collection")
         
         # Initialize scraper
-        print("🌐 Starting browser and logging in...")
+        print("[WEB] Starting browser and logging in...")
         scraper = HydrawiseWebScraper(username, password, headless=args.headless)
         
         scraper.start_browser()
         if not scraper.login():
             raise Exception("Login failed - check credentials")
         
-        print("📊 Navigating to reports...")
+        print("[RESULTS] Navigating to reports...")
         scraper.navigate_to_reports()
         
         # Use new shared navigation system to navigate to specific date
-        print(f"📋 Navigating to {target_date} for schedule collection...")
+        print(f"[LOG] Navigating to {target_date} for schedule collection...")
         from shared_navigation_helper import create_navigation_helper
         nav_helper = create_navigation_helper(scraper)
         
@@ -112,25 +112,25 @@ def cmd_collect(args):
             raise Exception(f"Failed to navigate to {target_date}")
         
         # Collect scheduled runs from the navigated date
-        print(f"📋 Collecting scheduled runs for {target_date}...")
+        print(f"[LOG] Collecting scheduled runs for {target_date}...")
         target_datetime = datetime.combine(target_date, datetime.min.time())
         # Skip schedule tab click since we already navigated there
         scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True)
         
         scraper.stop_browser()
         
-        print(f"✅ Collected {len(scheduled_runs)} scheduled runs")
+        print(f"[OK] Collected {len(scheduled_runs)} scheduled runs")
         
         if not scheduled_runs:
-            print("⚠️  No scheduled runs found")
+            print("[WARNING]  No scheduled runs found")
             print("   This could mean:")
-            print("   • No irrigation scheduled for this date")
-            print("   • All runs cancelled due to rain")
-            print("   • Date is too far in the future")
+            print("   - No irrigation scheduled for this date")
+            print("   - All runs cancelled due to rain")
+            print("   - Date is too far in the future")
             return 0
         
         # Store in database
-        print("💾 Storing runs in database...")
+        print("[SAVED] Storing runs in database...")
         storage_result = storage.store_scheduled_runs_enhanced(scheduled_runs, target_date)
         
         # Display detailed storage results
@@ -140,18 +140,18 @@ def cmd_collect(args):
             unchanged_runs = storage_result['unchanged']
             total_processed = storage_result['total']
             
-            print(f"✅ Successfully processed {total_processed} scheduled runs:")
-            print(f"   🆕 {new_runs} new runs added to database")
-            print(f"   🔄 {updated_runs} existing runs updated")
-            print(f"   ✓  {unchanged_runs} runs unchanged (already current)")
-            print(f"   💾 Total database changes: {new_runs + updated_runs}")
+            print(f"[OK] Successfully processed {total_processed} scheduled runs:")
+            print(f"   [NEW] {new_runs} new runs added to database")
+            print(f"   [PERIODIC] {updated_runs} existing runs updated")
+            print(f"   [OK]  {unchanged_runs} runs unchanged (already current)")
+            print(f"   [SAVED] Total database changes: {new_runs + updated_runs}")
         else:
             # Fallback for old format
-            print(f"✅ Stored {storage_result} runs successfully")
+            print(f"[OK] Stored {storage_result} runs successfully")
         
         # Display summary
         print()
-        print("📊 COLLECTION SUMMARY:")
+        print("[RESULTS] COLLECTION SUMMARY:")
         print(f"   Date: {target_date}")
         print(f"   Runs collected: {len(scheduled_runs)}")
         if isinstance(storage_result, dict):
@@ -166,7 +166,7 @@ def cmd_collect(args):
         
         # Show brief schedule
         print()
-        print("📋 COLLECTED SCHEDULE:")
+        print("[LOG] COLLECTED SCHEDULE:")
         print("-" * 60)
         for i, run in enumerate(scheduled_runs[:10], 1):  # Show first 10
             start_time = run.start_time.strftime('%I:%M %p')
@@ -179,7 +179,7 @@ def cmd_collect(args):
         return 0
         
     except Exception as e:
-        print(f"❌ Collection failed: {e}")
+        print(f"[ERROR] Collection failed: {e}")
         import traceback
         traceback.print_exc()
         
@@ -195,7 +195,7 @@ def cmd_collect(args):
 def cmd_status(args):
     """Show current database status"""
     print_banner()
-    print("📊 DATABASE STATUS")
+    print("[RESULTS] DATABASE STATUS")
     print()
     
     try:
@@ -216,7 +216,7 @@ def cmd_status(args):
             schedule_counts = cursor.fetchall()
             
             if schedule_counts:
-                print("📅 SCHEDULED RUNS BY DATE:")
+                print("[DATE] SCHEDULED RUNS BY DATE:")
                 print("   " + "-" * 30)
                 for schedule_date, count in schedule_counts:
                     date_obj = datetime.strptime(schedule_date, '%Y-%m-%d').date()
@@ -227,7 +227,7 @@ def cmd_status(args):
                         date_str += " (Tomorrow)"
                     print(f"   {date_str:<15} {count:>3} runs")
             else:
-                print("❌ No scheduled runs found in database")
+                print("[ERROR] No scheduled runs found in database")
             
             # Get total counts
             cursor.execute("SELECT COUNT(*) FROM scheduled_runs")
@@ -237,14 +237,14 @@ def cmd_status(args):
             total_actual = cursor.fetchone()[0]
             
             print()
-            print("📊 TOTAL DATABASE CONTENTS:")
+            print("[RESULTS] TOTAL DATABASE CONTENTS:")
             print(f"   Scheduled runs: {total_scheduled}")
             print(f"   Actual runs: {total_actual}")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Status check failed: {e}")
+        print(f"[ERROR] Status check failed: {e}")
         return 1
 
 def cmd_clear(args):
@@ -260,11 +260,11 @@ def cmd_clear(args):
         else:
             target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
     except ValueError:
-        print(f"❌ Invalid date format: {args.date}")
+        print(f"[ERROR] Invalid date format: {args.date}")
         print("   Use YYYY-MM-DD format, 'today', or 'tomorrow'")
         return 1
     
-    print(f"🗑️  CLEARING SCHEDULED RUNS - {target_date}")
+    print(f"[DELETE]  CLEARING SCHEDULED RUNS - {target_date}")
     print()
     
     try:
@@ -277,15 +277,15 @@ def cmd_clear(args):
             existing_count = cursor.fetchone()[0]
             
             if existing_count == 0:
-                print(f"ℹ️  No scheduled runs found for {target_date}")
+                print(f"[INFO]  No scheduled runs found for {target_date}")
                 return 0
             
-            print(f"📊 Found {existing_count} scheduled runs for {target_date}")
+            print(f"[RESULTS] Found {existing_count} scheduled runs for {target_date}")
             
             if not args.force:
-                response = input("⚠️  Are you sure you want to delete these runs? (y/N): ")
+                response = input("[WARNING]  Are you sure you want to delete these runs? (y/N): ")
                 if response.lower() not in ['y', 'yes']:
-                    print("❌ Operation cancelled")
+                    print("[ERROR] Operation cancelled")
                     return 0
             
             # Delete runs
@@ -293,12 +293,12 @@ def cmd_clear(args):
             deleted_count = cursor.rowcount
             conn.commit()
             
-            print(f"✅ Deleted {deleted_count} scheduled runs for {target_date}")
+            print(f"[OK] Deleted {deleted_count} scheduled runs for {target_date}")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Clear operation failed: {e}")
+        print(f"[ERROR] Clear operation failed: {e}")
         return 1
 
 def cmd_collect_range(args):
@@ -326,19 +326,19 @@ def cmd_collect_range(args):
             end_date = datetime.strptime(args.end_date, '%Y-%m-%d').date()
             
     except ValueError:
-        print(f"❌ Invalid date format")
+        print(f"[ERROR] Invalid date format")
         print("   Use YYYY-MM-DD format, 'today', 'tomorrow', or 'yesterday'")
         return 1
     
     if start_date > end_date:
         start_date, end_date = end_date, start_date
-        print(f"ℹ️  Swapped dates: collecting from {start_date} to {end_date}")
+        print(f"[INFO]  Swapped dates: collecting from {start_date} to {end_date}")
     
     date_count = (end_date - start_date).days + 1
     limit_text = f"first {args.limit} zones" if args.limit else "ALL zones"
-    print(f"🔄 COLLECTING SCHEDULED RUNS - DATE RANGE")
-    print(f"📅 Date range: {start_date} to {end_date} ({date_count} days)")
-    print(f"📊 Collection scope: {limit_text}")
+    print(f"[PERIODIC] COLLECTING SCHEDULED RUNS - DATE RANGE")
+    print(f"[DATE] Date range: {start_date} to {end_date} ({date_count} days)")
+    print(f"[RESULTS] Collection scope: {limit_text}")
     print()
     
     # Load credentials
@@ -347,7 +347,7 @@ def cmd_collect_range(args):
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials in .env file")
+        print("[ERROR] Missing credentials in .env file")
         print("   Required: HYDRAWISE_USER and HYDRAWISE_PASSWORD")
         return 1
     
@@ -357,7 +357,7 @@ def cmd_collect_range(args):
         
         # Clear existing data if requested
         if args.clear:
-            print("🗑️  Clearing existing scheduled runs for date range...")
+            print("[DELETE]  Clearing existing scheduled runs for date range...")
             with sqlite3.connect(storage.db_path) as conn:
                 cursor = conn.cursor()
                 current_date = start_date
@@ -370,18 +370,18 @@ def cmd_collect_range(args):
                 print(f"   Cleared {total_deleted} existing records from {date_count} days")
         
         # Initialize scraper
-        print("🌐 Starting browser and logging in...")
+        print("[WEB] Starting browser and logging in...")
         scraper = HydrawiseWebScraper(username, password, headless=args.headless)
         
         scraper.start_browser()
         if not scraper.login():
             raise Exception("Login failed - check credentials")
         
-        print("📊 Navigating to reports...")
+        print("[RESULTS] Navigating to reports...")
         scraper.navigate_to_reports()
         
         # Use shared navigation system to collect date range
-        print(f"📋 Navigating through date range for schedule collection...")
+        print(f"[LOG] Navigating through date range for schedule collection...")
         from shared_navigation_helper import create_navigation_helper
         nav_helper = create_navigation_helper(scraper)
         
@@ -393,19 +393,19 @@ def cmd_collect_range(args):
         first_navigation = True
         
         while current_date <= end_date:
-            print(f"\n📅 Collecting schedules for {current_date}...")
+            print(f"\n[DATE] Collecting schedules for {current_date}...")
             
             if first_navigation:
                 # Navigate to first date
                 if not nav_helper.navigate_to_date(current_date, "schedule"):
-                    print(f"❌ Failed to navigate to {current_date}")
+                    print(f"[ERROR] Failed to navigate to {current_date}")
                     current_date += timedelta(days=1)
                     continue
                 first_navigation = False
             else:
                 # Use Next button for subsequent dates
                 if not nav_helper.click_next_button():
-                    print(f"❌ Failed to navigate to {current_date}")
+                    print(f"[ERROR] Failed to navigate to {current_date}")
                     current_date += timedelta(days=1)
                     continue
             
@@ -414,7 +414,7 @@ def cmd_collect_range(args):
             scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True)
             
             if scheduled_runs:
-                print(f"✅ Collected {len(scheduled_runs)} runs for {current_date}")
+                print(f"[OK] Collected {len(scheduled_runs)} runs for {current_date}")
                 all_scheduled_runs.extend(scheduled_runs)
                 collected_dates.append(current_date)
                 
@@ -423,11 +423,11 @@ def cmd_collect_range(args):
                 if isinstance(storage_result, dict):
                     new_runs = storage_result['new']
                     unchanged_runs = storage_result['unchanged']
-                    print(f"💾 Stored {new_runs} new runs, {unchanged_runs} unchanged for {current_date}")
+                    print(f"[SAVED] Stored {new_runs} new runs, {unchanged_runs} unchanged for {current_date}")
                 else:
-                    print(f"💾 Stored {storage_result} runs for {current_date}")
+                    print(f"[SAVED] Stored {storage_result} runs for {current_date}")
             else:
-                print(f"⚠️  No scheduled runs found for {current_date}")
+                print(f"[WARNING]  No scheduled runs found for {current_date}")
             
             current_date += timedelta(days=1)
         
@@ -435,7 +435,7 @@ def cmd_collect_range(args):
         
         # Display summary
         print()
-        print("📊 COLLECTION SUMMARY:")
+        print("[RESULTS] COLLECTION SUMMARY:")
         print(f"   Date range: {start_date} to {end_date}")
         print(f"   Days processed: {date_count}")
         print(f"   Days with data: {len(collected_dates)}")
@@ -453,7 +453,7 @@ def cmd_collect_range(args):
         return 0 if collected_dates else 1
         
     except Exception as e:
-        print(f"❌ Range collection failed: {e}")
+        print(f"[ERROR] Range collection failed: {e}")
         import traceback
         traceback.print_exc()
         
@@ -669,8 +669,8 @@ COMMAND TYPES:
         # Store file handler reference for cleanup
         log_file_handler_ref = file_handler
         
-        print(f"📋 Logging output to: {enhanced_filename}")
-        print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[LOG] Logging output to: {enhanced_filename}")
+        print(f"[DATE] Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("-" * 50)
         
         # Store references for cleanup
@@ -695,10 +695,10 @@ COMMAND TYPES:
         return result
         
     except KeyboardInterrupt:
-        print("\n\n⏹️  Operation cancelled by user")
+        print("\n\n[CANCELLED] Operation cancelled by user")
         return 1
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -721,7 +721,7 @@ COMMAND TYPES:
                 # Close log file
                 log_file_handle_ref.close()
                 
-                print(f"📋 Log saved to: {enhanced_filename}")
+                print(f"[LOG] Log saved to: {enhanced_filename}")
                 
             except Exception as cleanup_error:
                 # If cleanup fails, at least try to restore streams
@@ -729,7 +729,7 @@ COMMAND TYPES:
                     sys.stdout = original_stdout_ref
                 if original_stderr_ref:
                     sys.stderr = original_stderr_ref
-                print(f"⚠️  Log cleanup warning: {cleanup_error}")
+                print(f"[WARNING]  Log cleanup warning: {cleanup_error}")
 
 if __name__ == "__main__":
     sys.exit(main())

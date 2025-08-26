@@ -18,32 +18,32 @@ def diagnose_zone_control():
     api_key = os.getenv('HUNTER_HYDRAWISE_API_KEY')
     
     if not api_key:
-        print("❌ No API key found")
+        print("[SYMBOL] No API key found")
         return
     
-    print("🔬 ZONE CONTROL DIAGNOSTICS")
+    print("[SYMBOL] ZONE CONTROL DIAGNOSTICS")
     print("=" * 40)
     
     explorer = HydrawiseAPIExplorer(api_key, respect_rate_limits=True)
     
     # Step 1: Check controller and account info
-    print("1️⃣ Checking account and controller status...")
+    print("1[SYMBOL][SYMBOL] Checking account and controller status...")
     try:
         customer_data = explorer.get_customer_details()
         
         if 'controllers' in customer_data:
             for controller in customer_data['controllers']:
-                print(f"📡 Controller: {controller.get('name', 'Unknown')}")
+                print(f"[SYMBOL] Controller: {controller.get('name', 'Unknown')}")
                 print(f"   ID: {controller.get('controller_id')}")
                 print(f"   Status: {controller.get('status', 'Unknown')}")
                 print(f"   Last Contact: {controller.get('last_contact', 'Unknown')}")
                 print(f"   Serial: {controller.get('serial_number', 'Unknown')}")
     except Exception as e:
-        print(f"❌ Failed to get controller info: {e}")
+        print(f"[SYMBOL] Failed to get controller info: {e}")
         return
     
     # Step 2: Check zone details and permissions
-    print("\n2️⃣ Checking zone details...")
+    print("\n2[SYMBOL][SYMBOL] Checking zone details...")
     try:
         status_data = explorer.get_status_schedule()
         
@@ -61,7 +61,7 @@ def diagnose_zone_control():
                     'suspended': relay.get('suspended', 'Unknown')
                 })
                 
-                print(f"🌱 Zone {zone_id}: {relay.get('name', 'Unknown')}")
+                print(f"[SYMBOL] Zone {zone_id}: {relay.get('name', 'Unknown')}")
                 print(f"   Status: {relay.get('status', 'Unknown')}")
                 print(f"   Running: {relay.get('running', False)}")
                 print(f"   Type: {relay.get('type', 'Unknown')}")
@@ -79,21 +79,21 @@ def diagnose_zone_control():
                 print()
     
     except Exception as e:
-        print(f"❌ Failed to get zone details: {e}")
+        print(f"[SYMBOL] Failed to get zone details: {e}")
         return
     
     # Step 3: Test different zone control parameters
-    print("3️⃣ Testing zone control parameters...")
+    print("3[SYMBOL][SYMBOL] Testing zone control parameters...")
     
     if not zones:
-        print("❌ No zones to test")
+        print("[SYMBOL] No zones to test")
         return
     
     test_zone = zones[0]  # Use first zone
     zone_id = test_zone['id']
     zone_name = test_zone['name']
     
-    print(f"🧪 Testing with zone {zone_id}: {zone_name}")
+    print(f"[SYMBOL] Testing with zone {zone_id}: {zone_name}")
     
     # Test different parameter combinations
     test_cases = [
@@ -120,7 +120,7 @@ def diagnose_zone_control():
     ]
     
     for test_case in test_cases:
-        print(f"\n🔬 Testing: {test_case['name']}")
+        print(f"\n[SYMBOL] Testing: {test_case['name']}")
         print(f"   Parameters: {test_case['params']}")
         
         try:
@@ -139,37 +139,37 @@ def diagnose_zone_control():
                     print(f"   Response: {data}")
                     
                     if data.get('message_type') == 'error':
-                        print(f"   ❌ Error: {data.get('message', 'Unknown error')}")
+                        print(f"   [SYMBOL] Error: {data.get('message', 'Unknown error')}")
                     else:
-                        print(f"   ✅ Success: {data}")
+                        print(f"   [SYMBOL] Success: {data}")
                         
                 except ValueError:
-                    print(f"   📄 Raw response: {response.text}")
+                    print(f"   [SYMBOL] Raw response: {response.text}")
             else:
-                print(f"   ❌ HTTP Error: {response.status_code}")
-                print(f"   📄 Response: {response.text}")
+                print(f"   [SYMBOL] HTTP Error: {response.status_code}")
+                print(f"   [SYMBOL] Response: {response.text}")
         
         except Exception as e:
-            print(f"   💥 Exception: {e}")
+            print(f"   [SYMBOL] Exception: {e}")
     
     # Step 4: Check API documentation hints
-    print(f"\n4️⃣ Checking for system restrictions...")
+    print(f"\n4[SYMBOL][SYMBOL] Checking for system restrictions...")
     
     # Look for any fields that might indicate restrictions
     if 'options' in status_data:
-        print(f"💡 System options: {status_data['options']}")
+        print(f"[SYMBOL] System options: {status_data['options']}")
     
     if 'message' in status_data:
-        print(f"💡 System message: {status_data['message']}")
+        print(f"[SYMBOL] System message: {status_data['message']}")
     
     # Check for any controller-level restrictions
-    print(f"\n💡 POSSIBLE SOLUTIONS:")
-    print(f"1. 🔑 Check if your API key has zone control permissions")
-    print(f"2. 📱 Try the same operation in the Hydrawise mobile app")
-    print(f"3. 🌐 Check your Hydrawise account settings online")
-    print(f"4. 📞 Contact Hydrawise support about API permissions")
-    print(f"5. 🔄 Try regenerating your API key")
-    print(f"6. ⚙️ Check if controller is in manual/automatic mode")
+    print(f"\n[SYMBOL] POSSIBLE SOLUTIONS:")
+    print(f"1. [SYMBOL] Check if your API key has zone control permissions")
+    print(f"2. [SYMBOL] Try the same operation in the Hydrawise mobile app")
+    print(f"3. [SYMBOL] Check your Hydrawise account settings online")
+    print(f"4. [SYMBOL] Contact Hydrawise support about API permissions")
+    print(f"5. [SYMBOL] Try regenerating your API key")
+    print(f"6. [SYMBOL][SYMBOL] Check if controller is in manual/automatic mode")
 
 
 if __name__ == "__main__":

@@ -174,7 +174,7 @@ class CloudStorageSync:
             original_size = os.path.getsize(source_path)
             compression_ratio = (1 - compressed_size / original_size) * 100
             
-            logger.info(f"Compressed database: {original_size:,} → {compressed_size:,} bytes ({compression_ratio:.1f}% reduction)")
+            logger.info(f"Compressed database: {original_size:,} -> {compressed_size:,} bytes ({compression_ratio:.1f}% reduction)")
             return compressed_size
             
         except Exception as e:
@@ -328,7 +328,7 @@ class CloudStorageSync:
             if os.path.exists(temp_compressed):
                 os.remove(temp_compressed)
                 
-            logger.info(f"Database downloaded successfully: {downloaded_size:,} bytes → {target_path}")
+            logger.info(f"Database downloaded successfully: {downloaded_size:,} bytes -> {target_path}")
             return target_path
             
         except Exception as e:

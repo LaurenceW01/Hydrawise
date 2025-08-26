@@ -19,7 +19,7 @@ from hydrawise_web_scraper import HydrawiseWebScraper
 
 def test_credentials():
     """Test that credentials are available"""
-    print("🧪 Testing credentials...")
+    print("[SYMBOL] Testing credentials...")
     
     from dotenv import load_dotenv
     load_dotenv()
@@ -28,19 +28,19 @@ def test_credentials():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username:
-        print("❌ HYDRAWISE_USER not found in .env file")
+        print("[SYMBOL] HYDRAWISE_USER not found in .env file")
         return False
         
     if not password:
-        print("❌ HYDRAWISE_PASSWORD not found in .env file")
+        print("[SYMBOL] HYDRAWISE_PASSWORD not found in .env file")
         return False
         
-    print(f"✅ Credentials found for user: {username[:5]}...")
+    print(f"[SYMBOL] Credentials found for user: {username[:5]}...")
     return True
 
 def test_browser_startup():
     """Test that the browser can start and stop"""
-    print("\n🧪 Testing browser startup...")
+    print("\n[SYMBOL] Testing browser startup...")
     
     from dotenv import load_dotenv
     load_dotenv()
@@ -49,29 +49,29 @@ def test_browser_startup():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials for browser test")
+        print("[SYMBOL] Missing credentials for browser test")
         return False
         
     try:
         scraper = HydrawiseWebScraper(username, password, headless=True)
         scraper.start_browser()
-        print("✅ Browser started successfully")
+        print("[SYMBOL] Browser started successfully")
         
         # Test navigation to Hydrawise
         scraper.driver.get("https://app.hydrawise.com")
-        print("✅ Can navigate to Hydrawise portal")
+        print("[SYMBOL] Can navigate to Hydrawise portal")
         
         scraper.stop_browser()
-        print("✅ Browser stopped successfully")
+        print("[SYMBOL] Browser stopped successfully")
         return True
         
     except Exception as e:
-        print(f"❌ Browser test failed: {e}")
+        print(f"[SYMBOL] Browser test failed: {e}")
         return False
 
 def test_login_page_access():
     """Test that we can access the login page"""
-    print("\n🧪 Testing login page access...")
+    print("\n[SYMBOL] Testing login page access...")
     
     from dotenv import load_dotenv
     load_dotenv()
@@ -80,7 +80,7 @@ def test_login_page_access():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials for login test")
+        print("[SYMBOL] Missing credentials for login test")
         return False
         
     try:
@@ -89,7 +89,7 @@ def test_login_page_access():
         
         # Navigate to login page
         scraper.driver.get(scraper.login_url)
-        print("✅ Can access login page")
+        print("[SYMBOL] Can access login page")
         
         # Check for login form elements
         from selenium.webdriver.common.by import By
@@ -97,23 +97,23 @@ def test_login_page_access():
         password_field = scraper.driver.find_element(By.XPATH, "//input[@placeholder='Password']")
         
         if email_field and password_field:
-            print("✅ Login form elements found")
+            print("[SYMBOL] Login form elements found")
         
         scraper.stop_browser()
         return True
         
     except Exception as e:
-        print(f"❌ Login page test failed: {e}")
+        print(f"[SYMBOL] Login page test failed: {e}")
         return False
 
 def test_full_login():
     """Test actual login to the portal (use with caution)"""
-    print("\n🧪 Testing full login process...")
-    print("⚠️  This will attempt to login to your actual Hydrawise account")
+    print("\n[SYMBOL] Testing full login process...")
+    print("[SYMBOL][SYMBOL]  This will attempt to login to your actual Hydrawise account")
     
     response = input("Do you want to proceed with login test? (y/N): ")
     if response.lower() != 'y':
-        print("🔄 Skipping login test")
+        print("[SYMBOL] Skipping login test")
         return True
         
     from dotenv import load_dotenv
@@ -123,7 +123,7 @@ def test_full_login():
     password = os.getenv('HYDRAWISE_PASSWORD')
     
     if not username or not password:
-        print("❌ Missing credentials for login test")
+        print("[SYMBOL] Missing credentials for login test")
         return False
         
     try:
@@ -132,35 +132,35 @@ def test_full_login():
         
         # Attempt login
         if scraper.login():
-            print("✅ Login successful!")
+            print("[SYMBOL] Login successful!")
             
             # Try to navigate to reports
             scraper.navigate_to_reports()
-            print("✅ Can access reports page")
+            print("[SYMBOL] Can access reports page")
             
             # Wait a moment for user to see the page
             input("Press Enter to continue...")
             
         else:
-            print("❌ Login failed")
+            print("[SYMBOL] Login failed")
             return False
             
         scraper.stop_browser()
         return True
         
     except Exception as e:
-        print(f"❌ Full login test failed: {e}")
+        print(f"[SYMBOL] Full login test failed: {e}")
         return False
 
 def test_config_loading():
     """Test that configuration loads properly"""
-    print("\n🧪 Testing configuration loading...")
+    print("\n[SYMBOL] Testing configuration loading...")
     
     try:
         sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'config'))
         from web_scraper_config import SELECTORS, TIMEOUTS, URLS, get_zone_priority
         
-        print("✅ Configuration imported successfully")
+        print("[SYMBOL] Configuration imported successfully")
         print(f"   Login URL: {URLS['login']}")
         print(f"   Page timeout: {TIMEOUTS['page_load']}s")
         
@@ -171,7 +171,7 @@ def test_config_loading():
         return True
         
     except Exception as e:
-        print(f"❌ Configuration test failed: {e}")
+        print(f"[SYMBOL] Configuration test failed: {e}")
         return False
 
 def main():
@@ -195,17 +195,17 @@ def main():
             if test():
                 passed += 1
             else:
-                print("   ⚠️ Test failed - continuing with remaining tests...")
+                print("   [SYMBOL][SYMBOL] Test failed - continuing with remaining tests...")
         except Exception as e:
-            print(f"   ❌ Test error: {e}")
+            print(f"   [SYMBOL] Test error: {e}")
             
-    print(f"\n📊 Test Results: {passed}/{total} tests passed")
+    print(f"\n[SYMBOL] Test Results: {passed}/{total} tests passed")
     
     if passed >= 3:  # At least basic tests pass
-        print("✅ Web scraper setup looks good!")
+        print("[SYMBOL] Web scraper setup looks good!")
         print("   Ready to proceed with schedule extraction")
     else:
-        print("❌ Web scraper setup needs work")
+        print("[SYMBOL] Web scraper setup needs work")
         print("   Check credentials and browser installation")
         
     return passed >= 3

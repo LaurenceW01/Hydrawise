@@ -27,13 +27,13 @@ from database.irrigation_analytics import IrrigationAnalytics, AnomalyType
 def print_banner():
     """Print the admin banner"""
     print("=" * 70)
-    print("🔬 HYDRAWISE IRRIGATION ANALYTICS ADMIN")
+    print("[SYMBOL] HYDRAWISE IRRIGATION ANALYTICS ADMIN")
     print("=" * 70)
 
 def cmd_baseline(args):
     """Calculate and update baselines for zones"""
     print_banner()
-    print("📊 CALCULATING IRRIGATION BASELINES")
+    print("[RESULTS] CALCULATING IRRIGATION BASELINES")
     print()
     
     try:
@@ -58,9 +58,9 @@ def cmd_baseline(args):
                 cursor.execute("SELECT DISTINCT zone_name FROM actual_runs ORDER BY zone_name")
                 zones = [row[0] for row in cursor.fetchall()]
         
-        print(f"🎯 Updating baselines for {len(zones)} zone(s)")
+        print(f"[SYMBOL] Updating baselines for {len(zones)} zone(s)")
         if start_date:
-            print(f"📅 Using data from {start_date} onwards")
+            print(f"[DATE] Using data from {start_date} onwards")
         print()
         
         updated_count = 0
@@ -69,23 +69,23 @@ def cmd_baseline(args):
         for zone in zones:
             if analytics.update_baseline(zone, start_date):
                 baseline = analytics.calculate_baseline(zone, start_date)
-                print(f"✅ {zone}")
-                print(f"   📊 {baseline.sample_count} runs, avg {baseline.avg_gallons:.1f} gal, {baseline.avg_gpm:.2f} GPM")
+                print(f"[OK] {zone}")
+                print(f"   [RESULTS] {baseline.sample_count} runs, avg {baseline.avg_gallons:.1f} gal, {baseline.avg_gpm:.2f} GPM")
                 updated_count += 1
             else:
-                print(f"⚠️  {zone} - Insufficient data (need 7+ runs)")
+                print(f"[WARNING]  {zone} - Insufficient data (need 7+ runs)")
                 insufficient_data += 1
         
         print()
-        print(f"📋 BASELINE UPDATE SUMMARY:")
-        print(f"   ✅ Successfully updated: {updated_count}")
-        print(f"   ⚠️  Insufficient data: {insufficient_data}")
-        print(f"   📅 Baseline period: {args.days or 30} days")
+        print(f"[LOG] BASELINE UPDATE SUMMARY:")
+        print(f"   [OK] Successfully updated: {updated_count}")
+        print(f"   [WARNING]  Insufficient data: {insufficient_data}")
+        print(f"   [DATE] Baseline period: {args.days or 30} days")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Baseline calculation failed: {e}")
+        print(f"[ERROR] Baseline calculation failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -93,7 +93,7 @@ def cmd_baseline(args):
 def cmd_detect(args):
     """Detect anomalies in irrigation data"""
     print_banner()
-    print("🔍 DETECTING IRRIGATION ANOMALIES")
+    print("[ANALYSIS] DETECTING IRRIGATION ANOMALIES")
     print()
     
     try:
@@ -107,14 +107,14 @@ def cmd_detect(args):
             else:
                 analysis_date = datetime.strptime(args.date, '%Y-%m-%d').date()
         
-        print(f"🔍 Analyzing {args.days} days ending {analysis_date}")
+        print(f"[ANALYSIS] Analyzing {args.days} days ending {analysis_date}")
         print()
         
         # Detect anomalies
         anomalies = analytics.detect_anomalies(analysis_date, args.days)
         
         if not anomalies:
-            print("✅ No anomalies detected!")
+            print("[OK] No anomalies detected!")
             return 0
         
         # Categorize anomalies
@@ -122,18 +122,18 @@ def cmd_detect(args):
         medium_priority = [a for a in anomalies if a.severity == "MEDIUM"]
         low_priority = [a for a in anomalies if a.severity == "LOW"]
         
-        print(f"🚨 ANOMALY DETECTION RESULTS:")
-        print(f"   🔥 High Priority: {len(high_priority)}")
-        print(f"   ⚠️  Medium Priority: {len(medium_priority)}")
-        print(f"   ℹ️  Low Priority: {len(low_priority)}")
+        print(f"[ALERT] ANOMALY DETECTION RESULTS:")
+        print(f"   [SYMBOL] High Priority: {len(high_priority)}")
+        print(f"   [WARNING]  Medium Priority: {len(medium_priority)}")
+        print(f"   [INFO]  Low Priority: {len(low_priority)}")
         print()
         
         # Show high priority anomalies
         if high_priority:
-            print("🔥 HIGH PRIORITY ANOMALIES:")
+            print("[SYMBOL] HIGH PRIORITY ANOMALIES:")
             print("-" * 60)
             for anomaly in high_priority:
-                print(f"🚨 {anomaly.zone_name} ({anomaly.run_date})")
+                print(f"[ALERT] {anomaly.zone_name} ({anomaly.run_date})")
                 print(f"   Type: {anomaly.anomaly_type.value.replace('_', ' ').title()}")
                 print(f"   {anomaly.description}")
                 print(f"   Deviation: {anomaly.deviation_percent:.1f}%")
@@ -141,22 +141,22 @@ def cmd_detect(args):
         
         # Show medium priority if requested
         if args.show_all and medium_priority:
-            print("⚠️  MEDIUM PRIORITY ANOMALIES:")
+            print("[WARNING]  MEDIUM PRIORITY ANOMALIES:")
             print("-" * 60)
             for anomaly in medium_priority:
-                print(f"⚠️  {anomaly.zone_name} ({anomaly.run_date})")
+                print(f"[WARNING]  {anomaly.zone_name} ({anomaly.run_date})")
                 print(f"   {anomaly.description}")
                 print()
         
         # Store anomalies
         if args.store:
             stored_count = analytics.store_anomalies(anomalies)
-            print(f"💾 Stored {stored_count} new anomalies in database")
+            print(f"[SAVED] Stored {stored_count} new anomalies in database")
         
         return 2 if high_priority else (1 if medium_priority else 0)
         
     except Exception as e:
-        print(f"❌ Anomaly detection failed: {e}")
+        print(f"[ERROR] Anomaly detection failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -164,13 +164,13 @@ def cmd_detect(args):
 def cmd_report(args):
     """Generate comprehensive analytics report"""
     print_banner()
-    print("📄 GENERATING ANALYTICS REPORT")
+    print("[SYMBOL] GENERATING ANALYTICS REPORT")
     print()
     
     try:
         analytics = IrrigationAnalytics()
         
-        print(f"📊 Analyzing {args.days} days of irrigation data...")
+        print(f"[RESULTS] Analyzing {args.days} days of irrigation data...")
         print()
         
         # Generate report
@@ -188,12 +188,12 @@ def cmd_report(args):
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(report)
             
-            print(f"💾 Report saved to: {filename}")
+            print(f"[SAVED] Report saved to: {filename}")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Report generation failed: {e}")
+        print(f"[ERROR] Report generation failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -201,33 +201,33 @@ def cmd_report(args):
 def cmd_trends(args):
     """Show usage trends for zones"""
     print_banner()
-    print("📈 IRRIGATION USAGE TRENDS")
+    print("[SYMBOL] IRRIGATION USAGE TRENDS")
     print()
     
     try:
         analytics = IrrigationAnalytics()
         
-        print(f"📊 Analyzing trends over {args.days} days")
+        print(f"[RESULTS] Analyzing trends over {args.days} days")
         print()
         
         # Calculate trends
         trends = analytics.calculate_zone_trends(args.days)
         
         if not trends:
-            print("❌ No trend data available")
+            print("[ERROR] No trend data available")
             return 1
         
         # Sort by total usage
         trends.sort(key=lambda x: x.total_gallons, reverse=True)
         
-        print("📋 ZONE USAGE TRENDS:")
+        print("[LOG] ZONE USAGE TRENDS:")
         print("-" * 95)
         print(f"{'Zone':<35} {'Total Gal':<10} {'Avg/Run':<10} {'GPM':<8} {'Cost':<10} {'Usage':<12} {'Efficiency'}")
         print("-" * 95)
         
         for trend in trends:
-            usage_indicator = {"INCREASING": "📈", "DECREASING": "📉", "STABLE": "➡️"}[trend.usage_trend]
-            efficiency_indicator = {"IMPROVING": "⬆️", "DECLINING": "⬇️", "STABLE": "➡️"}[trend.efficiency_trend]
+            usage_indicator = {"INCREASING": "[SYMBOL]", "DECREASING": "[SYMBOL]", "STABLE": "[SYMBOL][SYMBOL]"}[trend.usage_trend]
+            efficiency_indicator = {"IMPROVING": "[SYMBOL][SYMBOL]", "DECLINING": "[SYMBOL][SYMBOL]", "STABLE": "[SYMBOL][SYMBOL]"}[trend.efficiency_trend]
             
             zone_name = trend.zone_name[:32] + "..." if len(trend.zone_name) > 35 else trend.zone_name
             
@@ -235,7 +235,7 @@ def cmd_trends(args):
                   f"{trend.avg_gpm:<8.2f} ${trend.total_cost:<9.2f} {usage_indicator} {trend.usage_trend:<10} {efficiency_indicator} {trend.efficiency_trend}")
             
             if trend.gap_days > 0:
-                print(f"{'':>57} ⚠️  {trend.gap_days} gap days")
+                print(f"{'':>57} [WARNING]  {trend.gap_days} gap days")
         
         print("-" * 95)
         print(f"Total zones: {len(trends)}")
@@ -246,7 +246,7 @@ def cmd_trends(args):
         return 0
         
     except Exception as e:
-        print(f"❌ Trend analysis failed: {e}")
+        print(f"[ERROR] Trend analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -254,7 +254,7 @@ def cmd_trends(args):
 def cmd_costs(args):
     """Calculate water costs"""
     print_banner()
-    print("💰 WATER COST CALCULATION")
+    print("[SYMBOL] WATER COST CALCULATION")
     print()
     
     try:
@@ -263,26 +263,26 @@ def cmd_costs(args):
         # Calculate cost
         cost = analytics.calculate_water_cost(args.gallons, args.monthly_total)
         
-        print(f"📊 COST BREAKDOWN:")
-        print(f"   💧 Gallons: {args.gallons:.1f}")
+        print(f"[RESULTS] COST BREAKDOWN:")
+        print(f"   [WATER] Gallons: {args.gallons:.1f}")
         
         if args.zone:
-            print(f"   🏠 Zone: {args.zone}")
+            print(f"   [SYMBOL] Zone: {args.zone}")
         
         if args.monthly_total:
-            print(f"   🏡 Monthly household total: {args.monthly_total:.1f} gallons")
+            print(f"   [SYMBOL] Monthly household total: {args.monthly_total:.1f} gallons")
         
-        print(f"   💰 Irrigation cost: ${cost:.2f}")
-        print(f"   📈 Cost per gallon: ${cost/args.gallons:.4f}")
+        print(f"   [SYMBOL] Irrigation cost: ${cost:.2f}")
+        print(f"   [SYMBOL] Cost per gallon: ${cost/args.gallons:.4f}")
         print()
         
-        print(f"📋 RATE STRUCTURE: {analytics.water_rates.name}")
-        print(f"   💵 Base charge: ${analytics.water_rates.base_charge:.2f} ({analytics.water_rates.base_gallons:,} gal included)")
+        print(f"[LOG] RATE STRUCTURE: {analytics.water_rates.name}")
+        print(f"   [SYMBOL] Base charge: ${analytics.water_rates.base_charge:.2f} ({analytics.water_rates.base_gallons:,} gal included)")
         
         if analytics.water_rates.regional_fee > 0:
-            print(f"   🏛️  Regional fee: ${analytics.water_rates.regional_fee:.2f}/1000 gal")
+            print(f"   [SYMBOL][SYMBOL]  Regional fee: ${analytics.water_rates.regional_fee:.2f}/1000 gal")
         
-        print("   📊 Tier structure:")
+        print("   [RESULTS] Tier structure:")
         current_tier = analytics.water_rates.base_gallons
         for tier_limit, rate in analytics.water_rates.tiers:
             if tier_limit == float('inf'):
@@ -294,7 +294,7 @@ def cmd_costs(args):
         return 0
         
     except Exception as e:
-        print(f"❌ Cost calculation failed: {e}")
+        print(f"[ERROR] Cost calculation failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -302,44 +302,44 @@ def cmd_costs(args):
 def cmd_rates(args):
     """Manage water rate structures"""
     print_banner()
-    print("💰 WATER RATE STRUCTURES")
+    print("[SYMBOL] WATER RATE STRUCTURES")
     print()
     
     try:
         analytics = IrrigationAnalytics()
         
         if args.list:
-            print("📋 AVAILABLE RATE STRUCTURES:")
+            print("[LOG] AVAILABLE RATE STRUCTURES:")
             print("-" * 50)
             
             predefined_rates = analytics.get_predefined_rate_structures()
             for key, rate_structure in predefined_rates.items():
-                print(f"🏛️  {key}: {rate_structure.name}")
-                print(f"   💵 Base: ${rate_structure.base_charge:.2f} ({rate_structure.base_gallons:,} gal)")
+                print(f"[SYMBOL][SYMBOL]  {key}: {rate_structure.name}")
+                print(f"   [SYMBOL] Base: ${rate_structure.base_charge:.2f} ({rate_structure.base_gallons:,} gal)")
                 if rate_structure.regional_fee > 0:
-                    print(f"   🏛️  Regional fee: ${rate_structure.regional_fee:.2f}/1000 gal")
+                    print(f"   [SYMBOL][SYMBOL]  Regional fee: ${rate_structure.regional_fee:.2f}/1000 gal")
                 print()
         
         elif args.set:
             predefined_rates = analytics.get_predefined_rate_structures()
             if args.set in predefined_rates:
                 analytics.set_water_rates(predefined_rates[args.set])
-                print(f"✅ Rate structure set to: {predefined_rates[args.set].name}")
+                print(f"[OK] Rate structure set to: {predefined_rates[args.set].name}")
             else:
-                print(f"❌ Unknown rate structure: {args.set}")
+                print(f"[ERROR] Unknown rate structure: {args.set}")
                 print("Use --list to see available options")
         
         elif args.show:
-            print(f"📊 CURRENT RATE STRUCTURE: {analytics.water_rates.name}")
-            print(f"   💵 Base charge: ${analytics.water_rates.base_charge:.2f}")
-            print(f"   💧 Base gallons: {analytics.water_rates.base_gallons:,}")
+            print(f"[RESULTS] CURRENT RATE STRUCTURE: {analytics.water_rates.name}")
+            print(f"   [SYMBOL] Base charge: ${analytics.water_rates.base_charge:.2f}")
+            print(f"   [WATER] Base gallons: {analytics.water_rates.base_gallons:,}")
             
             if analytics.water_rates.regional_fee > 0:
-                print(f"   🏛️  Regional fee: ${analytics.water_rates.regional_fee:.2f}/1000 gal")
+                print(f"   [SYMBOL][SYMBOL]  Regional fee: ${analytics.water_rates.regional_fee:.2f}/1000 gal")
             
-            print(f"   📈 Seasonal multiplier: {analytics.water_rates.seasonal_multiplier:.1f}")
+            print(f"   [SYMBOL] Seasonal multiplier: {analytics.water_rates.seasonal_multiplier:.1f}")
             print()
-            print("   📊 Tier structure:")
+            print("   [RESULTS] Tier structure:")
             current_tier = analytics.water_rates.base_gallons
             for tier_limit, rate in analytics.water_rates.tiers:
                 if tier_limit == float('inf'):
@@ -349,13 +349,13 @@ def cmd_rates(args):
                     current_tier = tier_limit + 1
         
         else:
-            print("❌ Please specify an action: --list, --set, or --show")
+            print("[ERROR] Please specify an action: --list, --set, or --show")
             return 1
         
         return 0
         
     except Exception as e:
-        print(f"❌ Rate management failed: {e}")
+        print(f"[ERROR] Rate management failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -363,7 +363,7 @@ def cmd_rates(args):
 def cmd_reset(args):
     """Reset baseline for a zone from a specific date"""
     print_banner()
-    print("🔄 RESETTING ZONE BASELINE")
+    print("[PERIODIC] RESETTING ZONE BASELINE")
     print()
     
     try:
@@ -372,39 +372,39 @@ def cmd_reset(args):
         # Parse reset date
         reset_date = datetime.strptime(args.from_date, '%Y-%m-%d').date()
         
-        print(f"🎯 Resetting baseline for: {args.zone}")
-        print(f"📅 Using data from: {reset_date} onwards")
-        print(f"💡 Use this when schedules have changed")
+        print(f"[SYMBOL] Resetting baseline for: {args.zone}")
+        print(f"[DATE] Using data from: {reset_date} onwards")
+        print(f"[INFO] Use this when schedules have changed")
         print()
         
         if analytics.update_baseline(args.zone, reset_date):
             baseline = analytics.calculate_baseline(args.zone, reset_date)
-            print("✅ Baseline reset successfully!")
+            print("[OK] Baseline reset successfully!")
             print()
-            print("📊 NEW BASELINE:")
+            print("[RESULTS] NEW BASELINE:")
             print(f"   Zone: {baseline.zone_name}")
             print(f"   Sample period: {baseline.baseline_start_date} to {baseline.baseline_end_date}")
             print(f"   Sample runs: {baseline.sample_count}")
             print(f"   Average gallons: {baseline.avg_gallons:.1f}")
             print(f"   Average duration: {baseline.avg_duration_minutes} minutes")
             print(f"   Average efficiency: {baseline.avg_gpm:.2f} GPM")
-            print(f"   Standard deviation: ±{baseline.std_dev_gallons:.1f} gallons")
+            print(f"   Standard deviation: [SYMBOL]{baseline.std_dev_gallons:.1f} gallons")
         else:
-            print("❌ Failed to reset baseline")
+            print("[ERROR] Failed to reset baseline")
             print("   Possible causes:")
-            print("   • Insufficient data (need 7+ runs)")
-            print("   • No runs found after the reset date")
-            print("   • Zone name not found")
+            print("   - Insufficient data (need 7+ runs)")
+            print("   - No runs found after the reset date")
+            print("   - Zone name not found")
             return 1
         
         return 0
         
     except ValueError:
-        print(f"❌ Invalid date format: {args.from_date}")
+        print(f"[ERROR] Invalid date format: {args.from_date}")
         print("   Use YYYY-MM-DD format")
         return 1
     except Exception as e:
-        print(f"❌ Baseline reset failed: {e}")
+        print(f"[ERROR] Baseline reset failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -412,7 +412,7 @@ def cmd_reset(args):
 def cmd_cost_report(args):
     """Generate Houston water bill cost reports with zone-by-zone breakdown"""
     print_banner()
-    print("💰 HOUSTON WATER BILL COST REPORT")
+    print("[SYMBOL] HOUSTON WATER BILL COST REPORT")
     print()
     
     try:
@@ -429,23 +429,23 @@ def cmd_cost_report(args):
         billing_start = cost_result['billing_period']['start_date']
         billing_end = cost_result['billing_period']['end_date']
         
-        print(f"📅 BILLING PERIOD: {billing_start} to {billing_end}")
-        print(f"📊 Analysis Date: {cost_result['calculation_date']} ({cost_result['billing_period']['percent_complete']}% complete)")
+        print(f"[DATE] BILLING PERIOD: {billing_start} to {billing_end}")
+        print(f"[RESULTS] Analysis Date: {cost_result['calculation_date']} ({cost_result['billing_period']['percent_complete']}% complete)")
         print()
         
         # Display overall cost summary
         usage = cost_result['usage']
         costs = cost_result['costs']
         
-        print(f"💧 TOTAL WATER USAGE:")
-        print(f"   🚿 Irrigation:      {usage['irrigation_gallons']:8.1f} gallons")
-        print(f"   🏡 Manual watering: {usage['manual_watering_gallons']:8.1f} gallons")
-        print(f"   📊 Total usage:     {usage['total_gallons']:8.1f} gallons")
+        print(f"[WATER] TOTAL WATER USAGE:")
+        print(f"   [SYMBOL] Irrigation:      {usage['irrigation_gallons']:8.1f} gallons")
+        print(f"   [SYMBOL] Manual watering: {usage['manual_watering_gallons']:8.1f} gallons")
+        print(f"   [RESULTS] Total usage:     {usage['total_gallons']:8.1f} gallons")
         print()
         
-        print(f"💰 TOTAL ESTIMATED COST: ${costs['estimated_total_cost']:.2f}")
-        print(f"   🏠 Basic service:    ${costs['basic_service_charge']:7.2f}")
-        print(f"   💧 Usage cost:       ${costs['total_usage_cost']:7.2f}")
+        print(f"[SYMBOL] TOTAL ESTIMATED COST: ${costs['estimated_total_cost']:.2f}")
+        print(f"   [SYMBOL] Basic service:    ${costs['basic_service_charge']:7.2f}")
+        print(f"   [WATER] Usage cost:       ${costs['total_usage_cost']:7.2f}")
         print()
         
         # Get zone-by-zone usage breakdown
@@ -469,7 +469,7 @@ def cmd_cost_report(args):
             zone_data = cursor.fetchall()
         
         if zone_data:
-            print("🎯 COST BY IRRIGATION ZONE:")
+            print("[SYMBOL] COST BY IRRIGATION ZONE:")
             print("-" * 110)
             print(f"{'Zone Name':<35} {'Runs':<6} {'Gallons':<10} {'Avg/Run':<9} {'% of Total':<10} {'Est. Cost':<10}")
             print("-" * 110)
@@ -509,14 +509,14 @@ def cmd_cost_report(args):
             
             # Show top cost contributors
             if len(zone_costs) > 1:
-                print("💸 TOP COST CONTRIBUTORS:")
+                print("[SYMBOL] TOP COST CONTRIBUTORS:")
                 top_zones = sorted(zone_costs, key=lambda x: x[2], reverse=True)[:5]
                 for i, (zone_name, gallons, cost, percentage) in enumerate(top_zones, 1):
                     print(f"   {i}. {zone_name[:40]:<40} ${cost:6.2f} ({percentage:4.1f}%)")
                 print()
             
             # Show efficiency metrics
-            print("⚡ EFFICIENCY METRICS:")
+            print("[SYMBOL] EFFICIENCY METRICS:")
             cursor.execute("""
                 SELECT ar.zone_name,
                        AVG(ar.actual_gallons / ar.actual_duration_minutes) as avg_gpm,
@@ -549,18 +549,18 @@ def cmd_cost_report(args):
                 print("-" * 70)
         
         else:
-            print("❌ No irrigation usage data found for this billing period")
+            print("[ERROR] No irrigation usage data found for this billing period")
         
         # Show projections if available
         if 'projections' in cost_result and cost_result['projections']:
             proj = cost_result['projections']
-            print(f"\n📈 FULL PERIOD PROJECTION:")
-            print(f"   🚿 Projected irrigation: {proj['projected_irrigation_gallons']:8.1f} gallons")
-            print(f"   💰 Projected total cost: ${proj['projected_total_cost']:8.2f}")
+            print(f"\n[SYMBOL] FULL PERIOD PROJECTION:")
+            print(f"   [SYMBOL] Projected irrigation: {proj['projected_irrigation_gallons']:8.1f} gallons")
+            print(f"   [SYMBOL] Projected total cost: ${proj['projected_total_cost']:8.2f}")
             
             # Calculate projected zone costs
             if zone_data and total_irrigation > 0:
-                print(f"\n🔮 PROJECTED ZONE COSTS (Full Period):")
+                print(f"\n[SYMBOL] PROJECTED ZONE COSTS (Full Period):")
                 projected_irrigation = proj['projected_irrigation_gallons']
                 projection_multiplier = projected_irrigation / total_irrigation if total_irrigation > 0 else 1
                 
@@ -603,12 +603,12 @@ def cmd_cost_report(args):
                 for zone_name, gallons, cost, percentage in sorted(zone_costs, key=lambda x: x[2], reverse=True):
                     f.write(f"{zone_name}: {gallons:.1f} gallons, ${cost:.2f} ({percentage:.1f}%)\n")
             
-            print(f"💾 Report saved to: {filename}")
+            print(f"[SAVED] Report saved to: {filename}")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Cost report generation failed: {e}")
+        print(f"[ERROR] Cost report generation failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -616,7 +616,7 @@ def cmd_cost_report(args):
 def cmd_warnings(args):
     """Analyze usage warnings based on usage_flag and usage_type fields"""
     print_banner()
-    print("⚠️  USAGE WARNINGS ANALYSIS")
+    print("[WARNING]  USAGE WARNINGS ANALYSIS")
     print()
     
     try:
@@ -639,7 +639,7 @@ def cmd_warnings(args):
             end_date = date.today()
             start_date = end_date - timedelta(days=7)
         
-        print(f"📅 Analyzing usage warnings from {start_date} to {end_date}")
+        print(f"[DATE] Analyzing usage warnings from {start_date} to {end_date}")
         print(f"   Period: {(end_date - start_date).days + 1} days")
         print()
         
@@ -663,20 +663,20 @@ def cmd_warnings(args):
             stats = cursor.fetchone()
             total_runs, too_high, too_low, zero_reported, estimated, actual = stats
             
-            print("📊 OVERALL STATISTICS:")
-            print(f"   🏃 Total runs: {total_runs}")
-            print(f"   📈 Actual readings: {actual} ({actual/total_runs*100:.1f}%)")
-            print(f"   🔢 Estimated readings: {estimated} ({estimated/total_runs*100:.1f}%)")
+            print("[RESULTS] OVERALL STATISTICS:")
+            print(f"   [SYMBOL] Total runs: {total_runs}")
+            print(f"   [SYMBOL] Actual readings: {actual} ({actual/total_runs*100:.1f}%)")
+            print(f"   [SYMBOL] Estimated readings: {estimated} ({estimated/total_runs*100:.1f}%)")
             print()
-            print("⚠️  WARNING SUMMARY:")
-            print(f"   🔴 Too high usage: {too_high} ({too_high/total_runs*100:.1f}%)")
-            print(f"   🔵 Too low usage: {too_low} ({too_low/total_runs*100:.1f}%)")
-            print(f"   ⚫ Zero reported: {zero_reported} ({zero_reported/total_runs*100:.1f}%)")
+            print("[WARNING]  WARNING SUMMARY:")
+            print(f"   [SYMBOL] Too high usage: {too_high} ({too_high/total_runs*100:.1f}%)")
+            print(f"   [SYMBOL] Too low usage: {too_low} ({too_low/total_runs*100:.1f}%)")
+            print(f"   [SYMBOL] Zero reported: {zero_reported} ({zero_reported/total_runs*100:.1f}%)")
             print()
             
             # Show high usage warnings
             if too_high > 0:
-                print("🔴 HIGH USAGE WARNINGS:")
+                print("[SYMBOL] HIGH USAGE WARNINGS:")
                 print("-" * 110)
                 print(f"{'Zone Name':<35} {'Date':<12} {'Duration':<9} {'Actual':<8} {'Expected':<9} {'Ratio':<8}")
                 print("-" * 110)
@@ -694,7 +694,7 @@ def cmd_warnings(args):
                 """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.limit))
                 
                 for zone_name, run_date, duration, actual_gal, expected_gal, ratio in cursor.fetchall():
-                    print(f"🔴 {zone_name[:35]:<35} {run_date:<12} {duration:6.1f}min {actual_gal:6.1f}gal {expected_gal:7.1f}gal {ratio:6.1f}%")
+                    print(f"[SYMBOL] {zone_name[:35]:<35} {run_date:<12} {duration:6.1f}min {actual_gal:6.1f}gal {expected_gal:7.1f}gal {ratio:6.1f}%")
                 
                 if too_high > args.limit:
                     print(f"   ... and {too_high - args.limit} more (use --limit to see more)")
@@ -702,7 +702,7 @@ def cmd_warnings(args):
             
             # Show low usage warnings
             if too_low > 0:
-                print("🔵 LOW USAGE WARNINGS:")
+                print("[SYMBOL] LOW USAGE WARNINGS:")
                 print("-" * 110)
                 print(f"{'Zone Name':<35} {'Date':<12} {'Duration':<9} {'Actual':<8} {'Expected':<9} {'Ratio':<8}")
                 print("-" * 110)
@@ -720,7 +720,7 @@ def cmd_warnings(args):
                 """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.limit))
                 
                 for zone_name, run_date, duration, actual_gal, expected_gal, ratio in cursor.fetchall():
-                    print(f"🔵 {zone_name[:35]:<35} {run_date:<12} {duration:6.1f}min {actual_gal:6.1f}gal {expected_gal:7.1f}gal {ratio:6.1f}%")
+                    print(f"[SYMBOL] {zone_name[:35]:<35} {run_date:<12} {duration:6.1f}min {actual_gal:6.1f}gal {expected_gal:7.1f}gal {ratio:6.1f}%")
                 
                 if too_low > args.limit:
                     print(f"   ... and {too_low - args.limit} more (use --limit to see more)")
@@ -728,7 +728,7 @@ def cmd_warnings(args):
             
             # Show zones with frequent estimation usage
             if estimated > 0:
-                print("🔢 ZONES WITH ESTIMATED USAGE (Zero Reported):")
+                print("[SYMBOL] ZONES WITH ESTIMATED USAGE (Zero Reported):")
                 print("-" * 80)
                 print(f"{'Zone Name':<45} {'Count':<7} {'Percentage':<12}")
                 print("-" * 80)
@@ -746,12 +746,12 @@ def cmd_warnings(args):
                       start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.min_estimates))
                 
                 for zone_name, est_count, est_rate in cursor.fetchall():
-                    print(f"🔢 {zone_name[:45]:<45} {est_count:3} est   {est_rate:5.1f}% of runs")
+                    print(f"[SYMBOL] {zone_name[:45]:<45} {est_count:3} est   {est_rate:5.1f}% of runs")
                 print()
             
             # Show problem zones summary
             if args.summary:
-                print("🎯 PROBLEM ZONES SUMMARY:")
+                print("[SYMBOL] PROBLEM ZONES SUMMARY:")
                 print("-" * 60)
                 cursor.execute("""
                     SELECT zone_name,
@@ -769,7 +769,7 @@ def cmd_warnings(args):
                 for zone_name, total, high, low, est in cursor.fetchall():
                     total_issues = high + low + est
                     issue_rate = total_issues / total * 100
-                    print(f"🎯 {zone_name[:35]:35} {total_issues:2}/{total:2} issues ({issue_rate:5.1f}%) "
+                    print(f"[SYMBOL] {zone_name[:35]:35} {total_issues:2}/{total:2} issues ({issue_rate:5.1f}%) "
                           f"[H:{high} L:{low} E:{est}]")
         
         # Save to file if requested
@@ -782,16 +782,16 @@ def cmd_warnings(args):
             
             # Re-run queries and save to file
             # (Implementation would involve capturing the print output)
-            print(f"💾 Report saved to: {filename}")
+            print(f"[SAVED] Report saved to: {filename}")
         
         return 0
         
     except ValueError as e:
-        print(f"❌ Invalid date format: {e}")
+        print(f"[ERROR] Invalid date format: {e}")
         print("   Use YYYY-MM-DD format")
         return 1
     except Exception as e:
-        print(f"❌ Usage warnings analysis failed: {e}")
+        print(f"[ERROR] Usage warnings analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -799,7 +799,7 @@ def cmd_warnings(args):
 def cmd_zero_gallons(args):
     """Generate comprehensive zero gallon usage analysis and detection report"""
     print_banner()
-    print("🚨 ZERO GALLON USAGE ANALYTICS")
+    print("[ALERT] ZERO GALLON USAGE ANALYTICS")
     print()
     
     try:
@@ -819,7 +819,7 @@ def cmd_zero_gallons(args):
             end_date = date.today()
             start_date = end_date - timedelta(days=7)
         
-        print(f"📅 Analyzing zero gallon usage from {start_date} to {end_date}")
+        print(f"[DATE] Analyzing zero gallon usage from {start_date} to {end_date}")
         print(f"   Period: {(end_date - start_date).days + 1} days")
         print()
         
@@ -838,16 +838,16 @@ def cmd_zero_gallons(args):
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(report)
             
-            print(f"💾 Report saved to: {filename}")
+            print(f"[SAVED] Report saved to: {filename}")
         
         return 0
         
     except ValueError as e:
-        print(f"❌ Invalid date format: {e}")
+        print(f"[ERROR] Invalid date format: {e}")
         print("   Use YYYY-MM-DD format")
         return 1
     except Exception as e:
-        print(f"❌ Zero gallon analysis failed: {e}")
+        print(f"[ERROR] Zero gallon analysis failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -1001,10 +1001,10 @@ Examples:
     try:
         return args.func(args)
     except KeyboardInterrupt:
-        print("\n\n⏹️  Operation cancelled by user")
+        print("\n\n[CANCELLED]  Operation cancelled by user")
         return 1
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1

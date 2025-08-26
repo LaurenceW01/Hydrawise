@@ -311,7 +311,7 @@ class DataCollectionPipeline:
         report.append("-" * 40)
         if recent_collections:
             for collection in recent_collections[:5]:  # Show last 5
-                status_icon = "✅" if collection['status'] == 'SUCCESS' else "⚠️" if collection['status'] == 'PARTIAL' else "❌"
+                status_icon = "[OK]" if collection['status'] == 'SUCCESS' else "[WARNING]" if collection['status'] == 'PARTIAL' else "[ERROR]"
                 report.append(f"{status_icon} {collection['collection_date']}: {collection['scheduled_runs_collected']} scheduled, {collection['actual_runs_collected']} actual")
         else:
             report.append("No recent collections found")
@@ -336,11 +336,11 @@ class DataCollectionPipeline:
             report.append("ACTIVE FAILURES REQUIRING ATTENTION:")
             report.append("-" * 40)
             for failure in active_failures[:10]:  # Show top 10
-                report.append(f"❗ {failure['zone_name']}: {failure['description']}")
+                report.append(f"[SYMBOL] {failure['zone_name']}: {failure['description']}")
                 report.append(f"   Severity: {failure['severity']} | Action: {failure['recommended_action']}")
                 report.append("")
         else:
-            report.append("✅ NO ACTIVE FAILURES - SYSTEM HEALTHY")
+            report.append("[OK] NO ACTIVE FAILURES - SYSTEM HEALTHY")
             report.append("")
             
         report.append("=" * 60)
@@ -379,13 +379,13 @@ def main():
         results = pipeline.collect_daily_data()
         
         if results['success']:
-            print(f"✅ Collection successful:")
+            print(f"[OK] Collection successful:")
             print(f"   Scheduled runs: {results['scheduled_runs']}")
             print(f"   Actual runs: {results['actual_runs']}")
             print(f"   Failures detected: {results['failures_detected']}")
             print(f"   Duration: {results['duration']:.1f} seconds")
         else:
-            print(f"❌ Collection failed: {results['error_details']}")
+            print(f"[ERROR] Collection failed: {results['error_details']}")
             
         # Generate status report
         print("\nGenerating status report...")

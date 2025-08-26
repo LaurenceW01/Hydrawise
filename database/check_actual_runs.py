@@ -19,7 +19,7 @@ from database.db_interface import HydrawiseDB
 
 def main():
     """Check what actual/reported runs are stored in the database"""
-    print("🔍 Checking Stored Actual/Reported Runs in Database")
+    print("[ANALYSIS] Checking Stored Actual/Reported Runs in Database")
     print("=" * 60)
     
     try:
@@ -28,20 +28,20 @@ def main():
         
         # Get database location and info
         info = db.get_database_info()
-        print(f"📍 Database Location: {info.get('database_path')}")
-        print(f"📊 Total Scheduled Runs: {info.get('scheduled_runs_count', 0)}")
-        print(f"📊 Total Actual Runs: {info.get('actual_runs_count', 0)}")
-        print(f"☁️  Cloud Sync: {'Enabled' if info.get('cloud_sync_enabled') else 'Disabled'}")
+        print(f"[SYMBOL] Database Location: {info.get('database_path')}")
+        print(f"[RESULTS] Total Scheduled Runs: {info.get('scheduled_runs_count', 0)}")
+        print(f"[RESULTS] Total Actual Runs: {info.get('actual_runs_count', 0)}")
+        print(f"[SYMBOL][SYMBOL]  Cloud Sync: {'Enabled' if info.get('cloud_sync_enabled') else 'Disabled'}")
         
         # Check today's actual runs
         today = date.today()
-        print(f"\n📅 Checking actual runs for TODAY ({today}):")
+        print(f"\n[DATE] Checking actual runs for TODAY ({today}):")
         
         today_runs = db.read_actual_runs(today)
         print(f"   Found {len(today_runs)} actual runs for today")
         
         if today_runs:
-            print("\n   📋 Today's Actual Runs:")
+            print("\n   [LOG] Today's Actual Runs:")
             print("   " + "-" * 90)
             print(f"   {'Zone Name':<35} {'Start Time':<12} {'Duration':<8} {'Gallons':<10} {'Status':<15}")
             print("   " + "-" * 90)
@@ -57,13 +57,13 @@ def main():
         
         # Check yesterday's actual runs
         yesterday = today - timedelta(days=1)
-        print(f"\n📅 Checking actual runs for YESTERDAY ({yesterday}):")
+        print(f"\n[DATE] Checking actual runs for YESTERDAY ({yesterday}):")
         
         yesterday_runs = db.read_actual_runs(yesterday)
         print(f"   Found {len(yesterday_runs)} actual runs for yesterday")
         
         if yesterday_runs:
-            print("\n   📋 Yesterday's Actual Runs:")
+            print("\n   [LOG] Yesterday's Actual Runs:")
             print("   " + "-" * 90)
             print(f"   {'Zone Name':<35} {'Start Time':<12} {'Duration':<8} {'Gallons':<10} {'Status':<15}")
             print("   " + "-" * 90)
@@ -78,7 +78,7 @@ def main():
                 print(f"   {zone_name:<35} {start_time:<12} {duration:<8} {gallons:<10} {status:<15}")
         
         # Check raw database table directly
-        print(f"\n🗄️  Raw Actual Runs Table Contents:")
+        print(f"\n[DATABASE]  Raw Actual Runs Table Contents:")
         print("   (showing all actual_runs records from last 3 days)")
         
         try:
@@ -99,7 +99,7 @@ def main():
                 all_runs = cursor.fetchall()
                 
                 if all_runs:
-                    print(f"   📋 Total records in actual_runs table (last 3 days): {len(all_runs)}")
+                    print(f"   [LOG] Total records in actual_runs table (last 3 days): {len(all_runs)}")
                     print("   " + "-" * 110)
                     print(f"   {'Date':<12} {'Zone Name':<25} {'Start Time':<12} {'Duration':<8} {'Gallons':<8} {'Status':<15} {'Created (CT)':<15}")
                     print("   " + "-" * 110)
@@ -118,27 +118,27 @@ def main():
                         
                         print(f"   {run_date:<12} {zone_name:<25} {start_time:<12} {duration:<8} {gallons:<8} {status:<15} {created:<15}")
                 else:
-                    print("   ❌ No actual runs found in database")
+                    print("   [ERROR] No actual runs found in database")
                     
         except Exception as e:
-            print(f"   ❌ Error reading raw table: {e}")
+            print(f"   [ERROR] Error reading raw table: {e}")
         
         # Summary
         total_today = len(today_runs)
         total_yesterday = len(yesterday_runs)
-        print(f"\n📊 SUMMARY:")
+        print(f"\n[RESULTS] SUMMARY:")
         print(f"   Today's actual runs: {total_today}")
         print(f"   Yesterday's actual runs: {total_yesterday}")
         print(f"   Total recent runs accessible: {total_today + total_yesterday}")
         
         if total_today > 0:
-            print(f"\n✅ SUCCESS: Your actual/reported runs are stored in the 'actual_runs' table!")
-            print(f"📍 Table location: {db.db_path} → actual_runs table")
+            print(f"\n[OK] SUCCESS: Your actual/reported runs are stored in the 'actual_runs' table!")
+            print(f"[SYMBOL] Table location: {db.db_path} -> actual_runs table")
         else:
-            print(f"\n⚠️  No actual runs found for today. Data may not have been written successfully.")
+            print(f"\n[WARNING]  No actual runs found for today. Data may not have been written successfully.")
             
     except Exception as e:
-        print(f"\n❌ Error checking database: {e}")
+        print(f"\n[ERROR] Error checking database: {e}")
         import traceback
         traceback.print_exc()
 

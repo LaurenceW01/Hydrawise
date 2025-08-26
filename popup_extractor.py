@@ -224,13 +224,13 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
         
         # Log each parsed line with details
         if data['popup_lines']:
-            self.logger.info(f"📄 POPUP ANALYSIS - {len(data['popup_lines'])} lines:")
+            self.logger.info(f"[SYMBOL] POPUP ANALYSIS - {len(data['popup_lines'])} lines:")
             for line_data in data['popup_lines']:
                 line_type = line_data['type']
                 parsed_val = line_data['parsed_value']
                 line_text = line_data['text']
                 if parsed_val is not None:
-                    self.logger.info(f"  Line {line_data['line_number']} [{line_type.upper()}]: '{line_text}' → {parsed_val}")
+                    self.logger.info(f"  Line {line_data['line_number']} [{line_type.upper()}]: '{line_text}' -> {parsed_val}")
                 else:
                     self.logger.info(f"  Line {line_data['line_number']} [{line_type.upper()}]: '{line_text}'")
         
@@ -252,9 +252,9 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
             summary_items.append(f"Status: {data['status']}")
             
         if summary_items:
-            self.logger.info(f"📊 POPUP SUMMARY: {' | '.join(summary_items)}")
+            self.logger.info(f"[RESULTS] POPUP SUMMARY: {' | '.join(summary_items)}")
         else:
-            self.logger.warning(f"⚠️ NO STRUCTURED DATA: Could not parse popup: '{popup_text[:100]}...'")
+            self.logger.warning(f"[WARNING] NO STRUCTURED DATA: Could not parse popup: '{popup_text[:100]}...'")
             
         # Store parsed summary for easy access
         data['parsed_summary'] = ' | '.join(summary_items) if summary_items else 'No data parsed'
@@ -300,14 +300,14 @@ def extract_hover_popup_data_with_retry(self, zone_name: str = "", max_retries: 
             
             if popup_data:
                 if is_problematic:
-                    self.logger.info(f"✅ Successfully extracted popup data for problematic zone: {zone_name}")
+                    self.logger.info(f"[OK] Successfully extracted popup data for problematic zone: {zone_name}")
                 return popup_data
             else:
                 if attempt < max_retries - 1:  # Not the last attempt
                     self.logger.debug(f"Attempt {attempt + 1} failed, retrying...")
                     time.sleep(0.5)  # Brief wait before retry
                 else:
-                    self.logger.warning(f"❌ All {max_retries} attempts failed for zone: {zone_name}")
+                    self.logger.warning(f"[ERROR] All {max_retries} attempts failed for zone: {zone_name}")
                     
         except Exception as e:
             self.logger.debug(f"Popup extraction attempt {attempt + 1} error: {e}")

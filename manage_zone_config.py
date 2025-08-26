@@ -28,13 +28,13 @@ from database.database_manager import DatabaseManager
 def print_banner():
     """Print the utility banner"""
     print("=" * 60)
-    print("🌱 HYDRAWISE ZONE CONFIGURATION MANAGER")
+    print("[SYMBOL] HYDRAWISE ZONE CONFIGURATION MANAGER")
     print("=" * 60)
 
 def show_zones(args):
     """Show current zone configuration"""
     print_banner()
-    print("📋 CURRENT ZONE CONFIGURATION")
+    print("[LOG] CURRENT ZONE CONFIGURATION")
     print("-" * 50)
     
     try:
@@ -43,11 +43,11 @@ def show_zones(args):
         flow_rates = config.get_average_flow_rates()
         
         if not zones_data:
-            print("❌ No zones configured")
+            print("[ERROR] No zones configured")
             return 1
         
-        print(f"📊 Total Zones: {len(zones_data)}")
-        print(f"💧 Flow Rates Configured: {len(flow_rates)}")
+        print(f"[RESULTS] Total Zones: {len(zones_data)}")
+        print(f"[WATER] Flow Rates Configured: {len(flow_rates)}")
         print()
         
         # Table header
@@ -64,13 +64,13 @@ def show_zones(args):
         return 0
         
     except Exception as e:
-        print(f"❌ Failed to show zones: {e}")
+        print(f"[ERROR] Failed to show zones: {e}")
         return 1
 
 def update_flow_rate(args):
     """Update average flow rate for a zone"""
     print_banner()
-    print(f"💧 UPDATING FLOW RATE FOR ZONE {args.zone_id}")
+    print(f"[WATER] UPDATING FLOW RATE FOR ZONE {args.zone_id}")
     print("-" * 50)
     
     try:
@@ -84,26 +84,26 @@ def update_flow_rate(args):
             success = db_manager.update_zone_average_flow_rate(args.zone_id, args.flow_rate)
             
             if success:
-                print(f"✅ Updated zone {args.zone_id} flow rate to {args.flow_rate} GPM")
-                print("   📊 Configuration updated")
-                print("   🗄️  Database updated")
+                print(f"[OK] Updated zone {args.zone_id} flow rate to {args.flow_rate} GPM")
+                print("   [RESULTS] Configuration updated")
+                print("   [DATABASE]  Database updated")
             else:
-                print(f"❌ Failed to update database for zone {args.zone_id}")
+                print(f"[ERROR] Failed to update database for zone {args.zone_id}")
                 return 1
         else:
-            print(f"✅ Updated zone {args.zone_id} flow rate to {args.flow_rate} GPM in configuration")
-            print("   💡 Use --update-db to also update the database")
+            print(f"[OK] Updated zone {args.zone_id} flow rate to {args.flow_rate} GPM in configuration")
+            print("   [INFO] Use --update-db to also update the database")
         
         return 0
         
     except Exception as e:
-        print(f"❌ Failed to update flow rate: {e}")
+        print(f"[ERROR] Failed to update flow rate: {e}")
         return 1
 
 def export_config(args):
     """Export configuration to file"""
     print_banner()
-    print(f"📤 EXPORTING CONFIGURATION")
+    print(f"[SYMBOL] EXPORTING CONFIGURATION")
     print("-" * 50)
     
     try:
@@ -136,17 +136,17 @@ def export_config(args):
         with open(args.file, 'w') as f:
             json.dump(export_data, f, indent=2)
         
-        print(f"✅ Exported {len(zones_data)} zones to {args.file}")
+        print(f"[OK] Exported {len(zones_data)} zones to {args.file}")
         return 0
         
     except Exception as e:
-        print(f"❌ Failed to export configuration: {e}")
+        print(f"[ERROR] Failed to export configuration: {e}")
         return 1
 
 def import_config(args):
     """Import configuration from file"""
     print_banner()
-    print(f"📥 IMPORTING CONFIGURATION")
+    print(f"[SYMBOL] IMPORTING CONFIGURATION")
     print("-" * 50)
     
     try:
@@ -157,37 +157,37 @@ def import_config(args):
         zones_data = import_data.get("zones", [])
         
         if not zones_data:
-            print(f"❌ No zones found in {args.file}")
+            print(f"[ERROR] No zones found in {args.file}")
             return 1
         
-        print(f"📊 Found {len(zones_data)} zones in import file")
+        print(f"[RESULTS] Found {len(zones_data)} zones in import file")
         
         if not args.force:
-            response = input("⚠️  This will replace current configuration. Continue? (y/N): ")
+            response = input("[WARNING]  This will replace current configuration. Continue? (y/N): ")
             if response.lower() != 'y':
-                print("❌ Import cancelled")
+                print("[ERROR] Import cancelled")
                 return 1
         
         # Update configuration
         config = ZoneConfiguration()
         config.save_configuration(zones_data)
         
-        print(f"✅ Imported {len(zones_data)} zones")
-        print("   📊 Configuration file updated")
+        print(f"[OK] Imported {len(zones_data)} zones")
+        print("   [RESULTS] Configuration file updated")
         
         return 0
         
     except FileNotFoundError:
-        print(f"❌ File not found: {args.file}")
+        print(f"[ERROR] File not found: {args.file}")
         return 1
     except Exception as e:
-        print(f"❌ Failed to import configuration: {e}")
+        print(f"[ERROR] Failed to import configuration: {e}")
         return 1
 
 def sync_to_db(args):
     """Synchronize configuration to database"""
     print_banner()
-    print("🔄 SYNCHRONIZING CONFIGURATION TO DATABASE")
+    print("[PERIODIC] SYNCHRONIZING CONFIGURATION TO DATABASE")
     print("-" * 50)
     
     try:
@@ -195,7 +195,7 @@ def sync_to_db(args):
         flow_rates = config.get_average_flow_rates()
         
         if not flow_rates:
-            print("❌ No average flow rates configured")
+            print("[ERROR] No average flow rates configured")
             return 1
         
         db_manager = DatabaseManager()
@@ -205,13 +205,13 @@ def sync_to_db(args):
             if db_manager.update_zone_average_flow_rate(zone_id, flow_rate):
                 success_count += 1
             else:
-                print(f"⚠️  Failed to update zone {zone_id}")
+                print(f"[WARNING]  Failed to update zone {zone_id}")
         
-        print(f"✅ Successfully synchronized {success_count}/{len(flow_rates)} zones to database")
+        print(f"[OK] Successfully synchronized {success_count}/{len(flow_rates)} zones to database")
         return 0 if success_count == len(flow_rates) else 1
         
     except Exception as e:
-        print(f"❌ Failed to synchronize to database: {e}")
+        print(f"[ERROR] Failed to synchronize to database: {e}")
         return 1
 
 def main():
