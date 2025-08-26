@@ -131,10 +131,11 @@ def navigate_to_reports(self):
         # Look for the "Reports" heading or similar element
         try:
             # Wait for the page to load with multiple possible indicators
+            # Reordered to try the most reliable approach first based on log analysis
             indicators = [
+                "//div[contains(@class, 'reports')]",  # Most reliable - uses class attribute
                 "//h1[contains(text(), 'Reports')]",
                 "//h2[contains(text(), 'Reports')]", 
-                "//div[contains(@class, 'reports')]",
                 "//*[contains(text(), 'Schedule')]",
                 "//*[contains(text(), 'Reported')]"
             ]
