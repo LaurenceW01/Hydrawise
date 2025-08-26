@@ -528,7 +528,9 @@ def cmd_warnings(args):
             # Show high usage warnings
             if too_high > 0:
                 print("🔴 HIGH USAGE WARNINGS:")
-                print("-" * 80)
+                print("-" * 110)
+                print(f"{'Zone Name':<35} {'Date':<12} {'Duration':<9} {'Actual':<8} {'Expected':<9} {'Ratio':<8}")
+                print("-" * 110)
                 cursor.execute("""
                     SELECT ar.zone_name, ar.run_date, ar.actual_duration_minutes, ar.actual_gallons, 
                            ROUND((z.average_flow_rate * ar.actual_duration_minutes), 1) as expected_gallons,
@@ -543,7 +545,7 @@ def cmd_warnings(args):
                 """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.limit))
                 
                 for zone_name, run_date, duration, actual_gal, expected_gal, ratio in cursor.fetchall():
-                    print(f"🔴 {zone_name[:35]:35} {run_date} {duration:3}min {actual_gal:6.1f}gal (expected {expected_gal:5.1f}) {ratio:5.1f}%")
+                    print(f"🔴 {zone_name[:35]:<35} {run_date:<12} {duration:6.1f}min {actual_gal:6.1f}gal {expected_gal:7.1f}gal {ratio:6.1f}%")
                 
                 if too_high > args.limit:
                     print(f"   ... and {too_high - args.limit} more (use --limit to see more)")
@@ -552,7 +554,9 @@ def cmd_warnings(args):
             # Show low usage warnings
             if too_low > 0:
                 print("🔵 LOW USAGE WARNINGS:")
-                print("-" * 80)
+                print("-" * 110)
+                print(f"{'Zone Name':<35} {'Date':<12} {'Duration':<9} {'Actual':<8} {'Expected':<9} {'Ratio':<8}")
+                print("-" * 110)
                 cursor.execute("""
                     SELECT ar.zone_name, ar.run_date, ar.actual_duration_minutes, ar.actual_gallons,
                            ROUND((z.average_flow_rate * ar.actual_duration_minutes), 1) as expected_gallons,
@@ -567,7 +571,7 @@ def cmd_warnings(args):
                 """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.limit))
                 
                 for zone_name, run_date, duration, actual_gal, expected_gal, ratio in cursor.fetchall():
-                    print(f"🔵 {zone_name[:35]:35} {run_date} {duration:3}min {actual_gal:6.1f}gal (expected {expected_gal:5.1f}) {ratio:5.1f}%")
+                    print(f"🔵 {zone_name[:35]:<35} {run_date:<12} {duration:6.1f}min {actual_gal:6.1f}gal {expected_gal:7.1f}gal {ratio:6.1f}%")
                 
                 if too_low > args.limit:
                     print(f"   ... and {too_low - args.limit} more (use --limit to see more)")
@@ -576,6 +580,8 @@ def cmd_warnings(args):
             # Show zones with frequent estimation usage
             if estimated > 0:
                 print("🔢 ZONES WITH ESTIMATED USAGE (Zero Reported):")
+                print("-" * 80)
+                print(f"{'Zone Name':<45} {'Count':<7} {'Percentage':<12}")
                 print("-" * 80)
                 cursor.execute("""
                     SELECT zone_name, 
@@ -591,7 +597,7 @@ def cmd_warnings(args):
                       start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.min_estimates))
                 
                 for zone_name, est_count, est_rate in cursor.fetchall():
-                    print(f"🔢 {zone_name[:45]:45} {est_count:3} estimates ({est_rate:5.1f}% of zone runs)")
+                    print(f"🔢 {zone_name[:45]:<45} {est_count:3} est   {est_rate:5.1f}% of runs")
                 print()
             
             # Show problem zones summary
