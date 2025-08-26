@@ -146,11 +146,14 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
                 line_type = 'time'
                 parsed_value = time_str
             
-            # Extract duration - try multiple patterns
+            # Extract duration - try multiple patterns for both minutes and seconds
             duration_patterns = [
                 r'Duration[:\s]*(\d+)\s*minutes?',  # "Duration: 3 minutes"
                 r'Duration[:\s]*(\d+)\s*mins?',     # "Duration: 3 min"
+                r'Duration[:\s]*(\d+)\s*seconds?',  # "Duration: 50 seconds"
+                r'Duration[:\s]*(\d+)\s*secs?',     # "Duration: 50 sec"
                 r'(\d+)\s*minutes?\s*duration',     # "3 minutes duration"  
+                r'(\d+)\s*seconds?\s*duration',     # "50 seconds duration"
                 r'Duration[:\s]*(\d+)',             # "Duration: 3"
             ]
             
@@ -158,9 +161,19 @@ def extract_hover_popup_data(self) -> Optional[Dict]:
                 duration_match = re.search(pattern, line, re.IGNORECASE)
                 if duration_match:
                     duration_value = int(duration_match.group(1))
-                    data['duration_minutes'] = duration_value
+                    
+                    # Check if the matched text contains "seconds" and convert to decimal minutes
+                    if re.search(r'seconds?|secs?', line, re.IGNORECASE):
+                        # Convert seconds to decimal minutes
+                        duration_minutes = duration_value / 60.0
+                        self.logger.debug(f"Converted {duration_value} seconds to {duration_minutes} minutes")
+                    else:
+                        # Already in minutes
+                        duration_minutes = duration_value
+                    
+                    data['duration_minutes'] = duration_minutes
                     line_type = 'duration'
-                    parsed_value = duration_value
+                    parsed_value = duration_minutes
                     break
             
             # Extract water usage (gallons) - try multiple patterns for more robust matching

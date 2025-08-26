@@ -254,13 +254,13 @@ class IrrigationAnalytics:
             
         # Calculate statistics
         gallons_values = [float(run[0]) for run in runs]
-        duration_values = [int(run[1]) for run in runs]
+        duration_values = [float(run[1]) for run in runs]
         gpm_values = [g/d for g, d in zip(gallons_values, duration_values) if d > 0]
         
         baseline = UsageBaseline(
             zone_name=zone_name,
             avg_gallons=statistics.mean(gallons_values),
-            avg_duration_minutes=int(statistics.mean(duration_values)),
+            avg_duration_minutes=round(statistics.mean(duration_values), 2),
             avg_gpm=statistics.mean(gpm_values),
             std_dev_gallons=statistics.stdev(gallons_values) if len(gallons_values) > 1 else 0,
             std_dev_duration=statistics.stdev(duration_values) if len(duration_values) > 1 else 0,
@@ -538,7 +538,7 @@ class IrrigationAnalytics:
         # Calculate basic statistics
         total_runs = len(runs)
         gallons_values = [float(run[1]) for run in runs if run[1] > 0]
-        duration_values = [int(run[2]) for run in runs if run[2] > 0]
+        duration_values = [float(run[2]) for run in runs if run[2] > 0]
         
         if not gallons_values:
             return None
@@ -627,7 +627,7 @@ class IrrigationAnalytics:
         # Calculate GPM for each run
         gpm_values = []
         for run in runs:
-            gallons, duration = float(run[1]), int(run[2])
+            gallons, duration = float(run[1]), float(run[2])
             if gallons > 0 and duration > 0:
                 gpm_values.append(gallons / duration)
         

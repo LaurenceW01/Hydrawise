@@ -12,6 +12,9 @@ Author: AI Assistant
 Date: 2025-08-23
 """
 
+# Import logging for later configuration after parsing command line arguments
+import logging
+
 import argparse
 import sys
 import os
@@ -494,6 +497,10 @@ Examples:
   # Run in headless mode (no browser window)
   python admin_schedule_collection.py collect today --headless
   
+  # Control logging verbosity (DEBUG shows all messages, WARNING shows only warnings/errors)
+  python admin_schedule_collection.py --log-level DEBUG collect today
+  python admin_schedule_collection.py --log-level WARNING status
+  
   # OVERWRITING EXISTING DATA:
   # Delete existing data for today, then collect fresh data
   python admin_schedule_collection.py collect today --clear
@@ -520,6 +527,8 @@ OPTION EXPLANATIONS:
   --clear       : Delete existing data before collecting (in collect commands)
   --force       : Skip confirmation prompts (in clear command)
   --headless    : Hide browser window during collection
+  --log-level   : Control logging verbosity (DEBUG|INFO|WARNING|ERROR, default: INFO)
+  --log-file    : Save all output to timestamped log file
   
 COMMAND TYPES:
   collect       : Collect schedule data for one date
@@ -532,8 +541,10 @@ COMMAND TYPES:
     # Global options
     parser.add_argument('--headless', action='store_true',
                        help='Run browser in headless mode (default: visible)')
-    parser.add_argument('--log-file', nargs='?', const='', type=str,
+    parser.add_argument('--log-file', action='store_true',
                        help='Save all output to log file with auto-generated name (schedule_collection_[command]_YYYYMMDD_HHMMSS.log)')
+    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
+                       help='Set logging level (default: INFO)')
     
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -571,8 +582,16 @@ COMMAND TYPES:
     # Parse arguments
     args = parser.parse_args()
     
+    # Configure logging level based on command line argument
+    log_level = getattr(logging, args.log_level.upper())
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        force=True  # Override any existing configuration
+    )
+    
     # Setup logging if --log-file was specified
-    if args.log_file is not None:
+    if args.log_file:
         from datetime import datetime
         
         # Generate timestamped filename with program name and command
@@ -580,18 +599,8 @@ COMMAND TYPES:
         program_name = 'schedule_collection'
         command = args.command or 'default'
         
-        # Auto-generate filename if none provided or simple filename given
-        if not args.log_file or ('/' not in args.log_file and '\\' not in args.log_file):
-            if args.log_file:
-                # Simple filename provided - enhance it
-                base_name = args.log_file.replace('.log', '')
-                enhanced_filename = f"{program_name}_{command}_{base_name}_{timestamp}.log"
-            else:
-                # No filename provided - auto-generate
-                enhanced_filename = f"{program_name}_{command}_{timestamp}.log"
-        else:
-            # Full path provided - use as is
-            enhanced_filename = args.log_file
+        # Auto-generate filename since --log-file is now a flag
+        enhanced_filename = f"{program_name}_{command}_{timestamp}.log"
         
         # Create logs directory if it doesn't exist
         log_dir = os.path.dirname(enhanced_filename)
@@ -602,29 +611,79 @@ COMMAND TYPES:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        # Setup stdout redirection to capture all print() output
+        # Setup stdout and stderr redirection to capture all output
         class TeeOutput:
-            def __init__(self, file1, file2):
-                self.file1 = file1
-                self.file2 = file2
+            def __init__(self, original_stream, log_file, stream_name=""):
+                self.original_stream = original_stream
+                self.log_file = log_file
+                self.stream_name = stream_name
 
             def write(self, data):
-                self.file1.write(data)
-                self.file2.write(data)
-                self.file1.flush()
-                self.file2.flush()
+                # Write to original stream (console)
+                self.original_stream.write(data)
+                self.original_stream.flush()
+                
+                # Write to log file with stream prefix for stderr
+                if self.stream_name and data.strip():
+                    # Add prefix for stderr messages to distinguish them in logs
+                    if self.stream_name == "STDERR":
+                        prefixed_data = f"[STDERR] {data}"
+                    else:
+                        prefixed_data = data
+                    self.log_file.write(prefixed_data)
+                else:
+                    self.log_file.write(data)
+                self.log_file.flush()
 
             def flush(self):
-                self.file1.flush()
-                self.file2.flush()
+                self.original_stream.flush()
+                self.log_file.flush()
+            
+            def fileno(self):
+                # Return the file descriptor of the original stream
+                return self.original_stream.fileno()
         
         # Open log file and setup tee output (with UTF-8 encoding for Unicode support)
         log_file_handle = open(enhanced_filename, 'w', encoding='utf-8')
-        sys.stdout = TeeOutput(sys.stdout, log_file_handle)
+        
+        # Capture both stdout and stderr
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        
+        sys.stdout = TeeOutput(original_stdout, log_file_handle, "STDOUT")
+        sys.stderr = TeeOutput(original_stderr, log_file_handle, "STDERR")
+        
+        # Also configure Python logging to write to our log file
+        # Create a file handler for the log file
+        file_handler = logging.FileHandler(enhanced_filename, mode='a', encoding='utf-8')
+        file_handler.setLevel(log_level)  # Use same level as console
+        
+        # Create a formatter for the log entries
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        
+        # Get the root logger and add our file handler
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        
+        # Store file handler reference for cleanup
+        log_file_handler_ref = file_handler
         
         print(f"📋 Logging output to: {enhanced_filename}")
         print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("-" * 50)
+        
+        # Store references for cleanup
+        log_file_handle_ref = log_file_handle
+        original_stdout_ref = original_stdout
+        original_stderr_ref = original_stderr
+        # log_file_handler_ref already set above
+    else:
+        # No logging - set references to None
+        log_file_handle_ref = None
+        original_stdout_ref = None
+        original_stderr_ref = None
+        log_file_handler_ref = None
     
     if not args.command:
         parser.print_help()
@@ -632,7 +691,9 @@ COMMAND TYPES:
     
     # Execute command
     try:
-        return args.func(args)
+        result = args.func(args)
+        return result
+        
     except KeyboardInterrupt:
         print("\n\n⏹️  Operation cancelled by user")
         return 1
@@ -641,6 +702,34 @@ COMMAND TYPES:
         import traceback
         traceback.print_exc()
         return 1
+    finally:
+        # Cleanup logging redirection
+        if log_file_handle_ref is not None:
+            try:
+                # Remove the logging handler first
+                if log_file_handler_ref is not None:
+                    root_logger = logging.getLogger()
+                    root_logger.removeHandler(log_file_handler_ref)
+                    log_file_handler_ref.close()
+                
+                # Console handlers are already properly configured at startup
+                
+                # Restore original streams
+                sys.stdout = original_stdout_ref
+                sys.stderr = original_stderr_ref
+                
+                # Close log file
+                log_file_handle_ref.close()
+                
+                print(f"📋 Log saved to: {enhanced_filename}")
+                
+            except Exception as cleanup_error:
+                # If cleanup fails, at least try to restore streams
+                if original_stdout_ref:
+                    sys.stdout = original_stdout_ref
+                if original_stderr_ref:
+                    sys.stderr = original_stderr_ref
+                print(f"⚠️  Log cleanup warning: {cleanup_error}")
 
 if __name__ == "__main__":
     sys.exit(main())

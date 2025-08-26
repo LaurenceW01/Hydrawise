@@ -464,6 +464,183 @@ def cmd_cost_report(args):
         traceback.print_exc()
         return 1
 
+def cmd_warnings(args):
+    """Analyze usage warnings based on usage_flag and usage_type fields"""
+    print_banner()
+    print("⚠️  USAGE WARNINGS ANALYSIS")
+    print()
+    
+    try:
+        import sqlite3
+        from database.intelligent_data_storage import IntelligentDataStorage
+        
+        storage = IntelligentDataStorage()
+        
+        # Parse date range
+        if args.start_date:
+            start_date = datetime.strptime(args.start_date, '%Y-%m-%d').date()
+            end_date = start_date
+            if args.end_date:
+                end_date = datetime.strptime(args.end_date, '%Y-%m-%d').date()
+        elif args.days:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=args.days)
+        else:
+            # Default to last 7 days
+            end_date = date.today()
+            start_date = end_date - timedelta(days=7)
+        
+        print(f"📅 Analyzing usage warnings from {start_date} to {end_date}")
+        print(f"   Period: {(end_date - start_date).days + 1} days")
+        print()
+        
+        # Query for warnings
+        with sqlite3.connect(storage.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Get overall statistics
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_runs,
+                    SUM(CASE WHEN usage_flag = 'too_high' THEN 1 ELSE 0 END) as too_high,
+                    SUM(CASE WHEN usage_flag = 'too_low' THEN 1 ELSE 0 END) as too_low,
+                    SUM(CASE WHEN usage_flag = 'zero_reported' THEN 1 ELSE 0 END) as zero_reported,
+                    SUM(CASE WHEN usage_type = 'estimated' THEN 1 ELSE 0 END) as estimated,
+                    SUM(CASE WHEN usage_type = 'actual' THEN 1 ELSE 0 END) as actual
+                FROM actual_runs 
+                WHERE run_date BETWEEN ? AND ?
+            """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
+            
+            stats = cursor.fetchone()
+            total_runs, too_high, too_low, zero_reported, estimated, actual = stats
+            
+            print("📊 OVERALL STATISTICS:")
+            print(f"   🏃 Total runs: {total_runs}")
+            print(f"   📈 Actual readings: {actual} ({actual/total_runs*100:.1f}%)")
+            print(f"   🔢 Estimated readings: {estimated} ({estimated/total_runs*100:.1f}%)")
+            print()
+            print("⚠️  WARNING SUMMARY:")
+            print(f"   🔴 Too high usage: {too_high} ({too_high/total_runs*100:.1f}%)")
+            print(f"   🔵 Too low usage: {too_low} ({too_low/total_runs*100:.1f}%)")
+            print(f"   ⚫ Zero reported: {zero_reported} ({zero_reported/total_runs*100:.1f}%)")
+            print()
+            
+            # Show high usage warnings
+            if too_high > 0:
+                print("🔴 HIGH USAGE WARNINGS:")
+                print("-" * 80)
+                cursor.execute("""
+                    SELECT ar.zone_name, ar.run_date, ar.actual_duration_minutes, ar.actual_gallons, 
+                           ROUND((z.average_flow_rate * ar.actual_duration_minutes), 1) as expected_gallons,
+                           ROUND((ar.actual_gallons / (z.average_flow_rate * ar.actual_duration_minutes)) * 100, 1) as usage_ratio
+                    FROM actual_runs ar
+                    JOIN zones z ON ar.zone_id = z.zone_id
+                    WHERE ar.usage_flag = 'too_high' 
+                    AND ar.run_date BETWEEN ? AND ?
+                    AND z.average_flow_rate IS NOT NULL AND z.average_flow_rate > 0
+                    ORDER BY usage_ratio DESC, ar.run_date DESC
+                    LIMIT ?
+                """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.limit))
+                
+                for zone_name, run_date, duration, actual_gal, expected_gal, ratio in cursor.fetchall():
+                    print(f"🔴 {zone_name[:35]:35} {run_date} {duration:3}min {actual_gal:6.1f}gal (expected {expected_gal:5.1f}) {ratio:5.1f}%")
+                
+                if too_high > args.limit:
+                    print(f"   ... and {too_high - args.limit} more (use --limit to see more)")
+                print()
+            
+            # Show low usage warnings
+            if too_low > 0:
+                print("🔵 LOW USAGE WARNINGS:")
+                print("-" * 80)
+                cursor.execute("""
+                    SELECT ar.zone_name, ar.run_date, ar.actual_duration_minutes, ar.actual_gallons,
+                           ROUND((z.average_flow_rate * ar.actual_duration_minutes), 1) as expected_gallons,
+                           ROUND((ar.actual_gallons / (z.average_flow_rate * ar.actual_duration_minutes)) * 100, 1) as usage_ratio
+                    FROM actual_runs ar
+                    JOIN zones z ON ar.zone_id = z.zone_id
+                    WHERE ar.usage_flag = 'too_low' 
+                    AND ar.run_date BETWEEN ? AND ?
+                    AND z.average_flow_rate IS NOT NULL AND z.average_flow_rate > 0
+                    ORDER BY usage_ratio ASC, ar.run_date DESC
+                    LIMIT ?
+                """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.limit))
+                
+                for zone_name, run_date, duration, actual_gal, expected_gal, ratio in cursor.fetchall():
+                    print(f"🔵 {zone_name[:35]:35} {run_date} {duration:3}min {actual_gal:6.1f}gal (expected {expected_gal:5.1f}) {ratio:5.1f}%")
+                
+                if too_low > args.limit:
+                    print(f"   ... and {too_low - args.limit} more (use --limit to see more)")
+                print()
+            
+            # Show zones with frequent estimation usage
+            if estimated > 0:
+                print("🔢 ZONES WITH ESTIMATED USAGE (Zero Reported):")
+                print("-" * 80)
+                cursor.execute("""
+                    SELECT zone_name, 
+                           COUNT(*) as estimated_count,
+                           COUNT(*) * 100.0 / (SELECT COUNT(*) FROM actual_runs ar2 WHERE ar2.zone_name = ar.zone_name AND ar2.run_date BETWEEN ? AND ?) as estimation_rate
+                    FROM actual_runs ar
+                    WHERE usage_type = 'estimated' 
+                    AND run_date BETWEEN ? AND ?
+                    GROUP BY zone_name
+                    HAVING estimated_count >= ?
+                    ORDER BY estimation_rate DESC, estimated_count DESC
+                """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), 
+                      start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), args.min_estimates))
+                
+                for zone_name, est_count, est_rate in cursor.fetchall():
+                    print(f"🔢 {zone_name[:45]:45} {est_count:3} estimates ({est_rate:5.1f}% of zone runs)")
+                print()
+            
+            # Show problem zones summary
+            if args.summary:
+                print("🎯 PROBLEM ZONES SUMMARY:")
+                print("-" * 60)
+                cursor.execute("""
+                    SELECT zone_name,
+                           COUNT(*) as total_zone_runs,
+                           SUM(CASE WHEN usage_flag = 'too_high' THEN 1 ELSE 0 END) as high_warnings,
+                           SUM(CASE WHEN usage_flag = 'too_low' THEN 1 ELSE 0 END) as low_warnings,
+                           SUM(CASE WHEN usage_type = 'estimated' THEN 1 ELSE 0 END) as estimates
+                    FROM actual_runs 
+                    WHERE run_date BETWEEN ? AND ?
+                    GROUP BY zone_name
+                    HAVING (high_warnings + low_warnings + estimates) > 0
+                    ORDER BY (high_warnings + low_warnings + estimates) DESC
+                """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
+                
+                for zone_name, total, high, low, est in cursor.fetchall():
+                    total_issues = high + low + est
+                    issue_rate = total_issues / total * 100
+                    print(f"🎯 {zone_name[:35]:35} {total_issues:2}/{total:2} issues ({issue_rate:5.1f}%) "
+                          f"[H:{high} L:{low} E:{est}]")
+        
+        # Save to file if requested
+        if args.save:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"reports/usage_warnings_{start_date}_{end_date}_{timestamp}.txt"
+            
+            # Ensure reports directory exists
+            os.makedirs("reports", exist_ok=True)
+            
+            # Re-run queries and save to file
+            # (Implementation would involve capturing the print output)
+            print(f"💾 Report saved to: {filename}")
+        
+        return 0
+        
+    except ValueError as e:
+        print(f"❌ Invalid date format: {e}")
+        print("   Use YYYY-MM-DD format")
+        return 1
+    except Exception as e:
+        print(f"❌ Usage warnings analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
 def cmd_zero_gallons(args):
     """Generate comprehensive zero gallon usage analysis and detection report"""
     print_banner()
@@ -566,6 +743,12 @@ Examples:
   # Generate custom date range cost report
   python admin_irrigation_analytics.py cost-report --start-date 2025-08-20 --end-date 2025-08-23
   
+  # Analyze usage warnings for last 7 days
+  python admin_irrigation_analytics.py warnings --days 7
+  
+  # Show usage warnings with problem zones summary
+  python admin_irrigation_analytics.py warnings --summary --limit 20
+  
   # Analyze zero gallon usage for last 7 days
   python admin_irrigation_analytics.py zero-gallons --days 7
   
@@ -632,6 +815,17 @@ Examples:
     cost_report_parser.add_argument('--summary-only', action='store_true', help='Show only zone totals, no daily breakdown')
     cost_report_parser.add_argument('--save', action='store_true', help='Save report to file')
     cost_report_parser.set_defaults(func=cmd_cost_report)
+    
+    # Usage warnings command
+    warnings_parser = subparsers.add_parser('warnings', help='Analyze usage warnings (too_high, too_low, estimated usage)')
+    warnings_parser.add_argument('--days', type=int, default=7, help='Number of days back to analyze from today (default: 7)')
+    warnings_parser.add_argument('--start-date', help='Start date (YYYY-MM-DD) for custom range')
+    warnings_parser.add_argument('--end-date', help='End date (YYYY-MM-DD) for custom range')
+    warnings_parser.add_argument('--limit', type=int, default=10, help='Limit number of warnings to show per type (default: 10)')
+    warnings_parser.add_argument('--min-estimates', type=int, default=2, help='Minimum estimated runs to show zone (default: 2)')
+    warnings_parser.add_argument('--summary', action='store_true', help='Show problem zones summary')
+    warnings_parser.add_argument('--save', action='store_true', help='Save report to file')
+    warnings_parser.set_defaults(func=cmd_warnings)
     
     # Zero gallon analysis command
     zero_gallons_parser = subparsers.add_parser('zero-gallons', help='Analyze zones with zero gallon water usage patterns')

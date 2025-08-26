@@ -81,12 +81,12 @@ BROWSER_CONFIG = {
 # Data parsing patterns
 PARSING_PATTERNS = {
     # Regex patterns for extracting data from popup text
-    'duration': r'(\d+)\s*(?:minutes?|mins?|min)',
+    'duration': r'(\d+)\s*(?:minutes?|mins?|min|seconds?|secs?)',
     'gallons': r'(\d+\.?\d*)\s*gallons?',
     'time': r'(\d{1,2}):(\d{2})\s*(?:AM|PM)?',
     'water_usage': r'Water usage:\s*(\d+\.?\d*)\s*Gallons',
     'current_reading': r'Current:\s*(\d+\.?\d*)mA',
-    'duration_reading': r'Duration:\s*(\d+)\s*minutes?'
+    'duration_reading': r'Duration:\s*(\d+)\s*(?:minutes?|seconds?)'
 }
 
 # Status patterns for identifying failure types

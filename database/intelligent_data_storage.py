@@ -15,12 +15,80 @@ import sqlite3
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Tuple, Any
 from database.database_manager import DatabaseManager
+from database.water_usage_estimator import WaterUsageEstimator
 from utils.timezone_utils import get_database_timestamp, to_houston_time
 
 logger = logging.getLogger(__name__)
 
 class IntelligentDataStorage(DatabaseManager):
     """Enhanced database manager with intelligent data storage capabilities"""
+    
+    def __init__(self, *args, **kwargs):
+        """Initialize with water usage estimator and zone lookup cache"""
+        super().__init__(*args, **kwargs)
+        self.usage_estimator = WaterUsageEstimator(self.db_path)
+        self._zone_cache = {}  # Cache zone ID lookups to reduce database calls
+        self._load_zone_cache()
+    
+    def _load_zone_cache(self):
+        """Load zone ID mappings into cache to avoid database calls during transactions"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT zone_id, zone_name, zone_display_name FROM zones")
+                
+                for zone_id, zone_name, zone_display_name in cursor.fetchall():
+                    # Cache both zone_name and zone_display_name
+                    self._zone_cache[zone_name] = zone_id
+                    if zone_display_name and zone_display_name != zone_name:
+                        self._zone_cache[zone_display_name] = zone_id
+                    
+                    # Add common variations to handle scraped name differences
+                    self._add_zone_name_variations(zone_name, zone_id)
+                        
+            logger.info(f"Loaded {len(self._zone_cache)} zone name mappings into cache")
+            
+        except Exception as e:
+            logger.error(f"Failed to load zone cache: {e}")
+    
+    def _add_zone_name_variations(self, zone_name: str, zone_id: int):
+        """Add common zone name variations to cache"""
+        # Handle common differences between config and scraped names
+        variations = [
+            zone_name.replace(" and ", " & "),     # "and" vs "&"
+            zone_name.replace(" & ", " and "),     # "&" vs "and"
+            zone_name.replace("/", " / "),         # Spacing around "/"
+            zone_name.replace(" / ", "/"),         # Remove spacing around "/"
+            zone_name + " (M)",                    # Manual indicator
+            zone_name + " (S)",                    # Sensor indicator  
+            zone_name + " (M/D)",                  # Manual/Drip indicator
+            zone_name + " (D)",                    # Drip indicator
+            zone_name.replace(" (M)", ""),         # Remove indicators
+            zone_name.replace(" (S)", ""),
+            zone_name.replace(" (M/D)", ""),
+            zone_name.replace(" (D)", ""),
+        ]
+        
+        for variation in variations:
+            if variation != zone_name and variation not in self._zone_cache:
+                self._zone_cache[variation] = zone_id
+    
+    def _get_zone_id_cached(self, zone_name: str) -> Optional[int]:
+        """Get zone ID using cache to avoid database calls during transactions"""
+        # Try exact match first
+        if zone_name in self._zone_cache:
+            return self._zone_cache[zone_name]
+        
+        # Try fuzzy matching for common variations
+        zone_lower = zone_name.lower().strip()
+        for cached_name, zone_id in self._zone_cache.items():
+            if cached_name.lower().strip() == zone_lower:
+                # Cache this variation for future use
+                self._zone_cache[zone_name] = zone_id
+                return zone_id
+        
+        # If not found, we'll need to create it, but NOT during an active transaction
+        return None
     
     def store_scheduled_runs_enhanced(self, scheduled_runs: List, collection_date: date = None) -> Dict[str, int]:
         """
@@ -162,12 +230,31 @@ class IntelligentDataStorage(DatabaseManager):
             
         counts = {'new': 0, 'updated': 0, 'unchanged': 0, 'total': len(actual_runs)}
         
+        # Pre-process runs to identify any unknown zones and create them BEFORE the main transaction
+        unknown_zones = []
+        for run in actual_runs:
+            zone_id = self._get_zone_id_cached(run.zone_name)
+            if zone_id is None:
+                unknown_zones.append(run.zone_name)
+        
+        # Create unknown zones outside the main transaction
+        if unknown_zones:
+            logger.info(f"Creating {len(unknown_zones)} unknown zones before processing runs")
+            for zone_name in set(unknown_zones):  # Remove duplicates
+                new_zone_id = self._create_unknown_zone(zone_name)
+                self._zone_cache[zone_name] = new_zone_id
+        
+        # Now process all runs with cached zone IDs in batches to prevent long locks
+        batch_size = 20  # Process in smaller batches to reduce lock time
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            for run in actual_runs:
+            for i, run in enumerate(actual_runs):
                 try:
-                    zone_id = self.get_zone_id_by_name(run.zone_name)
+                    zone_id = self._get_zone_id_cached(run.zone_name)
+                    if zone_id is None:
+                        logger.error(f"Zone ID still not found for {run.zone_name} after creation")
+                        continue
                     
                     # Extract detailed popup data
                     popup_analysis = self._analyze_popup_data(run)
@@ -200,14 +287,19 @@ class IntelligentDataStorage(DatabaseManager):
                         status_changed = existing_status.strip() != new_status.strip()
                         
                         if gallons_changed or duration_changed or status_changed:
-                            # Update existing record
+                            # Calculate updated water usage estimation data
+                            expected_gallons = self.usage_estimator.calculate_expected_usage(zone_id, new_duration)
+                            usage_type, usage_flag, reason = self.usage_estimator.determine_usage_type_and_flag(new_gallons, expected_gallons)
+                            usage_value = self.usage_estimator.calculate_usage_value(usage_type, new_gallons, expected_gallons)
+                            
+                            # Update existing record with water usage estimation
                             cursor.execute("""
                                 UPDATE actual_runs SET
                                     actual_duration_minutes = ?, actual_gallons = ?, status = ?,
                                     failure_reason = ?, end_time = ?, notes = ?,
                                     raw_popup_text = ?, popup_lines_json = ?, parsed_summary = ?,
                                     current_ma = ?, water_efficiency = ?, abort_reason = ?,
-                                    scraped_at = ?
+                                    usage_type = ?, usage = ?, usage_flag = ?, scraped_at = ?
                                 WHERE id = ?
                             """, (
                                 new_duration, new_gallons, new_status,
@@ -218,31 +310,43 @@ class IntelligentDataStorage(DatabaseManager):
                                 popup_analysis.get('current_ma'),
                                 popup_analysis.get('water_efficiency'),
                                 popup_analysis.get('abort_reason'),
+                                usage_type, usage_value, usage_flag,
                                 get_database_timestamp(),  # Update scraped_at
                                 existing_run[0]  # id
                             ))
                             counts['updated'] += 1
-                            logger.info(f"Updated actual run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')} - {new_gallons:.1f} gal")
+                            logger.info(f"Updated actual run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')} - {new_gallons:.1f} gal ({usage_type})")
                         else:
                             # No changes, skip update
                             counts['unchanged'] += 1
                             logger.debug(f"Unchanged actual run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')}")
                     else:
-                        # Insert new record
+                        # Calculate water usage estimation data
+                        actual_gallons = popup_analysis.get('actual_gallons', run.actual_gallons)
+                        duration_minutes = popup_analysis.get('duration_minutes', run.duration_minutes)
+                        
+                        # Get expected usage based on average flow rate
+                        expected_gallons = self.usage_estimator.calculate_expected_usage(zone_id, duration_minutes)
+                        
+                        # Determine usage type, flag, and final usage value
+                        usage_type, usage_flag, reason = self.usage_estimator.determine_usage_type_and_flag(actual_gallons, expected_gallons)
+                        usage_value = self.usage_estimator.calculate_usage_value(usage_type, actual_gallons, expected_gallons)
+                        
+                        # Insert new record with water usage estimation
                         cursor.execute("""
                             INSERT INTO actual_runs 
                             (zone_id, zone_name, run_date, actual_start_time, actual_duration_minutes,
                              actual_gallons, status, failure_reason, end_time, notes,
                              raw_popup_text, popup_lines_json, parsed_summary, current_ma,
-                             water_efficiency, abort_reason, created_at, scraped_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             water_efficiency, abort_reason, usage_type, usage, usage_flag, created_at, scraped_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             zone_id,
                             run.zone_name,
                             collection_date,
                             run.start_time,
-                            popup_analysis.get('duration_minutes', run.duration_minutes),
-                            popup_analysis.get('actual_gallons', run.actual_gallons),
+                            duration_minutes,
+                            actual_gallons,
                             popup_analysis.get('status', run.status),
                             run.failure_reason,
                             end_time,
@@ -253,19 +357,103 @@ class IntelligentDataStorage(DatabaseManager):
                             popup_analysis.get('current_ma'),
                             popup_analysis.get('water_efficiency'),
                             popup_analysis.get('abort_reason'),
+                            usage_type,
+                            usage_value,
+                            usage_flag,
                             get_database_timestamp(),  # Houston time for created_at
                             get_database_timestamp()   # Houston time for scraped_at
                         ))
                         counts['new'] += 1
-                        logger.info(f"Stored new actual run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')} - {popup_analysis.get('actual_gallons', 0):.1f} gal")
+                        logger.info(f"Stored new actual run: {run.zone_name} at {run.start_time.strftime('%I:%M %p')} - {actual_gallons:.1f} gal ({usage_type})")
                     
                 except Exception as e:
                     logger.error(f"Failed to process actual run for {run.zone_name}: {e}")
+                
+                # Commit in batches to prevent long-running locks
+                if (i + 1) % batch_size == 0:
+                    conn.commit()
+                    logger.debug(f"Committed batch {i + 1}/{len(actual_runs)} runs")
                     
+            # Final commit for any remaining runs
             conn.commit()
             
         logger.info(f"Processed {counts['total']} actual runs for {collection_date}: {counts['new']} new, {counts['updated']} updated, {counts['unchanged']} unchanged")
         return counts
+    
+    def update_existing_runs_usage_estimation(self, target_date: str = None) -> Dict[str, Any]:
+        """
+        Update water usage estimation for existing runs that don't have usage_type set
+        
+        Args:
+            target_date: Date in YYYY-MM-DD format (optional, processes all if None)
+            
+        Returns:
+            Dictionary with processing results
+        """
+        logger.info(f"Updating water usage estimation for existing runs...")
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Build query based on whether target_date is specified
+                where_clause = ""
+                params = []
+                if target_date:
+                    where_clause = "AND run_date = ?"
+                    params.append(target_date)
+                
+                # Get runs that need usage estimation
+                cursor.execute(f"""
+                    SELECT id, zone_id, zone_name, actual_duration_minutes, actual_gallons, run_date
+                    FROM actual_runs 
+                    WHERE (usage_type IS NULL OR usage IS NULL)
+                    AND actual_duration_minutes > 0
+                    {where_clause}
+                    ORDER BY run_date DESC, zone_id, actual_start_time
+                """, params)
+                
+                runs_to_update = cursor.fetchall()
+                
+            if not runs_to_update:
+                return {
+                    'success': True,
+                    'message': 'No runs found that need usage estimation updates',
+                    'total_runs': 0,
+                    'updated_runs': 0
+                }
+            
+            logger.info(f"Found {len(runs_to_update)} runs needing usage estimation updates")
+            
+            # Process each run
+            updated_count = 0
+            for run_id, zone_id, zone_name, duration_minutes, actual_gallons, run_date in runs_to_update:
+                result = self.usage_estimator.update_run_usage_data(
+                    run_id, zone_id, duration_minutes, actual_gallons
+                )
+                
+                if result.get('success'):
+                    updated_count += 1
+                    logger.debug(f"Updated usage for {zone_name} on {run_date}: {result.get('usage_type')}")
+                else:
+                    logger.warning(f"Failed to update usage for run {run_id}: {result.get('error')}")
+            
+            logger.info(f"Successfully updated water usage estimation for {updated_count}/{len(runs_to_update)} runs")
+            
+            return {
+                'success': True,
+                'target_date': target_date,
+                'total_runs': len(runs_to_update),
+                'updated_runs': updated_count,
+                'message': f'Updated {updated_count} runs with water usage estimation'
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to update existing runs usage estimation: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
         
     def _analyze_popup_data(self, run_obj) -> Dict[str, Any]:
         """
@@ -310,7 +498,7 @@ class IntelligentDataStorage(DatabaseManager):
                 
                 # Extract specific data based on line type
                 if line_type == 'duration' and parsed_value is not None:
-                    analysis['duration_minutes'] = int(parsed_value)
+                    analysis['duration_minutes'] = float(parsed_value)
                     
                 elif line_type == 'water_usage' and parsed_value is not None:
                     if hasattr(run_obj, 'actual_gallons'):  # Actual run
@@ -348,7 +536,7 @@ class IntelligentDataStorage(DatabaseManager):
             
         return analysis
         
-    def _calculate_expected_gallons(self, zone_id: int, duration_minutes: int) -> Optional[float]:
+    def _calculate_expected_gallons(self, zone_id: int, duration_minutes: float) -> Optional[float]:
         """Calculate expected gallons based on zone flow rate and duration"""
         try:
             with sqlite3.connect(self.db_path) as conn:

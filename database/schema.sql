@@ -13,6 +13,7 @@ CREATE TABLE zones (
     zone_display_name TEXT,  -- Full name from web scraper
     priority_level TEXT CHECK (priority_level IN ('HIGH', 'MEDIUM', 'LOW')) DEFAULT 'MEDIUM',
     flow_rate_gpm REAL,  -- Gallons per minute from flow rate measurements
+    average_flow_rate REAL,  -- Average flow rate for water usage estimation (GPM)
     typical_duration_minutes INTEGER DEFAULT 3,
     plant_type TEXT,  -- e.g., 'planters', 'beds', 'turf', 'color'
     install_date DATE,
@@ -53,7 +54,7 @@ CREATE TABLE actual_runs (
     zone_name TEXT NOT NULL,  -- Denormalized for easier queries
     run_date DATE NOT NULL,
     actual_start_time TIMESTAMP NOT NULL,
-    actual_duration_minutes INTEGER NOT NULL,
+    actual_duration_minutes REAL NOT NULL,
     actual_gallons REAL,  -- From hover popup data
     status TEXT NOT NULL DEFAULT 'Normal watering cycle',
     failure_reason TEXT,  -- e.g., 'Aborted due to sensor input'
@@ -67,6 +68,9 @@ CREATE TABLE actual_runs (
     parsed_summary TEXT,  -- Summary of key parsed data
     water_efficiency REAL,  -- Percentage: (actual/expected) * 100
     abort_reason TEXT,  -- Specific abort reason if run was aborted
+    usage_type TEXT CHECK (usage_type IN ('actual', 'estimated')) DEFAULT 'actual',  -- Water usage estimation type
+    usage REAL,  -- Contains either actual_gallons or estimated value for analysis
+    usage_flag TEXT CHECK (usage_flag IN ('normal', 'too_high', 'too_low', 'zero_reported')) DEFAULT 'normal',  -- Flag for unusual consumption
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (zone_id) REFERENCES zones(zone_id),

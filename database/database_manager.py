@@ -18,6 +18,11 @@ import os
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Tuple, Any
 from pathlib import Path
+import sys
+
+# Add project root to path for config imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.zone_configuration import ZoneConfiguration
 import hashlib
 import json
 
@@ -34,6 +39,7 @@ class DatabaseManager:
     def __init__(self, db_path: str = "database/irrigation_data.db"):
         """Initialize database manager with SQLite database"""
         self.db_path = db_path
+        self.zone_config = ZoneConfiguration()
         self.ensure_directory()
         self.init_database()
         
@@ -80,7 +86,7 @@ class DatabaseManager:
                 raise
                 
     def _migrate_schema(self, conn):
-        """Apply schema migrations for popup data fields and enhanced matching"""
+        """Apply schema migrations for popup data fields, enhanced matching, and water usage estimation"""
         cursor = conn.cursor()
         
         # Check if popup data columns exist in scheduled_runs
@@ -120,44 +126,251 @@ class DatabaseManager:
         if current_ma_info and 'INTEGER' in current_ma_info[0][2].upper():
             logger.info("Updating current_ma column type to REAL for decimal precision")
             # SQLite doesn't support ALTER COLUMN, so we'll handle this in the application
+        
+        # Add water usage estimation columns to zones table
+        cursor.execute("PRAGMA table_info(zones)")
+        zones_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'average_flow_rate' not in zones_columns:
+            logger.info("Adding average_flow_rate column to zones table for water usage estimation")
+            cursor.execute("ALTER TABLE zones ADD COLUMN average_flow_rate REAL")
+        
+        # Add water usage estimation columns to actual_runs table
+        if 'usage_type' not in actual_columns:
+            logger.info("Adding water usage estimation columns to actual_runs table")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN usage_type TEXT CHECK (usage_type IN ('actual', 'estimated')) DEFAULT 'actual'")
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN usage REAL")  # Contains either actual_gallons or estimated value
+            cursor.execute("ALTER TABLE actual_runs ADD COLUMN usage_flag TEXT CHECK (usage_flag IN ('normal', 'too_high', 'too_low', 'zero_reported')) DEFAULT 'normal'")
+        
+        # Migrate actual_duration_minutes from INTEGER to REAL for fractional minutes
+        # Check if we need to migrate the column type
+        cursor.execute("PRAGMA table_info(actual_runs)")
+        duration_column_info = [row for row in cursor.fetchall() if row[1] == 'actual_duration_minutes']
+        if duration_column_info and 'INTEGER' in duration_column_info[0][2].upper():
+            logger.info("Migrating actual_duration_minutes from INTEGER to REAL for fractional minute support")
+            
+            # SQLite doesn't support ALTER COLUMN TYPE directly, so we need to:
+            # 1. Create a new column with REAL type
+            # 2. Copy data from old column to new column  
+            # 3. Drop old column and rename new column
+            # But SQLite also doesn't support DROP COLUMN before version 3.35.0
+            # So we'll use a table recreation approach
+            
+            # Clean up any existing temp table from failed previous migration
+            cursor.execute("DROP TABLE IF EXISTS actual_runs_temp")
+            
+            # Create a temporary table with the new schema
+            cursor.execute("""
+                CREATE TABLE actual_runs_temp (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    zone_id INTEGER NOT NULL,
+                    zone_name TEXT NOT NULL,
+                    run_date DATE NOT NULL,
+                    actual_start_time TIMESTAMP NOT NULL,
+                    actual_duration_minutes REAL NOT NULL,  -- Changed from INTEGER to REAL
+                    actual_gallons REAL,
+                    status TEXT NOT NULL DEFAULT 'Normal watering cycle',
+                    failure_reason TEXT,
+                    current_ma REAL,
+                    end_time TIMESTAMP,
+                    source TEXT DEFAULT 'web_scraper' CHECK (source IN ('web_scraper', 'api', 'manual')),
+                    scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    notes TEXT,
+                    raw_popup_text TEXT,
+                    popup_lines_json TEXT,
+                    parsed_summary TEXT,
+                    water_efficiency REAL,
+                    abort_reason TEXT,
+                    usage_type TEXT CHECK (usage_type IN ('actual', 'estimated')) DEFAULT 'actual',
+                    usage REAL,
+                    usage_flag TEXT CHECK (usage_flag IN ('normal', 'too_high', 'too_low', 'zero_reported')) DEFAULT 'normal',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    
+                    FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
+                    UNIQUE(zone_id, actual_start_time)
+                )
+            """)
+            
+            # Copy all data from old table to new table (duration will be auto-converted to REAL)
+            # Handle any NULL or invalid usage_type values by setting defaults
+            cursor.execute("""
+                INSERT INTO actual_runs_temp 
+                SELECT 
+                    id, zone_id, zone_name, run_date, actual_start_time, actual_duration_minutes,
+                    actual_gallons, status, failure_reason, current_ma, end_time, source, scraped_at,
+                    notes, raw_popup_text, popup_lines_json, parsed_summary, water_efficiency, abort_reason,
+                    COALESCE(usage_type, 'actual') as usage_type,  -- Default NULL values to 'actual'
+                    usage,
+                    COALESCE(usage_flag, 'normal') as usage_flag,  -- Default NULL values to 'normal'
+                    created_at
+                FROM actual_runs
+            """)
+            
+            # Drop views that depend on actual_runs table
+            cursor.execute("DROP VIEW IF EXISTS v_daily_summary")
+            cursor.execute("DROP VIEW IF EXISTS v_active_failures") 
+            cursor.execute("DROP VIEW IF EXISTS v_zone_performance")
+            
+            # Drop the old table
+            cursor.execute("DROP TABLE actual_runs")
+            
+            # Rename the temp table to the original name
+            cursor.execute("ALTER TABLE actual_runs_temp RENAME TO actual_runs")
+            
+            # Recreate the views (from schema.sql)
+            cursor.execute("""
+                CREATE VIEW v_daily_summary AS
+                SELECT 
+                    date('now') as today,
+                    z.zone_name,
+                    z.priority_level,
+                    
+                    -- Scheduled data
+                    COUNT(DISTINCT sr.id) as scheduled_runs,
+                    COALESCE(SUM(sr.scheduled_duration_minutes), 0) as scheduled_minutes,
+                    COALESCE(SUM(sr.expected_gallons), 0) as scheduled_gallons,
+                    
+                    -- Actual data  
+                    COUNT(DISTINCT ar.id) as actual_runs,
+                    COALESCE(SUM(ar.actual_duration_minutes), 0) as actual_minutes,
+                    COALESCE(SUM(ar.actual_gallons), 0) as actual_gallons,
+                    
+                    -- Variance
+                    (COUNT(DISTINCT ar.id) - COUNT(DISTINCT sr.id)) as run_variance,
+                    (COALESCE(SUM(ar.actual_gallons), 0) - COALESCE(SUM(sr.expected_gallons), 0)) as water_variance
+                    
+                FROM zones z
+                LEFT JOIN scheduled_runs sr ON z.zone_id = sr.zone_id AND sr.schedule_date = date('now')
+                LEFT JOIN actual_runs ar ON z.zone_id = ar.zone_id AND ar.run_date = date('now')
+                GROUP BY z.zone_id, z.zone_name, z.priority_level
+            """)
+            
+            cursor.execute("""
+                CREATE VIEW v_active_failures AS
+                SELECT 
+                    fe.*,
+                    z.priority_level,
+                    z.flow_rate_gpm,
+                    CASE 
+                        WHEN fe.detected_at > datetime('now', '-1 hour') THEN 'IMMEDIATE'
+                        WHEN fe.detected_at > datetime('now', '-6 hours') THEN 'URGENT' 
+                        ELSE 'REVIEW'
+                    END as urgency_level
+                FROM failure_events fe
+                JOIN zones z ON fe.zone_id = z.zone_id
+                WHERE fe.resolved = FALSE
+                ORDER BY 
+                    CASE fe.severity 
+                        WHEN 'CRITICAL' THEN 1 
+                        WHEN 'WARNING' THEN 2 
+                        ELSE 3 
+                    END,
+                    fe.detected_at DESC
+            """)
+            
+            cursor.execute("""
+                CREATE VIEW v_zone_performance AS
+                SELECT 
+                    z.zone_name,
+                    z.priority_level,
+                    COUNT(DISTINCT dv.analysis_date) as days_analyzed,
+                    AVG(dv.water_efficiency_percent) as avg_efficiency,
+                    SUM(CASE WHEN dv.variance_severity = 'CRITICAL' THEN 1 ELSE 0 END) as critical_days,
+                    SUM(CASE WHEN dv.variance_severity = 'WARNING' THEN 1 ELSE 0 END) as warning_days,
+                    AVG(dv.water_variance_gallons) as avg_water_variance,
+                    MAX(dv.analyzed_at) as last_analysis
+                FROM zones z
+                LEFT JOIN daily_variance dv ON z.zone_id = dv.zone_id 
+                    AND dv.analysis_date >= date('now', '-30 days')
+                GROUP BY z.zone_id, z.zone_name, z.priority_level
+            """)
+            
+            # Recreate the index for actual_runs
+            cursor.execute("CREATE INDEX idx_actual_runs_date_zone ON actual_runs(run_date, zone_id)")
+            cursor.execute("CREATE INDEX idx_actual_runs_start_time ON actual_runs(actual_start_time)")
+            
+            logger.info("Successfully migrated actual_duration_minutes to REAL type")
             
         conn.commit()
         logger.info("Schema migration completed successfully")
                 
     def _initialize_zones(self):
-        """Initialize zones table with known irrigation zones"""
-        # Based on your flow rate data from config/failure_detection_rules.py
-        zones_data = [
-            (1, "Front Right Turf", 2.5, "LOW", "turf"),
-            (2, "Front Turf Across Sidewalk", 4.5, "LOW", "turf"), 
-            (3, "Front Left Turf", 3.2, "LOW", "turf"),
-            (4, "Front Planters & Pots", 1.0, "HIGH", "planters"),
-            (5, "Rear Left Turf", 2.2, "LOW", "turf"),
-            (6, "Rear Right Turf", 5.3, "LOW", "turf"),
-            (8, "Rear Left Beds at Fence (S)", 11.3, "HIGH", "beds"),
-            (9, "Rear Right Beds at Fence (S)", 8.3, "HIGH", "beds"),
-            (10, "Rear Left Pots, Baskets & Planters (M)", 3.9, "HIGH", "planters"),
-            (11, "Rear Right Pots, Baskets & Planters (M)", 5.7, "HIGH", "planters"),
-            (12, "Rear Bed/Planters at Pool (M)", 1.3, "MEDIUM", "beds"),
-            (13, "Front Right Bed Across Drive", 1.2, "MEDIUM", "beds"),
-            (14, "Rear Right Bed at House and Pool (M/D)", 3.0, "MEDIUM", "beds"),
-            (15, "Rear Left Bed at House", 1.2, "MEDIUM", "beds"),
-            (16, "Front Color (S)", 10.9, "HIGH", "color"),
-            (17, "Front Left Beds", 2.6, "MEDIUM", "beds"),
-        ]
+        """Initialize zones table with configured irrigation zones"""
+        logger.info("Initializing zones from configuration...")
+        
+        # Get zone data from configuration
+        zones_data = self.zone_config.get_zones_data()
+        average_flow_rates = self.zone_config.get_average_flow_rates()
+        
+        if not zones_data:
+            logger.warning("No zone configuration found - database will have empty zones table")
+            return
         
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            for zone_id, name, flow_rate, priority, plant_type in zones_data:
+            for zone_id, name, flow_rate_gpm, priority, plant_type in zones_data:
+                # Get the average flow rate for this zone from configuration
+                avg_flow_rate = average_flow_rates.get(zone_id, flow_rate_gpm)
+                
                 cursor.execute("""
                     INSERT OR IGNORE INTO zones 
-                    (zone_id, zone_name, zone_display_name, priority_level, flow_rate_gpm, plant_type)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (zone_id, name, name, priority, flow_rate, plant_type))
+                    (zone_id, zone_name, zone_display_name, priority_level, flow_rate_gpm, plant_type, average_flow_rate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (zone_id, name, name, priority, flow_rate_gpm, plant_type, avg_flow_rate))
+                
+            # Update average flow rates for existing zones
+            self._update_average_flow_rates_from_config()
                 
             conn.commit()
-            logger.info(f"Initialized {len(zones_data)} zones")
+            logger.info(f"Initialized {len(zones_data)} zones from configuration")
+    
+    def _update_average_flow_rates_from_config(self):
+        """Update average flow rates for existing zones from configuration"""
+        flow_rate_updates = self.zone_config.get_average_flow_rates()
+        
+        if not flow_rate_updates:
+            logger.info("No average flow rates configured - skipping update")
+            return
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            for zone_id, avg_rate in flow_rate_updates.items():
+                cursor.execute("""
+                    UPDATE zones 
+                    SET average_flow_rate = ?
+                    WHERE zone_id = ?
+                """, (avg_rate, zone_id))
+            
+            conn.commit()
+            logger.info(f"Updated average flow rates for {len(flow_rate_updates)} zones from configuration")
+    
+    def update_zone_average_flow_rate(self, zone_id: int, average_flow_rate: float):
+        """Update average flow rate for a specific zone
+        
+        Args:
+            zone_id: Zone ID to update
+            average_flow_rate: New average flow rate in GPM
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE zones 
+                SET average_flow_rate = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE zone_id = ?
+            """, (average_flow_rate, zone_id))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                # Also update the configuration
+                self.zone_config.update_flow_rate(zone_id, average_flow_rate)
+                logger.info(f"Updated average flow rate for zone {zone_id}: {average_flow_rate} GPM")
+                return True
+            else:
+                logger.warning(f"Zone {zone_id} not found for flow rate update")
+                return False
             
     def get_zone_id_by_name(self, zone_name: str) -> Optional[int]:
         """Get zone ID by matching zone name (fuzzy matching)"""

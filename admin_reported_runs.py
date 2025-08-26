@@ -12,6 +12,9 @@ Author: AI Assistant
 Date: 2025-08-23
 """
 
+# Import logging for later configuration after parsing command line arguments
+import logging
+
 import argparse
 import sys
 import os
@@ -24,6 +27,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reported_runs_manager import ReportedRunsManager, CollectionMode
+from database.intelligent_data_storage import IntelligentDataStorage
 
 def print_banner():
     """Print the admin banner"""
@@ -266,6 +270,9 @@ def cmd_yesterday(args):
             
             # Analyze zero gallon usage after data collection
             print_zero_gallon_analysis([target_date])
+            
+            # Update water usage estimation for collected data
+            update_water_usage_estimation_for_date(target_date)
         
         return 0 if result.success else 1
         
@@ -318,6 +325,9 @@ def cmd_today(args):
             
             # Analyze zero gallon usage after data collection
             print_zero_gallon_analysis([target_date])
+            
+            # Update water usage estimation for collected data
+            update_water_usage_estimation_for_date(target_date)
         
         return 0 if result.success else 1
         
@@ -550,6 +560,34 @@ def determine_zero_gallon_reason(status, failure_reason, abort_reason, popup_tex
     
     return "Unknown cause"
 
+def update_water_usage_estimation_for_date(target_date: date):
+    """Update water usage estimation for a specific date"""
+    try:
+        print(f"\n💧 UPDATING WATER USAGE ESTIMATION FOR {target_date}")
+        print("-" * 60)
+        
+        storage = IntelligentDataStorage()
+        date_str = target_date.strftime('%Y-%m-%d') if isinstance(target_date, date) else str(target_date)
+        
+        result = storage.update_existing_runs_usage_estimation(date_str)
+        
+        if result['success']:
+            updated = result['updated_runs']
+            total = result['total_runs']
+            
+            if updated > 0:
+                print(f"✅ Updated water usage estimation for {updated}/{total} runs")
+                print(f"   📊 Runs now have usage_type and calculated usage values")
+            else:
+                print(f"✓  All {total} runs already have usage estimation data")
+        else:
+            print(f"❌ Failed to update water usage estimation: {result.get('error')}")
+            
+    except Exception as e:
+        print(f"❌ Water usage estimation update failed: {e}")
+        import traceback
+        traceback.print_exc()
+
 def cmd_zero_gallons(args):
     """Analyze zero gallon water usage for specified date range"""
     print_banner()
@@ -610,97 +648,141 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # BASIC COMMANDS:
   # Show current status
-  python admin_reported_runs.py --status
+  python admin_reported_runs.py status
 
   # Collect yesterday's runs (recommended daily task)
-  python admin_reported_runs.py --yesterday
+  python admin_reported_runs.py yesterday
 
   # Collect today's runs
-  python admin_reported_runs.py --today
+  python admin_reported_runs.py today
 
   # Catch-up collection (yesterday + today)
-  python admin_reported_runs.py --catchup
+  python admin_reported_runs.py catchup
 
   # Update current day's reported runs (refresh latest data)
-  python admin_reported_runs.py --update
+  python admin_reported_runs.py update
 
   # Run daily collection (previous day + current day)
-  python admin_reported_runs.py --daily
+  python admin_reported_runs.py daily
 
   # Run periodic collection (current day deltas)
-  python admin_reported_runs.py --periodic
+  python admin_reported_runs.py periodic
 
-  # Admin collection for specific date (browser visible by default)
-  python admin_reported_runs.py --admin yesterday
-  python admin_reported_runs.py --admin 2025-08-22
-
-  # Run in headless mode (no browser window) - options can be in any order
-  python admin_reported_runs.py --update --headless
-  python admin_reported_runs.py --headless --update
+  # ADMIN COMMANDS:
+  # Admin collection for specific date
+  python admin_reported_runs.py admin yesterday
+  python admin_reported_runs.py admin 2025-08-22
 
   # Test the system
-  python admin_reported_runs.py --test
+  python admin_reported_runs.py test
 
-  # Analyze zero gallon usage with auto-generated log file
-  python admin_reported_runs.py --zero-gallons --log-file
+  # Analyze zero gallon usage
+  python admin_reported_runs.py zero-gallons
 
-  # Analyze zero gallon usage for specific date
-  python admin_reported_runs.py --zero-gallons --date 2025-08-22
+  # OPTIONS WITH COMMANDS:
+  # Run in headless mode (no browser window)
+  python admin_reported_runs.py --headless yesterday
+  python admin_reported_runs.py --log-level WARNING today
 
-  # Analyze zero gallon usage for last 7 days
-  python admin_reported_runs.py --zero-gallons --days 7
+  # Force collection with logging
+  python admin_reported_runs.py --log-file --headless daily --force
 
-  # Force collection with logging (all options work together)
-  python admin_reported_runs.py --daily --force --log-file --headless
+  # Analyze zero gallon usage with options
+  python admin_reported_runs.py zero-gallons --date 2025-08-22
+  python admin_reported_runs.py zero-gallons --days 7
+
+  # Control logging verbosity
+  python admin_reported_runs.py --log-level DEBUG yesterday
+  python admin_reported_runs.py --log-level WARNING status
         """
     )
     
     # Global options
     parser.add_argument('--headless', action='store_true', 
                        help='Run browser in headless mode (default: visible)')
-    parser.add_argument('--log-file', nargs='?', const='', type=str,
+    parser.add_argument('--log-file', action='store_true',
                        help='Save all output to log file with auto-generated name (reported_runs_[command]_YYYYMMDD_HHMMSS.log)')
+    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
+                       help='Set logging level (default: INFO)')
     
-    # Action arguments (all with double dashes - can be specified in any order)
-    parser.add_argument('--daily', action='store_true',
-                       help='Run daily collection (previous day + current day)')
-    parser.add_argument('--periodic', action='store_true', 
-                       help='Run periodic collection (current day deltas)')
-    parser.add_argument('--admin', type=str, metavar='DATE',
-                       help='Run admin collection for specific date (YYYY-MM-DD, "today", or "yesterday")')
-    parser.add_argument('--update', action='store_true',
-                       help='Update/refresh current day reported runs')
-    parser.add_argument('--yesterday', action='store_true',
-                       help='Collect yesterday\'s reported runs')
-    parser.add_argument('--today', action='store_true',
-                       help='Collect today\'s reported runs')
-    parser.add_argument('--catchup', action='store_true',
-                       help='Collect both yesterday and today\'s runs for complete coverage')
-    parser.add_argument('--status', action='store_true',
-                       help='Show collection status and recent runs')
-    parser.add_argument('--test', action='store_true',
-                       help='Test collection with single zone')
-    parser.add_argument('--zero-gallons', action='store_true',
-                       help='Analyze zones with 0 gallon water usage')
+    # Subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
-    # Additional options (work with any action)
-    parser.add_argument('--force', action='store_true',
-                       help='Force collection even if already done today')
-    parser.add_argument('--limit', type=int,
-                       help='Limit number of zones to process (for testing)')
-    parser.add_argument('--interval', type=int, default=30,
-                       help='Minimum interval in minutes between collections (for --periodic)')
-    parser.add_argument('--date', type=str,
-                       help='Specific date to use (for --admin, --test, --zero-gallons)')
-    parser.add_argument('--days', type=int, default=7,
-                       help='Number of days to show/analyze (for --status, --zero-gallons)')
+    # Daily command
+    daily_parser = subparsers.add_parser('daily', help='Run daily collection (previous day + current day)')
+    daily_parser.add_argument('--force', action='store_true', help='Force collection even if already done today')
+    daily_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    daily_parser.set_defaults(func=cmd_daily)
+    
+    # Periodic command
+    periodic_parser = subparsers.add_parser('periodic', help='Run periodic collection (current day deltas)')
+    periodic_parser.add_argument('--force', action='store_true', help='Force collection even if already done today')
+    periodic_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    periodic_parser.add_argument('--interval', type=int, default=30, help='Minimum interval in minutes between collections')
+    periodic_parser.set_defaults(func=cmd_periodic)
+    
+    # Admin command
+    admin_parser = subparsers.add_parser('admin', help='Run admin collection for specific date')
+    admin_parser.add_argument('date', help='Date to collect (YYYY-MM-DD, "today", or "yesterday")')
+    admin_parser.add_argument('--force', action='store_true', help='Force collection even if already done today')
+    admin_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    admin_parser.set_defaults(func=cmd_admin)
+    
+    # Update command
+    update_parser = subparsers.add_parser('update', help='Update/refresh current day reported runs')
+    update_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    update_parser.set_defaults(func=cmd_update)
+    
+    # Yesterday command
+    yesterday_parser = subparsers.add_parser('yesterday', help='Collect yesterday\'s reported runs')
+    yesterday_parser.add_argument('--force', action='store_true', help='Force collection even if already done today')
+    yesterday_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    yesterday_parser.set_defaults(func=cmd_yesterday)
+    
+    # Today command
+    today_parser = subparsers.add_parser('today', help='Collect today\'s reported runs')
+    today_parser.add_argument('--force', action='store_true', help='Force collection even if already done today')
+    today_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    today_parser.set_defaults(func=cmd_today)
+    
+    # Catchup command
+    catchup_parser = subparsers.add_parser('catchup', help='Collect both yesterday and today\'s runs for complete coverage')
+    catchup_parser.add_argument('--force', action='store_true', help='Force collection even if already done today')
+    catchup_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    catchup_parser.set_defaults(func=cmd_catchup)
+    
+    # Status command
+    status_parser = subparsers.add_parser('status', help='Show collection status and recent runs')
+    status_parser.add_argument('--days', type=int, default=7, help='Number of days to show/analyze')
+    status_parser.set_defaults(func=cmd_status)
+    
+    # Test command
+    test_parser = subparsers.add_parser('test', help='Test collection with single zone')
+    test_parser.add_argument('--date', type=str, help='Specific date to use (YYYY-MM-DD, "today", or "yesterday")')
+    test_parser.add_argument('--limit', type=int, help='Limit number of zones to process (for testing)')
+    test_parser.set_defaults(func=cmd_test)
+    
+    # Zero-gallons command
+    zero_parser = subparsers.add_parser('zero-gallons', help='Analyze zones with 0 gallon water usage')
+    zero_parser.add_argument('--date', type=str, help='Specific date to use (YYYY-MM-DD, "today", or "yesterday")')
+    zero_parser.add_argument('--days', type=int, default=7, help='Number of days to show/analyze')
+    zero_parser.set_defaults(func=cmd_zero_gallons)
     
     # Parse arguments
     args = parser.parse_args()
     
+    # Configure logging level based on command line argument
+    log_level = getattr(logging, args.log_level.upper())
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        force=True  # Override any existing configuration
+    )
+    
     # Setup logging if --log-file was specified
-    if args.log_file is not None:
+    if args.log_file:
         from datetime import datetime
         
         # Generate timestamped filename with program name and command
@@ -708,30 +790,10 @@ Examples:
         program_name = 'reported_runs'
         
         # Determine which command is being run
-        command = 'default'
-        if args.daily: command = 'daily'
-        elif args.periodic: command = 'periodic'
-        elif args.admin: command = 'admin'
-        elif args.update: command = 'update'
-        elif args.yesterday: command = 'yesterday'
-        elif args.today: command = 'today'
-        elif args.catchup: command = 'catchup'
-        elif args.status: command = 'status'
-        elif args.test: command = 'test'
-        elif getattr(args, 'zero_gallons', False): command = 'zero_gallons'
+        command = args.command or 'default'
         
-        # Auto-generate filename if none provided or simple filename given
-        if not args.log_file or ('/' not in args.log_file and '\\' not in args.log_file):
-            if args.log_file:
-                # Simple filename provided - enhance it
-                base_name = args.log_file.replace('.log', '')
-                enhanced_filename = f"{program_name}_{command}_{base_name}_{timestamp}.log"
-            else:
-                # No filename provided - auto-generate
-                enhanced_filename = f"{program_name}_{command}_{timestamp}.log"
-        else:
-            # Full path provided - use as is
-            enhanced_filename = args.log_file
+        # Auto-generate filename since --log-file is now a flag
+        enhanced_filename = f"{program_name}_{command}_{timestamp}.log"
         
         # Create logs directory if it doesn't exist
         log_dir = os.path.dirname(enhanced_filename)
@@ -742,68 +804,89 @@ Examples:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        # Setup stdout redirection to capture all print() output
+        # Setup stdout and stderr redirection to capture all output
         class TeeOutput:
-            def __init__(self, file1, file2):
-                self.file1 = file1
-                self.file2 = file2
+            def __init__(self, original_stream, log_file, stream_name=""):
+                self.original_stream = original_stream
+                self.log_file = log_file
+                self.stream_name = stream_name
 
             def write(self, data):
-                self.file1.write(data)
-                self.file2.write(data)
-                self.file1.flush()
-                self.file2.flush()
+                # Write to original stream (console)
+                self.original_stream.write(data)
+                self.original_stream.flush()
+                
+                # Write to log file with stream prefix for stderr
+                if self.stream_name and data.strip():
+                    # Add prefix for stderr messages to distinguish them in logs
+                    if self.stream_name == "STDERR":
+                        prefixed_data = f"[STDERR] {data}"
+                    else:
+                        prefixed_data = data
+                    self.log_file.write(prefixed_data)
+                else:
+                    self.log_file.write(data)
+                self.log_file.flush()
 
             def flush(self):
-                self.file1.flush()
-                self.file2.flush()
+                self.original_stream.flush()
+                self.log_file.flush()
+            
+            def fileno(self):
+                # Return the file descriptor of the original stream
+                return self.original_stream.fileno()
         
         # Open log file and setup tee output (with UTF-8 encoding for Unicode support)
         log_file_handle = open(enhanced_filename, 'w', encoding='utf-8')
-        sys.stdout = TeeOutput(sys.stdout, log_file_handle)
+        
+        # Capture both stdout and stderr
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        
+        sys.stdout = TeeOutput(original_stdout, log_file_handle, "STDOUT")
+        sys.stderr = TeeOutput(original_stderr, log_file_handle, "STDERR")
+        
+        # Also configure Python logging to write to our log file
+        # Create a file handler for the log file
+        file_handler = logging.FileHandler(enhanced_filename, mode='a', encoding='utf-8')
+        file_handler.setLevel(log_level)  # Use same level as console
+        
+        # Create a formatter for the log entries
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        
+        # Get the root logger and add our file handler
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        
+        # Store file handler reference for cleanup
+        log_file_handler_ref = file_handler
         
         print(f"📋 Logging output to: {enhanced_filename}")
         print(f"📅 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("-" * 50)
+        
+        # Store references for cleanup
+        log_file_handle_ref = log_file_handle
+        original_stdout_ref = original_stdout
+        original_stderr_ref = original_stderr
+        # log_file_handler_ref already set above
+    else:
+        # No logging - set references to None
+        log_file_handle_ref = None
+        original_stdout_ref = None
+        original_stderr_ref = None
+        log_file_handler_ref = None
     
-    # Determine which command to execute
-    command_count = sum([
-        args.daily, args.periodic, bool(args.admin), args.update,
-        args.yesterday, args.today, args.catchup, args.status,
-        args.test, getattr(args, 'zero_gallons', False)
-    ])
-    
-    if command_count == 0:
+    if not args.command:
         parser.print_help()
         return 1
-    elif command_count > 1:
-        print("❌ Error: Multiple commands specified. Please specify only one action.")
-        return 1
     
-    # Execute the specified command
+    # Execute command
     try:
-        if args.daily:
-            return cmd_daily(args)
-        elif args.periodic:
-            return cmd_periodic(args)
-        elif args.admin:
-            # Set the date for admin command
-            args.date = args.admin
-            return cmd_admin(args)
-        elif args.update:
-            return cmd_update(args)
-        elif args.yesterday:
-            return cmd_yesterday(args)
-        elif args.today:
-            return cmd_today(args)
-        elif args.catchup:
-            return cmd_catchup(args)
-        elif args.status:
-            return cmd_status(args)
-        elif args.test:
-            return cmd_test(args)
-        elif getattr(args, 'zero_gallons', False):
-            return cmd_zero_gallons(args)
+        result = args.func(args)
+        return result
+        
     except KeyboardInterrupt:
         print("\n\n⏹️  Operation cancelled by user")
         return 1
@@ -812,6 +895,34 @@ Examples:
         import traceback
         traceback.print_exc()
         return 1
+    finally:
+        # Cleanup logging redirection
+        if log_file_handle_ref is not None:
+            try:
+                # Remove the logging handler first
+                if log_file_handler_ref is not None:
+                    root_logger = logging.getLogger()
+                    root_logger.removeHandler(log_file_handler_ref)
+                    log_file_handler_ref.close()
+                
+                # Console handlers are already properly configured at startup
+                
+                # Restore original streams
+                sys.stdout = original_stdout_ref
+                sys.stderr = original_stderr_ref
+                
+                # Close log file
+                log_file_handle_ref.close()
+                
+                print(f"📋 Log saved to: {enhanced_filename}")
+                
+            except Exception as cleanup_error:
+                # If cleanup fails, at least try to restore streams
+                if original_stdout_ref:
+                    sys.stdout = original_stdout_ref
+                if original_stderr_ref:
+                    sys.stderr = original_stderr_ref
+                print(f"⚠️  Log cleanup warning: {cleanup_error}")
 
 if __name__ == "__main__":
     sys.exit(main())
