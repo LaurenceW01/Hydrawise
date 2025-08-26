@@ -42,6 +42,16 @@ def start_browser(self):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-gpu-sandbox")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--disable-features=VizDisplayCompositor,VizDisplayCompositorNG,Vulkan")
+    options.add_argument("--disable-3d-apis")
+    options.add_argument("--disable-webgl")
+    options.add_argument("--disable-webgl2")
+    options.add_argument("--disable-canvas-aa")
+    options.add_argument("--disable-2d-canvas-clip-aa")
+    options.add_argument("--disable-gl-drawing-for-tests")
+    options.add_argument("--use-angle=swiftshader-webgl")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -68,6 +78,27 @@ def start_browser(self):
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-plugins-discovery")
     options.add_argument("--disable-preconnect")
+    
+    # Additional stability options for tab crash prevention
+    options.add_argument("--disable-logging")
+    options.add_argument("--disable-crash-reporter")
+    options.add_argument("--disable-dev-tools")
+    options.add_argument("--disable-logging-redirect")
+    options.add_argument("--memory-pressure-off")
+    options.add_argument("--max_old_space_size=16384")  # Increased from 8GB to 16GB
+    options.add_argument("--max-heap-size=16384")
+    options.add_argument("--aggressive-cache-discard")
+    options.add_argument("--purge-memory-button")
+    options.add_argument("--js-flags=--max-old-space-size=16384")  # V8 specific setting
+    options.add_argument("--enable-precise-memory-info")
+    options.add_argument("--force-high-dpi-scaling=1")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--disable-accelerated-2d-canvas")
+    options.add_argument("--disable-accelerated-jpeg-decoding")
+    options.add_argument("--disable-accelerated-mjpeg-decode")
+    options.add_argument("--disable-accelerated-video-decode")
+    
+    # Note: Removed --single-process as it causes V8 proxy resolver and GPU context issues
     
     # Use webdriver-manager to handle ChromeDriver installation
     service = Service(ChromeDriverManager().install())

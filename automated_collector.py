@@ -196,22 +196,31 @@ class AutomatedCollector:
                     should_collect_yesterday = self._should_collect_yesterday_data(now)
                 
                 if should_collect_yesterday:
-                    # Collect previous day's data first
-                    self.logger.info("[STARTUP] Collecting previous day's schedules and reported runs...")
-                    self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
-                    self._run_admin_command("admin_reported_runs.py", "yesterday")
+                    # Collect previous day's data first (respecting configuration)
+                    self.logger.info("[STARTUP] Collecting previous day's data...")
+                    if self.config.collect_schedules:
+                        self.logger.info("   Running schedule collection for yesterday...")
+                        self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
+                    if self.config.collect_reported_runs:
+                        self.logger.info("   Running reported runs collection for yesterday...")
+                        self._run_admin_command("admin_reported_runs.py", "yesterday")
                 else:
                     self.logger.info("[STARTUP] Yesterday's data already exists, skipping collection")
             else:
                 self.logger.info("[STARTUP] Yesterday's data collection disabled in configuration")
             
-            # Collect current day's data
-            self.logger.info("[STARTUP] Collecting current day's schedules and reported runs...")
-            self._run_admin_command("admin_schedule_collection.py", "collect", "today")
-            self._run_admin_command("admin_reported_runs.py", "today")
+            # Collect current day's data (respecting configuration)
+            self.logger.info("[STARTUP] Collecting current day's data...")
+            if self.config.collect_schedules:
+                self.logger.info("   Running schedule collection for today...")
+                self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+            if self.config.collect_reported_runs:
+                self.logger.info("   Running reported runs collection for today...")
+                self._run_admin_command("admin_reported_runs.py", "today")
             
             self.startup_completed = True
             self.last_daily_date = now.date()
+            self.last_hourly_time = now  # Set last hourly time to prevent immediate hourly run
             self.logger.info("[STARTUP] Startup collection completed successfully")
             
         except Exception as e:
@@ -219,7 +228,18 @@ class AutomatedCollector:
     
     def _run_admin_command(self, script, *args):
         """Run an admin command and log the results"""
+        import gc
+        import time
+        
         try:
+            # Set up environment for better memory management
+            enhanced_env = {
+                **os.environ,
+                'PYTHONMALLOC': 'malloc',  # Use system malloc for better memory management
+                'PYTHONHASHSEED': '0',     # Consistent hashing for better memory patterns
+                'PYTHONOPTIMIZE': '1'      # Enable basic optimizations
+            }
+            
             cmd = ["python", script] + list(args)
             self.logger.info(f"[RUN] Running: {' '.join(cmd)}")
             
@@ -227,7 +247,8 @@ class AutomatedCollector:
                 cmd, 
                 capture_output=True, 
                 text=True, 
-                timeout=300  # 5 minute timeout
+                timeout=300,  # 5 minute timeout
+                env=enhanced_env
             )
             
             if result.returncode == 0:
@@ -242,11 +263,23 @@ class AutomatedCollector:
                 self.logger.error(f"[ERROR] Command failed: {script} {' '.join(args)} (exit code: {result.returncode})")
                 if result.stderr.strip():
                     self.logger.error(f"   Error: {result.stderr.strip()}")
+            
+            # Force cleanup after subprocess completion
+            self.logger.debug("[CLEANUP] Running garbage collection and system cleanup")
+            gc.collect()  # Force Python garbage collection
+            time.sleep(3)  # Allow system to reclaim resources
+            self.logger.debug("[CLEANUP] Cleanup completed")
                     
         except subprocess.TimeoutExpired:
             self.logger.error(f"[TIMEOUT] Command timed out: {script} {' '.join(args)}")
+            # Cleanup after timeout too
+            gc.collect()
+            time.sleep(2)
         except Exception as e:
             self.logger.error(f"[ERROR] Error running command {script}: {e}")
+            # Cleanup after error too
+            gc.collect()
+            time.sleep(2)
     
     def _should_collect_yesterday_data(self, now: datetime) -> bool:
         """Check if we should collect yesterday's data based on database contents"""
@@ -313,19 +346,23 @@ class AutomatedCollector:
                     self.logger.info(f"[DAILY] Running scheduled daily collection at {get_display_timestamp(now)}")
                     
                     try:
-                        # Run full daily collection
-                        self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
-                        self._run_admin_command("admin_reported_runs.py", "yesterday")
-                        self._run_admin_command("admin_schedule_collection.py", "collect", "today")
-                        self._run_admin_command("admin_reported_runs.py", "today")
+                        # Run full daily collection (respecting configuration)
+                        if self.config.collect_schedules:
+                            self.logger.info("   Running daily schedule collection...")
+                            self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
+                            self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+                        if self.config.collect_reported_runs:
+                            self.logger.info("   Running daily reported runs collection...")
+                            self._run_admin_command("admin_reported_runs.py", "yesterday")
+                            self._run_admin_command("admin_reported_runs.py", "today")
                         
                         self.last_daily_date = current_date
                         self.logger.info("[DAILY] Daily collection completed")
                     except Exception as e:
                         self.logger.error(f"[ERROR] Daily collection error: {e}")
                 
-                # Check for hourly collection
-                if self._should_run_hourly_collection(current_time, now, self.last_hourly_time):
+                # Check for hourly collection (but skip if startup is in progress)
+                if self.startup_completed and self._should_run_hourly_collection(current_time, now, self.last_hourly_time):
                     self.logger.info(f"[HOURLY] Running scheduled hourly collection at {get_display_timestamp(now)}")
                     
                     try:
@@ -340,6 +377,15 @@ class AutomatedCollector:
                         self.logger.info("[HOURLY] Hourly collection completed")
                     except Exception as e:
                         self.logger.error(f"[ERROR] Hourly collection error: {e}")
+                elif not self.startup_completed:
+                    self.logger.debug("[HOURLY] Skipping hourly collection - startup in progress")
+                elif self.last_hourly_time:
+                    # Log how much time remaining until next hourly run
+                    time_since_last = now - self.last_hourly_time
+                    minutes_since_last = time_since_last.total_seconds() / 60
+                    minutes_remaining = self.config.hourly_interval_minutes - minutes_since_last
+                    if minutes_remaining > 0:
+                        self.logger.debug(f"[HOURLY] Next hourly collection in {minutes_remaining:.1f} minutes")
                 
                 # Sleep for 5 minutes before checking again
                 self.stop_event.wait(300)
@@ -399,8 +445,14 @@ class AutomatedCollector:
         # Check if enough time has passed since last collection
         if last_hourly_time:
             time_since_last = current_datetime - last_hourly_time
-            if time_since_last.total_seconds() < (self.config.hourly_interval_minutes * 60):
+            minutes_since_last = time_since_last.total_seconds() / 60
+            
+            if minutes_since_last < self.config.hourly_interval_minutes:
+                # Not enough time has passed
                 return False
+        else:
+            # No previous hourly run recorded - should not run until interval passes
+            return False
         
         return True
     
@@ -597,16 +649,37 @@ def main():
         print("   - Press 'q' + Enter to quit")
         print("   - Press Ctrl+C to stop")
         
-        # Keep the main thread alive with interactive commands
+        # Keep the main thread alive with interactive commands (Windows compatible)
         try:
+            import threading
+            import queue
+            
+            input_queue = queue.Queue()
+            
+            def input_thread():
+                """Background thread to handle user input"""
+                while collector.running:
+                    try:
+                        line = input().strip().lower()
+                        input_queue.put(line)
+                    except (EOFError, KeyboardInterrupt):
+                        # User pressed Ctrl+D or Ctrl+C
+                        input_queue.put('quit')
+                        break
+                    except Exception:
+                        # Handle any other input errors
+                        break
+            
+            # Start input thread
+            input_handler = threading.Thread(target=input_thread, daemon=True)
+            input_handler.start()
+            
             while collector.running:
                 try:
-                    # Check for user input (non-blocking)
-                    import select
-                    import sys
-                    
-                    if sys.stdin in select.select([sys.stdin], [], [], 1)[0]:
-                        line = input().strip().lower()
+                    # Check for user input with timeout
+                    try:
+                        line = input_queue.get(timeout=1)
+                        
                         if line == 'p':
                             if collector.paused:
                                 collector.resume()
@@ -617,24 +690,31 @@ def main():
                         elif line == 's':
                             # Show status
                             status = collector.get_status()
-                            print(f"\nStatus Update:")
+                            print(f"\n[STATUS] Current status:")
                             print(f"   Running: {status['running']}")
                             print(f"   Paused: {status['paused']}")
                             print(f"   Current time: {status['current_time']}")
+                            print(f"   Startup completed: {status['startup_completed']}")
                             print(f"   Next daily: {status['next_daily_collection']}")
                             print(f"   Next hourly: {status['next_hourly_collection']}")
                             print("")
                         elif line in ['q', 'quit', 'exit']:
-                            print("[STOP] Stopping collector...")
+                            print("[QUIT] Stopping collector...")
                             collector.stop()
                             break
-                    else:
-                        time.sleep(1)
-                except (EOFError, KeyboardInterrupt):
+                        else:
+                            print("[HELP] Commands: 'p' (pause/resume), 's' (status), 'q' (quit)")
+                    
+                    except queue.Empty:
+                        # No input received, continue monitoring
+                        continue
+                        
+                except KeyboardInterrupt:
+                    # Handle Ctrl+C
+                    print("\n[SHUTDOWN] Interrupted by user")
+                    collector.stop()
                     break
-                except:
-                    # Fallback for systems without select
-                    time.sleep(10)
+                    
         except KeyboardInterrupt:
             pass
             

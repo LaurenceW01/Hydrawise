@@ -60,8 +60,15 @@ class HydrawiseDB:
         self.cloud_sync = None
         if use_cloud_sync:
             try:
-                self.cloud_sync = CloudStorageSync()
-                logger.info("Cloud storage sync enabled")
+                # Get bucket name from environment or use default
+                bucket_name = os.getenv('GCS_BUCKET_NAME', 'hydrawise-database')
+                credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+                
+                self.cloud_sync = CloudStorageSync(
+                    bucket_name=bucket_name,
+                    credentials_path=credentials_path
+                )
+                logger.info(f"Cloud storage sync enabled for bucket: {bucket_name}")
             except Exception as e:
                 logger.warning(f"Cloud sync disabled: {e}")
                 self.use_cloud_sync = False
