@@ -94,7 +94,10 @@ def cmd_collect(args):
         
         # Initialize scraper
         print("[WEB] Starting browser and logging in...")
-        scraper = HydrawiseWebScraper(username, password, headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        scraper = HydrawiseWebScraper(username, password, headless=headless_mode)
         
         scraper.start_browser()
         if not scraper.login():
@@ -371,7 +374,10 @@ def cmd_collect_range(args):
         
         # Initialize scraper
         print("[WEB] Starting browser and logging in...")
-        scraper = HydrawiseWebScraper(username, password, headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        scraper = HydrawiseWebScraper(username, password, headless=headless_mode)
         
         scraper.start_browser()
         if not scraper.login():
@@ -481,7 +487,7 @@ def main():
         epilog="""
 Examples:
   # BASIC COLLECTION:
-  # Collect all scheduled runs for today (browser visible by default)
+  # Collect all scheduled runs for today (browser headless by default)
   python admin_schedule_collection.py collect today
   
   # Collect yesterday's schedule 
@@ -494,8 +500,8 @@ Examples:
   # Collect first 5 zones only (for testing)
   python admin_schedule_collection.py collect today --limit 5
   
-  # Run in headless mode (no browser window)
-  python admin_schedule_collection.py collect today --headless
+  # Run in visible mode (show browser window) - default is headless
+  python admin_schedule_collection.py collect today --visible
   
   # Control logging verbosity (DEBUG shows all messages, WARNING shows only warnings/errors)
   python admin_schedule_collection.py --log-level DEBUG collect today
@@ -526,7 +532,8 @@ OPTION EXPLANATIONS:
   --limit N     : Only collect first N zones (useful for testing)
   --clear       : Delete existing data before collecting (in collect commands)
   --force       : Skip confirmation prompts (in clear command)
-  --headless    : Hide browser window during collection
+  --visible     : Show browser window during collection (default: headless)
+  --headless    : Hide browser window during collection (deprecated)
   --log-level   : Control logging verbosity (DEBUG|INFO|WARNING|ERROR, default: INFO)
   --log-file    : Save all output to timestamped log file
   
@@ -539,8 +546,10 @@ COMMAND TYPES:
     )
     
     # Global options
+    parser.add_argument('--visible', action='store_true',
+                       help='Run browser in visible mode (default: headless/invisible)')
     parser.add_argument('--headless', action='store_true',
-                       help='Run browser in headless mode (default: visible)')
+                       help='Run browser in headless mode (deprecated: use --visible instead)')
     parser.add_argument('--log-file', action='store_true',
                        help='Save all output to log file with auto-generated name (schedule_collection_[command]_YYYYMMDD_HHMMSS.log)')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',

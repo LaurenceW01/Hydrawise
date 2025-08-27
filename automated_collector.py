@@ -41,6 +41,7 @@ class ScheduleConfig:
     collect_reported_runs: bool = True               # Enable reported runs collection
     collect_yesterday_on_startup: bool = True        # Collect yesterday's data on startup
     smart_startup_check: bool = True                 # Check if yesterday's data already exists
+    headless_mode: bool = True                       # Run browsers in headless mode by default
 
 class AutomatedCollector:
     """
@@ -61,8 +62,8 @@ class AutomatedCollector:
         self.pause_event = threading.Event()
         self.collector_thread = None
         
-        # Initialize the reported runs manager
-        self.manager = ReportedRunsManager(headless=True)
+        # Initialize the reported runs manager with proper headless setting
+        self.manager = ReportedRunsManager(headless=self.config.headless_mode)
         
         # Setup logging with file handler
         self.logger = logging.getLogger(__name__)
@@ -240,7 +241,11 @@ class AutomatedCollector:
                 'PYTHONOPTIMIZE': '1'      # Enable basic optimizations
             }
             
-            cmd = ["python", script] + list(args)
+            # Build command with visible flag if needed
+            cmd = ["python", script]
+            if not self.config.headless_mode:
+                cmd.append("--visible")
+            cmd.extend(list(args))
             self.logger.info(f"[RUN] Running: {' '.join(cmd)}")
             
             result = subprocess.run(
@@ -478,7 +483,8 @@ class AutomatedCollector:
                 "schedules_enabled": self.config.collect_schedules,
                 "reported_runs_enabled": self.config.collect_reported_runs,
                 "collect_yesterday_on_startup": self.config.collect_yesterday_on_startup,
-                "smart_startup_check": self.config.smart_startup_check
+                "smart_startup_check": self.config.smart_startup_check,
+                "browser_mode": "Headless" if self.config.headless_mode else "Visible"
             }
         }
         
@@ -561,6 +567,8 @@ def main():
                        help='Disable reported runs collection')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
                        default='INFO', help='Logging level (default: INFO)')
+    parser.add_argument('--visible', action='store_true',
+                       help='Run browsers in visible mode (default: headless/invisible)')
     
     args = parser.parse_args()
     
@@ -582,7 +590,8 @@ def main():
         collect_schedules=not args.no_schedules,
         collect_reported_runs=not args.no_reported_runs,
         collect_yesterday_on_startup=not args.no_yesterday,
-        smart_startup_check=not args.no_smart_check
+        smart_startup_check=not args.no_smart_check,
+        headless_mode=not args.visible  # Default headless, --visible makes it visible
     )
     
     # Setup logging with UTF-8 encoding
@@ -616,6 +625,7 @@ def main():
     print(f"   Reported runs: {'Enabled' if config.collect_reported_runs else 'Disabled'}")
     print(f"   Yesterday collection: {'Enabled' if config.collect_yesterday_on_startup else 'Disabled'}")
     print(f"   Smart checking: {'Enabled' if config.smart_startup_check else 'Disabled'}")
+    print(f"   Browser mode: {'Headless' if config.headless_mode else 'Visible'}")
     print(f"   Log level: {args.log_level}")
     print("")
     

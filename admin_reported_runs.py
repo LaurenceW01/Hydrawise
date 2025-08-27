@@ -59,7 +59,10 @@ def cmd_daily(args):
     print_banner()
     print("[DAILY] DAILY COLLECTION - Previous Day + Current Day")
     
-    manager = ReportedRunsManager(headless=args.headless)
+    # Default is headless (invisible), --visible makes it visible
+    # Keep backward compatibility with --headless flag
+    headless_mode = not args.visible if not args.headless else args.headless
+    manager = ReportedRunsManager(headless=headless_mode)
     result = manager.collect_daily(force=args.force)
     
     print_result(result, "Daily Collection Results")
@@ -71,7 +74,10 @@ def cmd_periodic(args):
     print_banner()
     print("[PERIODIC] PERIODIC COLLECTION - Current Day Delta Updates")
     
-    manager = ReportedRunsManager(headless=args.headless)
+    # Default is headless (invisible), --visible makes it visible
+    # Keep backward compatibility with --headless flag
+    headless_mode = not args.visible if not args.headless else args.headless
+    manager = ReportedRunsManager(headless=headless_mode)
     result = manager.collect_periodic(min_interval_minutes=args.interval)
     
     print_result(result, "Periodic Collection Results")
@@ -96,7 +102,10 @@ def cmd_admin(args):
         print("   Use YYYY-MM-DD format, 'today', or 'yesterday'")
         return 1
     
-    manager = ReportedRunsManager(headless=args.headless)
+    # Default is headless (invisible), --visible makes it visible
+    # Keep backward compatibility with --headless flag
+    headless_mode = not args.visible if not args.headless else args.headless
+    manager = ReportedRunsManager(headless=headless_mode)
     result = manager.collect_admin(target_date, limit_zones=args.limit)
     
     print_result(result, f"Admin Collection Results for {target_date}")
@@ -145,7 +154,10 @@ def cmd_test(args):
     print("[TEST] TEST MODE - Small Collection Sample")
     
     try:
-        manager = ReportedRunsManager(headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        manager = ReportedRunsManager(headless=headless_mode)
         
         # Test with yesterday, limit to 3 zones
         yesterday = date.today() - timedelta(days=1)
@@ -173,7 +185,10 @@ def cmd_update(args):
     print()
     
     try:
-        manager = ReportedRunsManager(headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        manager = ReportedRunsManager(headless=headless_mode)
         
         # Use admin collection for today to get fresh data
         target_date = date.today()
@@ -229,7 +244,10 @@ def cmd_yesterday(args):
     print()
     
     try:
-        manager = ReportedRunsManager(headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        manager = ReportedRunsManager(headless=headless_mode)
         
         # Target yesterday's date
         target_date = date.today() - timedelta(days=1)
@@ -287,7 +305,10 @@ def cmd_today(args):
     print()
     
     try:
-        manager = ReportedRunsManager(headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        manager = ReportedRunsManager(headless=headless_mode)
         
         # Use admin collection for today to get fresh data
         target_date = date.today()
@@ -345,7 +366,10 @@ def cmd_catchup(args):
     print()
     
     try:
-        manager = ReportedRunsManager(headless=args.headless)
+        # Default is headless (invisible), --visible makes it visible
+        # Keep backward compatibility with --headless flag
+        headless_mode = not args.visible if not args.headless else args.headless
+        manager = ReportedRunsManager(headless=headless_mode)
         
         # Collect yesterday first
         yesterday = date.today() - timedelta(days=1)
@@ -682,12 +706,12 @@ Examples:
   python admin_reported_runs.py zero-gallons
 
   # OPTIONS WITH COMMANDS:
-  # Run in headless mode (no browser window)
-  python admin_reported_runs.py --headless yesterday
-  python admin_reported_runs.py --log-level WARNING today
+  # Run in visible mode (show browser window) - default is headless
+  python admin_reported_runs.py --visible yesterday
+  python admin_reported_runs.py --log-level WARNING --visible today
 
-  # Force collection with logging
-  python admin_reported_runs.py --log-file --headless daily --force
+  # Force collection with logging (default headless mode)
+  python admin_reported_runs.py --log-file daily --force
 
   # Analyze zero gallon usage with options
   python admin_reported_runs.py zero-gallons --date 2025-08-22
@@ -700,8 +724,10 @@ Examples:
     )
     
     # Global options
+    parser.add_argument('--visible', action='store_true', 
+                       help='Run browser in visible mode (default: headless/invisible)')
     parser.add_argument('--headless', action='store_true', 
-                       help='Run browser in headless mode (default: visible)')
+                       help='Run browser in headless mode (deprecated: use --visible instead)')  
     parser.add_argument('--log-file', action='store_true',
                        help='Save all output to log file with auto-generated name (reported_runs_[command]_YYYYMMDD_HHMMSS.log)')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
