@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reported_runs_manager import ReportedRunsManager
 from utils.timezone_utils import get_houston_now, get_display_timestamp
+from utils.logging_utils import setup_instance_logging, setup_main_logging
 import subprocess
 
 @dataclass
@@ -66,12 +67,11 @@ class AutomatedCollector:
         self.manager = ReportedRunsManager(headless=self.config.headless_mode)
         
         # Setup logging with file handler
-        self.logger = logging.getLogger(__name__)
-        self._setup_logging()
+        self.logger, self.log_filename = setup_instance_logging(__name__, "automated_collector")
         
         # Track collection state
         self.last_daily_date = None
-        self.last_hourly_time = None
+        self.last_interval_time = None
         self.startup_completed = False
         
         self.logger.info("AutomatedCollector initialized")
@@ -91,7 +91,7 @@ class AutomatedCollector:
         
         self.logger.info("[START] Automated collection service started")
         self.logger.info(f"   Daily collection: {self.config.daily_collection_time.strftime('%I:%M %p')} Houston time")
-        self.logger.info(f"   Hourly collection: Every {self.config.hourly_interval_minutes} minutes")
+        self.logger.info(f"   Interval collection: Every {self.config.hourly_interval_minutes} minutes")
         self.logger.info(f"   Active hours: {self.config.active_start_time.strftime('%I:%M %p')} - {self.config.active_end_time.strftime('%I:%M %p')}")
         self.logger.info(f"   Schedule collection: {'Enabled' if self.config.collect_schedules else 'Disabled'}")
         self.logger.info(f"   Reported runs collection: {'Enabled' if self.config.collect_reported_runs else 'Disabled'}")
@@ -99,30 +99,7 @@ class AutomatedCollector:
         # Run startup collection if after scheduled time
         self._run_startup_collection()
     
-    def _setup_logging(self):
-        """Setup logging with file handler using consistent naming convention"""
-        from datetime import datetime
-        import os
-        
-        # Create logs directory if it doesn't exist
-        os.makedirs('logs', exist_ok=True)
-        
-        # Generate log filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_filename = f'logs/automated_collector_{timestamp}.log'
-        
-        # Create file handler with UTF-8 encoding
-        file_handler = logging.FileHandler(log_filename, encoding='utf-8')
-        file_handler.setLevel(logging.INFO)
-        
-        # Create formatter
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        
-        # Add handler to logger
-        self.logger.addHandler(file_handler)
-        self.logger.info(f"LOG: Logging to: {log_filename}")
-    
+
     def _run_startup_collection(self):
         """Run initial collection at startup if after scheduled time"""
         now = get_houston_now()
@@ -221,7 +198,7 @@ class AutomatedCollector:
             
             self.startup_completed = True
             self.last_daily_date = now.date()
-            self.last_hourly_time = now  # Set last hourly time to prevent immediate hourly run
+            self.last_interval_time = now  # Set last interval time to prevent immediate interval run
             self.logger.info("[STARTUP] Startup collection completed successfully")
             
         except Exception as e:
@@ -366,9 +343,9 @@ class AutomatedCollector:
                     except Exception as e:
                         self.logger.error(f"[ERROR] Daily collection error: {e}")
                 
-                # Check for hourly collection (but skip if startup is in progress)
-                if self.startup_completed and self._should_run_hourly_collection(current_time, now, self.last_hourly_time):
-                    self.logger.info(f"[HOURLY] Running scheduled hourly collection at {get_display_timestamp(now)}")
+                # Check for interval collection (but skip if startup is in progress)
+                if self.startup_completed and self._should_run_interval_collection(current_time, now, self.last_interval_time):
+                    self.logger.info(f"[INTERVAL] Running scheduled interval collection at {get_display_timestamp(now)}")
                     
                     try:
                         # Collect current day updates
@@ -378,19 +355,19 @@ class AutomatedCollector:
                         if self.config.collect_reported_runs:
                             self._run_admin_command("admin_reported_runs.py", "update")
                         
-                        self.last_hourly_time = now
-                        self.logger.info("[HOURLY] Hourly collection completed")
+                        self.last_interval_time = now
+                        self.logger.info("[INTERVAL] Interval collection completed")
                     except Exception as e:
-                        self.logger.error(f"[ERROR] Hourly collection error: {e}")
+                        self.logger.error(f"[ERROR] Interval collection error: {e}")
                 elif not self.startup_completed:
-                    self.logger.debug("[HOURLY] Skipping hourly collection - startup in progress")
-                elif self.last_hourly_time:
-                    # Log how much time remaining until next hourly run
-                    time_since_last = now - self.last_hourly_time
+                    self.logger.debug("[INTERVAL] Skipping interval collection - startup in progress")
+                elif self.last_interval_time:
+                    # Log how much time remaining until next interval run
+                    time_since_last = now - self.last_interval_time
                     minutes_since_last = time_since_last.total_seconds() / 60
                     minutes_remaining = self.config.hourly_interval_minutes - minutes_since_last
                     if minutes_remaining > 0:
-                        self.logger.debug(f"[HOURLY] Next hourly collection in {minutes_remaining:.1f} minutes")
+                        self.logger.debug(f"[INTERVAL] Next interval collection in {minutes_remaining:.1f} minutes")
                 
                 # Sleep for 5 minutes before checking again
                 self.stop_event.wait(300)
@@ -428,17 +405,17 @@ class AutomatedCollector:
         
         return False
     
-    def _should_run_hourly_collection(self, current_time: dt_time, current_datetime: datetime, last_hourly_time: Optional[datetime]) -> bool:
+    def _should_run_interval_collection(self, current_time: dt_time, current_datetime: datetime, last_interval_time: Optional[datetime]) -> bool:
         """
-        Check if we should run hourly collection
+        Check if we should run interval collection
         
         Args:
             current_time: Current time of day
             current_datetime: Current datetime
-            last_hourly_time: Datetime of last hourly collection
+            last_interval_time: Datetime of last interval collection
             
         Returns:
-            True if hourly collection should run
+            True if interval collection should run
         """
         if not self.config.enabled:
             return False
@@ -448,15 +425,15 @@ class AutomatedCollector:
             return False
         
         # Check if enough time has passed since last collection
-        if last_hourly_time:
-            time_since_last = current_datetime - last_hourly_time
+        if last_interval_time:
+            time_since_last = current_datetime - last_interval_time
             minutes_since_last = time_since_last.total_seconds() / 60
             
             if minutes_since_last < self.config.hourly_interval_minutes:
                 # Not enough time has passed
                 return False
         else:
-            # No previous hourly run recorded - should not run until interval passes
+            # No previous interval run recorded - should not run until interval passes
             return False
         
         return True
@@ -478,7 +455,7 @@ class AutomatedCollector:
             "config": {
                 "enabled": self.config.enabled,
                 "daily_time": self.config.daily_collection_time.strftime('%I:%M %p'),
-                "hourly_interval": f"{self.config.hourly_interval_minutes} minutes",
+                "interval": f"{self.config.hourly_interval_minutes} minutes",
                 "active_hours": f"{self.config.active_start_time.strftime('%I:%M %p')} - {self.config.active_end_time.strftime('%I:%M %p')}",
                 "schedules_enabled": self.config.collect_schedules,
                 "reported_runs_enabled": self.config.collect_reported_runs,
@@ -492,8 +469,8 @@ class AutomatedCollector:
         next_daily = self._calculate_next_daily_time(now)
         status["next_daily_collection"] = get_display_timestamp(next_daily) if next_daily else None
         
-        next_hourly = self._calculate_next_hourly_time(now)
-        status["next_hourly_collection"] = get_display_timestamp(next_hourly) if next_hourly else None
+        next_interval = self._calculate_next_interval_time(now)
+        status["next_interval_collection"] = get_display_timestamp(next_interval) if next_interval else None
         
         return status
     
@@ -512,9 +489,8 @@ class AutomatedCollector:
         tomorrow_daily = today_daily + timedelta(days=1)
         return tomorrow_daily
     
-    def _calculate_next_hourly_time(self, now: datetime) -> Optional[datetime]:
-        """Calculate next hourly collection time"""
-        # If we're outside active hours, return start time tomorrow or today
+    def _calculate_next_interval_time(self, now: datetime) -> Optional[datetime]:
+        """Calculate next interval collection time"""
         current_time = now.time()
         
         if current_time < self.config.active_start_time:
@@ -529,19 +505,43 @@ class AutomatedCollector:
                                   minute=self.config.active_start_time.minute, 
                                   second=0, microsecond=0)
         else:
-            # During active hours, return next interval
-            minutes_to_add = self.config.hourly_interval_minutes
-            next_time = now + timedelta(minutes=minutes_to_add)
-            
-            # Make sure it's within active hours
-            if next_time.time() > self.config.active_end_time:
-                # Next collection would be tomorrow
-                tomorrow = now + timedelta(days=1)
-                return tomorrow.replace(hour=self.config.active_start_time.hour, 
-                                      minute=self.config.active_start_time.minute, 
-                                      second=0, microsecond=0)
-            
-            return next_time
+            # During active hours, calculate based on last interval collection time
+            if self.last_interval_time:
+                # Calculate next time based on when last collection happened
+                next_time = self.last_interval_time + timedelta(minutes=self.config.hourly_interval_minutes)
+                
+                # Make sure it's within active hours
+                if next_time.time() > self.config.active_end_time:
+                    # Next collection would be tomorrow
+                    tomorrow = now + timedelta(days=1)
+                    return tomorrow.replace(hour=self.config.active_start_time.hour, 
+                                          minute=self.config.active_start_time.minute, 
+                                          second=0, microsecond=0)
+                
+                return next_time
+            else:
+                # No previous interval run, return next interval based on start time
+                # Find next interval boundary from start time
+                start_today = now.replace(hour=self.config.active_start_time.hour,
+                                        minute=self.config.active_start_time.minute,
+                                        second=0, microsecond=0)
+                
+                # Calculate how many intervals have passed since start time
+                time_since_start = now - start_today
+                intervals_passed = int(time_since_start.total_seconds() / (self.config.hourly_interval_minutes * 60))
+                
+                # Next interval time
+                next_time = start_today + timedelta(minutes=(intervals_passed + 1) * self.config.hourly_interval_minutes)
+                
+                # Make sure it's within active hours
+                if next_time.time() > self.config.active_end_time:
+                    # Next collection would be tomorrow
+                    tomorrow = now + timedelta(days=1)
+                    return tomorrow.replace(hour=self.config.active_start_time.hour, 
+                                          minute=self.config.active_start_time.minute, 
+                                          second=0, microsecond=0)
+                
+                return next_time
 
 
 def main():
@@ -594,27 +594,8 @@ def main():
         headless_mode=not args.visible  # Default headless, --visible makes it visible
     )
     
-    # Setup logging with UTF-8 encoding
-    os.makedirs('logs', exist_ok=True)
-    
-    # Create handlers
-    file_handler = logging.FileHandler('logs/automated_collector.log', encoding='utf-8')
-    console_handler = logging.StreamHandler()
-    
-    # Set levels
-    file_handler.setLevel(getattr(logging, args.log_level))
-    console_handler.setLevel(getattr(logging, args.log_level))
-    
-    # Create formatter
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-    
-    # Configure root logger
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        handlers=[file_handler, console_handler]
-    )
+    # Setup logging
+    setup_main_logging(log_level=args.log_level)
     
     print("Hydrawise Automated Data Collector")
     print("=" * 50)
@@ -651,7 +632,7 @@ def main():
         print(f"Startup completed: {status['startup_completed']}")
         print(f"Paused: {status['paused']}")
         print(f"Next daily collection: {status['next_daily_collection']}")
-        print(f"Next hourly collection: {status['next_hourly_collection']}")
+        print(f"Next interval collection: {status['next_interval_collection']}")
         print("\nAutomated collector is running...")
         print("   Commands available:")
         print("   - Press 'p' + Enter to pause/resume")
@@ -706,7 +687,7 @@ def main():
                             print(f"   Current time: {status['current_time']}")
                             print(f"   Startup completed: {status['startup_completed']}")
                             print(f"   Next daily: {status['next_daily_collection']}")
-                            print(f"   Next hourly: {status['next_hourly_collection']}")
+                            print(f"   Next interval: {status['next_interval_collection']}")
                             print("")
                         elif line in ['q', 'quit', 'exit']:
                             print("[QUIT] Stopping collector...")

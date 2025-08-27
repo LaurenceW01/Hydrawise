@@ -122,6 +122,7 @@ def find_all_python_files():
         '__pycache__', '.git', '.pytest_cache',  # Cache/system directories
         'node_modules', '.vscode', '.idea',      # IDE/package directories
         'build', 'dist', '.eggs',                # Build directories
+        'logs', 'docs', 'archive', 'data', 'reports',
     }
     
     # Directories to scan
