@@ -41,20 +41,23 @@ def start_browser(self):
     # Additional options for stability and compatibility
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    
+    # Conservative GPU disabling - just enough to prevent errors without breaking functionality
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-gpu-sandbox")
-    options.add_argument("--disable-software-rasterizer")
-    options.add_argument("--disable-features=VizDisplayCompositor,VizDisplayCompositorNG,Vulkan")
+    options.add_argument("--disable-gpu-rasterization")
+    options.add_argument("--disable-gpu-compositing")
+    options.add_argument("--disable-features=VizDisplayCompositor,VizDisplayCompositorNG,Vulkan,UseSkiaRenderer")
     options.add_argument("--disable-3d-apis")
     options.add_argument("--disable-webgl")
     options.add_argument("--disable-webgl2")
     options.add_argument("--disable-canvas-aa")
     options.add_argument("--disable-2d-canvas-clip-aa")
     options.add_argument("--disable-gl-drawing-for-tests")
-    options.add_argument("--use-angle=swiftshader-webgl")
     options.add_argument("--window-size=1920,1080")
+    options.add_argument("--no-first-run")
+    options.add_argument("--disable-default-apps")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     
     # Disable Google API services to prevent quota issues
@@ -80,10 +83,11 @@ def start_browser(self):
     options.add_argument("--disable-preconnect")
     
     # Additional stability options for tab crash prevention
+    # Moderate error suppression - reduce noise without breaking functionality
     options.add_argument("--disable-logging")
     options.add_argument("--disable-crash-reporter")
-    options.add_argument("--disable-dev-tools")
-    options.add_argument("--disable-logging-redirect")
+    options.add_argument("--log-level=3")  # Only fatal errors
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])
     options.add_argument("--memory-pressure-off")
     options.add_argument("--max_old_space_size=16384")  # Increased from 8GB to 16GB
     options.add_argument("--max-heap-size=16384")
@@ -92,7 +96,6 @@ def start_browser(self):
     options.add_argument("--js-flags=--max-old-space-size=16384")  # V8 specific setting
     options.add_argument("--enable-precise-memory-info")
     options.add_argument("--force-high-dpi-scaling=1")
-    options.add_argument("--disable-software-rasterizer")
     options.add_argument("--disable-accelerated-2d-canvas")
     options.add_argument("--disable-accelerated-jpeg-decoding")
     options.add_argument("--disable-accelerated-mjpeg-decode")
