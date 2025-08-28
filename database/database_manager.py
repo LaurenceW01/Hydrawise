@@ -404,6 +404,21 @@ class DatabaseManager:
             
             logger.info("Successfully migrated actual_duration_minutes to REAL type")
             
+        # Check if collection_status table exists for completion tracking
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='collection_status'")
+        collection_status_exists = cursor.fetchone() is not None
+        
+        if not collection_status_exists:
+            logger.info("Creating collection_status table for completion tracking")
+            cursor.execute("""
+                CREATE TABLE collection_status (
+                    date TEXT PRIMARY KEY,
+                    schedules_complete BOOLEAN DEFAULT FALSE,
+                    runs_complete BOOLEAN DEFAULT FALSE,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
         conn.commit()
         logger.info("Schema migration completed successfully")
                 

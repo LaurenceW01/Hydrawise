@@ -18,7 +18,7 @@ import time
 import logging
 import threading
 import sqlite3
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, date, time as dt_time, timedelta
 from typing import Optional
 from dataclasses import dataclass
 
@@ -175,26 +175,54 @@ class AutomatedCollector:
                 
                 if should_collect_yesterday:
                     # Collect previous day's data first (respecting configuration)
+                    yesterday = (now - timedelta(days=1)).date()
                     self.logger.info("[STARTUP] Collecting previous day's data...")
+                    
+                    schedules_success = True
+                    runs_success = True
+                    
                     if self.config.collect_schedules:
                         self.logger.info("   Running schedule collection for yesterday...")
-                        self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
+                        schedules_success = self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
+                    
                     if self.config.collect_reported_runs:
                         self.logger.info("   Running reported runs collection for yesterday...")
-                        self._run_admin_command("admin_reported_runs.py", "yesterday")
+                        runs_success = self._run_admin_command("admin_reported_runs.py", "yesterday")
+                    
+                    # Mark yesterday as complete if collections succeeded
+                    if schedules_success and runs_success:
+                        self._mark_collection_complete(
+                            yesterday, 
+                            schedules_complete=self.config.collect_schedules, 
+                            runs_complete=self.config.collect_reported_runs
+                        )
                 else:
                     self.logger.info("[STARTUP] Yesterday's data already exists, skipping collection")
             else:
                 self.logger.info("[STARTUP] Yesterday's data collection disabled in configuration")
             
             # Collect current day's data (respecting configuration)
+            today = now.date()
             self.logger.info("[STARTUP] Collecting current day's data...")
+            
+            today_schedules_success = True
+            today_runs_success = True
+            
             if self.config.collect_schedules:
                 self.logger.info("   Running schedule collection for today...")
-                self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+                today_schedules_success = self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+            
             if self.config.collect_reported_runs:
                 self.logger.info("   Running reported runs collection for today...")
-                self._run_admin_command("admin_reported_runs.py", "today")
+                today_runs_success = self._run_admin_command("admin_reported_runs.py", "today")
+            
+            # Mark today as complete if collections succeeded
+            if today_schedules_success and today_runs_success:
+                self._mark_collection_complete(
+                    today, 
+                    schedules_complete=self.config.collect_schedules, 
+                    runs_complete=self.config.collect_reported_runs
+                )
             
             self.startup_completed = True
             self.last_daily_date = now.date()
@@ -241,30 +269,38 @@ class AutomatedCollector:
                     for line in lines[-10:]:  # Last 10 lines
                         if any(keyword in line.lower() for keyword in ['collected', 'stored', 'success', 'completed', 'error']):
                             self.logger.info(f"   Output: {line.strip()}")
+                
+                # Force cleanup after subprocess completion
+                self.logger.debug("[CLEANUP] Running garbage collection and system cleanup")
+                gc.collect()  # Force Python garbage collection
+                time.sleep(3)  # Allow system to reclaim resources
+                self.logger.debug("[CLEANUP] Cleanup completed")
+                return True
             else:
                 self.logger.error(f"[ERROR] Command failed: {script} {' '.join(args)} (exit code: {result.returncode})")
                 if result.stderr.strip():
                     self.logger.error(f"   Error: {result.stderr.strip()}")
-            
-            # Force cleanup after subprocess completion
-            self.logger.debug("[CLEANUP] Running garbage collection and system cleanup")
-            gc.collect()  # Force Python garbage collection
-            time.sleep(3)  # Allow system to reclaim resources
-            self.logger.debug("[CLEANUP] Cleanup completed")
+                
+                # Cleanup after error too
+                gc.collect()
+                time.sleep(2)
+                return False
                     
         except subprocess.TimeoutExpired:
             self.logger.error(f"[TIMEOUT] Command timed out: {script} {' '.join(args)}")
             # Cleanup after timeout too
             gc.collect()
             time.sleep(2)
+            return False
         except Exception as e:
             self.logger.error(f"[ERROR] Error running command {script}: {e}")
             # Cleanup after error too
             gc.collect()
             time.sleep(2)
+            return False
     
     def _should_collect_yesterday_data(self, now: datetime) -> bool:
-        """Check if we should collect yesterday's data based on database contents"""
+        """Check if we should collect yesterday's data based on completion tracking"""
         try:
             yesterday = now.date() - timedelta(days=1)
             db_path = 'database/irrigation_data.db'
@@ -274,38 +310,67 @@ class AutomatedCollector:
                 self.logger.info("   Database doesn't exist, will collect yesterday's data")
                 return True
             
-            # Check if yesterday's data was updated today
+            # Check completion status for yesterday
             with sqlite3.connect(db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Check actual_runs table for yesterday's data updated today
+                # Check if yesterday's collection is marked as complete
                 cursor.execute("""
-                    SELECT COUNT(*) FROM actual_runs 
-                    WHERE DATE(actual_start_time) = ? 
-                    AND DATE(created_at) = DATE('now', 'localtime')
+                    SELECT schedules_complete, runs_complete 
+                    FROM collection_status 
+                    WHERE date = ?
                 """, (yesterday.isoformat(),))
                 
-                runs_updated_today = cursor.fetchone()[0]
+                result = cursor.fetchone()
                 
-                # Check scheduled_runs table for yesterday's data updated today
-                cursor.execute("""
-                    SELECT COUNT(*) FROM scheduled_runs 
-                    WHERE DATE(schedule_date) = ? 
-                    AND DATE(created_at) = DATE('now', 'localtime')
-                """, (yesterday.isoformat(),))
-                
-                schedules_updated_today = cursor.fetchone()[0]
-                
-                if runs_updated_today > 0 or schedules_updated_today > 0:
-                    self.logger.info(f"   Yesterday's data already updated today (runs: {runs_updated_today}, schedules: {schedules_updated_today})")
-                    return False
+                if result:
+                    schedules_complete, runs_complete = result
+                    
+                    # Check what types of collection are enabled
+                    schedules_needed = self.config.collect_schedules
+                    runs_needed = self.config.collect_reported_runs
+                    
+                    # Determine if collection is needed based on what's enabled
+                    if schedules_needed and not schedules_complete:
+                        self.logger.info(f"   Yesterday's schedule collection not complete, will collect")
+                        return True
+                    elif runs_needed and not runs_complete:
+                        self.logger.info(f"   Yesterday's runs collection not complete, will collect")
+                        return True
+                    elif (not schedules_needed or schedules_complete) and (not runs_needed or runs_complete):
+                        self.logger.info(f"   Yesterday's collection already completed (schedules: {schedules_complete}, runs: {runs_complete})")
+                        return False
+                    else:
+                        # This shouldn't happen, but be safe
+                        return True
                 else:
-                    self.logger.info(f"   No yesterday's data found updated today, will collect")
+                    self.logger.info(f"   No completion record for yesterday, will collect")
                     return True
                     
         except Exception as e:
-            self.logger.warning(f"   Error checking yesterday's data: {e}, will collect anyway")
+            self.logger.warning(f"   Error checking yesterday's completion status: {e}, will collect anyway")
             return True
+    
+    def _mark_collection_complete(self, collection_date: date, schedules_complete: bool = False, runs_complete: bool = False):
+        """Mark a collection as complete in the database"""
+        try:
+            db_path = 'database/irrigation_data.db'
+            
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Insert or update the completion status
+                cursor.execute("""
+                    INSERT OR REPLACE INTO collection_status 
+                    (date, schedules_complete, runs_complete, last_updated)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """, (collection_date.isoformat(), schedules_complete, runs_complete))
+                
+                conn.commit()
+                self.logger.info(f"   Marked {collection_date} collection complete (schedules: {schedules_complete}, runs: {runs_complete})")
+                
+        except Exception as e:
+            self.logger.error(f"   Error marking collection complete for {collection_date}: {e}")
     
     def _collection_loop(self):
         """Main collection loop (runs in background thread)"""        
@@ -329,14 +394,47 @@ class AutomatedCollector:
                     
                     try:
                         # Run full daily collection (respecting configuration)
+                        yesterday = current_date - timedelta(days=1)
+                        
+                        # Yesterday collection
+                        yesterday_schedules_success = True
+                        yesterday_runs_success = True
+                        
                         if self.config.collect_schedules:
-                            self.logger.info("   Running daily schedule collection...")
-                            self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
-                            self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+                            self.logger.info("   Running daily schedule collection for yesterday...")
+                            yesterday_schedules_success = self._run_admin_command("admin_schedule_collection.py", "collect", "yesterday")
+                        
                         if self.config.collect_reported_runs:
-                            self.logger.info("   Running daily reported runs collection...")
-                            self._run_admin_command("admin_reported_runs.py", "yesterday")
-                            self._run_admin_command("admin_reported_runs.py", "today")
+                            self.logger.info("   Running daily reported runs collection for yesterday...")
+                            yesterday_runs_success = self._run_admin_command("admin_reported_runs.py", "yesterday")
+                        
+                        # Mark yesterday as complete if collections succeeded
+                        if yesterday_schedules_success and yesterday_runs_success:
+                            self._mark_collection_complete(
+                                yesterday, 
+                                schedules_complete=self.config.collect_schedules, 
+                                runs_complete=self.config.collect_reported_runs
+                            )
+                        
+                        # Today collection
+                        today_schedules_success = True
+                        today_runs_success = True
+                        
+                        if self.config.collect_schedules:
+                            self.logger.info("   Running daily schedule collection for today...")
+                            today_schedules_success = self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+                        
+                        if self.config.collect_reported_runs:
+                            self.logger.info("   Running daily reported runs collection for today...")
+                            today_runs_success = self._run_admin_command("admin_reported_runs.py", "today")
+                        
+                        # Mark today as complete if collections succeeded
+                        if today_schedules_success and today_runs_success:
+                            self._mark_collection_complete(
+                                current_date, 
+                                schedules_complete=self.config.collect_schedules, 
+                                runs_complete=self.config.collect_reported_runs
+                            )
                         
                         self.last_daily_date = current_date
                         self.logger.info("[DAILY] Daily collection completed")
@@ -349,11 +447,22 @@ class AutomatedCollector:
                     
                     try:
                         # Collect current day updates
+                        interval_schedules_success = True
+                        interval_runs_success = True
+                        
                         if self.config.collect_schedules:
-                            self._run_admin_command("admin_schedule_collection.py", "collect", "today")
+                            interval_schedules_success = self._run_admin_command("admin_schedule_collection.py", "collect", "today")
                         
                         if self.config.collect_reported_runs:
-                            self._run_admin_command("admin_reported_runs.py", "update")
+                            interval_runs_success = self._run_admin_command("admin_reported_runs.py", "update")
+                        
+                        # Mark today as complete if collections succeeded
+                        if interval_schedules_success and interval_runs_success:
+                            self._mark_collection_complete(
+                                current_date, 
+                                schedules_complete=self.config.collect_schedules, 
+                                runs_complete=self.config.collect_reported_runs
+                            )
                         
                         self.last_interval_time = now
                         self.logger.info("[INTERVAL] Interval collection completed")
