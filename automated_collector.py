@@ -569,6 +569,8 @@ def main():
                        default='INFO', help='Logging level (default: INFO)')
     parser.add_argument('--visible', action='store_true',
                        help='Run browsers in visible mode (default: headless/invisible)')
+    parser.add_argument('--run-once', action='store_true',
+                       help='Run collection once and exit without iterations (for scheduled tasks)')
     
     args = parser.parse_args()
     
@@ -608,9 +610,26 @@ def main():
     print(f"   Smart checking: {'Enabled' if config.smart_startup_check else 'Disabled'}")
     print(f"   Browser mode: {'Headless' if config.headless_mode else 'Visible'}")
     print(f"   Log level: {args.log_level}")
+    print(f"   Run once: {'Yes' if args.run_once else 'No'}")
     print("")
     
-    # Create and start collector
+    # Handle run-once mode
+    if args.run_once:
+        print("[RUN-ONCE] Running collection once and exiting...")
+        
+        # Create collector for one-time execution
+        collector = AutomatedCollector(config)
+        
+        try:
+            # Run startup collection which handles both yesterday and today
+            collector._execute_startup_collection()
+            print("[SUCCESS] Single collection run completed successfully")
+            return 0
+        except Exception as e:
+            print(f"[ERROR] Single collection run failed: {e}")
+            return 1
+    
+    # Create and start collector for continuous operation
     collector = AutomatedCollector(config)
     
     def signal_handler(signum, frame):
