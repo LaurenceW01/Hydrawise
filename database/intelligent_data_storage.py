@@ -23,12 +23,38 @@ logger = logging.getLogger(__name__)
 class IntelligentDataStorage(DatabaseManager):
     """Enhanced database manager with intelligent data storage capabilities"""
     
-    def __init__(self, *args, **kwargs):
-        """Initialize with water usage estimator and zone lookup cache"""
+    def __init__(self, *args, high_usage_multiplier: float = None, low_usage_multiplier: float = None, **kwargs):
+        """Initialize with water usage estimator and zone lookup cache
+        
+        Args:
+            high_usage_multiplier: Multiplier for too_high usage flag (defaults to 2.0)
+            low_usage_multiplier: Multiplier for too_low usage flag (defaults to 0.5)
+        """
         super().__init__(*args, **kwargs)
-        self.usage_estimator = WaterUsageEstimator(self.db_path)
+        self.usage_estimator = WaterUsageEstimator(
+            self.db_path, 
+            high_usage_multiplier=high_usage_multiplier, 
+            low_usage_multiplier=low_usage_multiplier
+        )
         self._zone_cache = {}  # Cache zone ID lookups to reduce database calls
         self._load_zone_cache()
+    
+    def set_usage_deviation_thresholds(self, high_usage_multiplier: float, low_usage_multiplier: float):
+        """Update the usage deviation thresholds for the water usage estimator
+        
+        Args:
+            high_usage_multiplier: New threshold for too_high usage flag
+            low_usage_multiplier: New threshold for too_low usage flag
+        """
+        self.usage_estimator.set_deviation_thresholds(high_usage_multiplier, low_usage_multiplier)
+    
+    def get_usage_deviation_thresholds(self) -> Tuple[float, float]:
+        """Get current usage deviation thresholds
+        
+        Returns:
+            Tuple of (high_usage_multiplier, low_usage_multiplier)
+        """
+        return self.usage_estimator.get_deviation_thresholds()
     
     def _load_zone_cache(self):
         """Load zone ID mappings into cache to avoid database calls during transactions"""

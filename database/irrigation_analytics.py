@@ -122,12 +122,25 @@ class WaterRateStructure:
 class IrrigationAnalytics:
     """
     Comprehensive irrigation analytics and anomaly detection system
+    Enhanced with configurable thresholds and smart usage flag analytics
     """
     
-    def __init__(self, db_path: str = "database/irrigation_data.db"):
-        """Initialize analytics system"""
+    def __init__(self, db_path: str = "database/irrigation_data.db", 
+                 too_high_multiplier: float = 2.0, 
+                 too_low_multiplier: float = 0.5):
+        """Initialize analytics system
+        
+        Args:
+            db_path: Path to SQLite database
+            too_high_multiplier: Multiplier for too_high usage flag (default 2.0 = double expected)
+            too_low_multiplier: Multiplier for too_low usage flag (default 0.5 = half expected)
+        """
         self.db_path = db_path
         self.ensure_analytics_tables()
+        
+        # Configurable deviation thresholds for usage flags
+        self.too_high_multiplier = too_high_multiplier     # Usage > N times expected = too_high
+        self.too_low_multiplier = too_low_multiplier       # Usage < N times expected = too_low
         
         # Anomaly detection thresholds
         self.usage_threshold = 2.0      # Standard deviations for usage anomalies
@@ -214,6 +227,16 @@ class IrrigationAnalytics:
             """)
             
             conn.commit()
+    
+    def set_deviation_thresholds(self, too_high_multiplier: float, too_low_multiplier: float):
+        """Update configurable deviation thresholds
+        
+        Args:
+            too_high_multiplier: New threshold for too_high usage flag
+            too_low_multiplier: New threshold for too_low usage flag
+        """
+        self.too_high_multiplier = too_high_multiplier
+        self.too_low_multiplier = too_low_multiplier
     
     def calculate_baseline(self, zone_name: str, start_date: date = None, end_date: date = None) -> Optional[UsageBaseline]:
         """

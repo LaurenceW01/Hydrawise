@@ -37,19 +37,42 @@ class WaterUsageEstimator:
     - Validates reported usage against expected values
     - Flags high/low usage based on flow rate calculations
     - Updates actual_runs table with usage_type and usage columns
+    Enhanced with configurable thresholds for usage deviation detection
     """
     
-    # Thresholds for determining if usage is unusual
-    HIGH_USAGE_MULTIPLIER = 1.5  # Usage > 1.5x expected is considered too high
-    LOW_USAGE_MULTIPLIER = 0.5   # Usage < 0.5x expected is considered too low
+    # Default thresholds for determining if usage is unusual
+    DEFAULT_HIGH_USAGE_MULTIPLIER = 2.0  # Usage > 2.0x expected is considered too high (double)
+    DEFAULT_LOW_USAGE_MULTIPLIER = 0.5   # Usage < 0.5x expected is considered too low (half)
     
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, high_usage_multiplier: float = None, low_usage_multiplier: float = None):
         """Initialize the water usage estimator
         
         Args:
             db_path: Path to the SQLite database
+            high_usage_multiplier: Multiplier for too_high usage flag (defaults to 2.0)
+            low_usage_multiplier: Multiplier for too_low usage flag (defaults to 0.5)
         """
         self.db_path = db_path
+        self.high_usage_multiplier = high_usage_multiplier or self.DEFAULT_HIGH_USAGE_MULTIPLIER
+        self.low_usage_multiplier = low_usage_multiplier or self.DEFAULT_LOW_USAGE_MULTIPLIER
+    
+    def set_deviation_thresholds(self, high_usage_multiplier: float, low_usage_multiplier: float):
+        """Update configurable deviation thresholds
+        
+        Args:
+            high_usage_multiplier: New threshold for too_high usage flag
+            low_usage_multiplier: New threshold for too_low usage flag
+        """
+        self.high_usage_multiplier = high_usage_multiplier
+        self.low_usage_multiplier = low_usage_multiplier
+        
+    def get_deviation_thresholds(self) -> Tuple[float, float]:
+        """Get current deviation thresholds
+        
+        Returns:
+            Tuple of (high_usage_multiplier, low_usage_multiplier)
+        """
+        return (self.high_usage_multiplier, self.low_usage_multiplier)
         
     def get_zone_average_flow_rate(self, zone_id: int) -> Optional[float]:
         """Get the average flow rate for a specific zone from configuration
@@ -135,13 +158,13 @@ class WaterUsageEstimator:
         # Calculate usage ratio for actual reported values
         usage_ratio = actual_gallons / expected_gallons
         
-        # Check if usage is too high (> 1.5x expected)
-        if usage_ratio > self.HIGH_USAGE_MULTIPLIER:
-            return 'actual', 'too_high', f'Usage {usage_ratio:.1f}x expected (>{self.HIGH_USAGE_MULTIPLIER}x threshold)'
+        # Check if usage is too high (> configured multiplier)
+        if usage_ratio > self.high_usage_multiplier:
+            return 'actual', 'too_high', f'Usage {usage_ratio:.1f}x expected (>{self.high_usage_multiplier}x threshold)'
         
-        # Check if usage is too low (< 0.5x expected)  
-        if usage_ratio < self.LOW_USAGE_MULTIPLIER:
-            return 'actual', 'too_low', f'Usage {usage_ratio:.1f}x expected (<{self.LOW_USAGE_MULTIPLIER}x threshold)'
+        # Check if usage is too low (< configured multiplier)
+        if usage_ratio < self.low_usage_multiplier:
+            return 'actual', 'too_low', f'Usage {usage_ratio:.1f}x expected (<{self.low_usage_multiplier}x threshold)'
         
         # Usage is within normal range
         return 'actual', 'normal', f'Usage {usage_ratio:.1f}x expected (normal range)'
