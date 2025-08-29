@@ -23,6 +23,7 @@ import sys
 # Add project root to path for config imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.zone_configuration import ZoneConfiguration
+from utils.timezone_utils import get_database_timestamp
 import hashlib
 import json
 
@@ -486,9 +487,9 @@ class DatabaseManager:
             
             cursor.execute("""
                 UPDATE zones 
-                SET average_flow_rate = ?, updated_at = CURRENT_TIMESTAMP
+                SET average_flow_rate = ?, updated_at = ?
                 WHERE zone_id = ?
-            """, (average_flow_rate, zone_id))
+            """, (average_flow_rate, get_database_timestamp(), zone_id))
             
             if cursor.rowcount > 0:
                 conn.commit()

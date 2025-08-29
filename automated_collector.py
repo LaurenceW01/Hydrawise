@@ -26,7 +26,7 @@ from dataclasses import dataclass
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reported_runs_manager import ReportedRunsManager
-from utils.timezone_utils import get_houston_now, get_display_timestamp
+from utils.timezone_utils import get_houston_now, get_display_timestamp, get_database_timestamp
 from utils.logging_utils import setup_instance_logging, setup_main_logging
 import subprocess
 
@@ -359,12 +359,12 @@ class AutomatedCollector:
             with sqlite3.connect(db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Insert or update the completion status
+                # Insert or update the completion status with Houston time
                 cursor.execute("""
                     INSERT OR REPLACE INTO collection_status 
                     (date, schedules_complete, runs_complete, last_updated)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                """, (collection_date.isoformat(), schedules_complete, runs_complete))
+                    VALUES (?, ?, ?, ?)
+                """, (collection_date.isoformat(), schedules_complete, runs_complete, get_database_timestamp()))
                 
                 conn.commit()
                 self.logger.info(f"   Marked {collection_date} collection complete (schedules: {schedules_complete}, runs: {runs_complete})")
