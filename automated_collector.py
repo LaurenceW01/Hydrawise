@@ -216,13 +216,8 @@ class AutomatedCollector:
                 self.logger.info("   Running reported runs collection for today...")
                 today_runs_success = self._run_admin_command("admin_reported_runs.py", "today")
             
-            # Mark today as complete if collections succeeded
-            if today_schedules_success and today_runs_success:
-                self._mark_collection_complete(
-                    today, 
-                    schedules_complete=self.config.collect_schedules, 
-                    runs_complete=self.config.collect_reported_runs
-                )
+            # NOTE: Do NOT mark today as complete - today's data is ongoing and should not be marked complete
+            # Only yesterday's data should be marked complete since it represents a finalized day
             
             self.startup_completed = True
             self.last_daily_date = now.date()
@@ -428,13 +423,8 @@ class AutomatedCollector:
                             self.logger.info("   Running daily reported runs collection for today...")
                             today_runs_success = self._run_admin_command("admin_reported_runs.py", "today")
                         
-                        # Mark today as complete if collections succeeded
-                        if today_schedules_success and today_runs_success:
-                            self._mark_collection_complete(
-                                current_date, 
-                                schedules_complete=self.config.collect_schedules, 
-                                runs_complete=self.config.collect_reported_runs
-                            )
+                        # NOTE: Do NOT mark today as complete - today's data is ongoing and should not be marked complete
+                        # Only yesterday's data should be marked complete since it represents a finalized day
                         
                         self.last_daily_date = current_date
                         self.logger.info("[DAILY] Daily collection completed")
@@ -456,13 +446,8 @@ class AutomatedCollector:
                         if self.config.collect_reported_runs:
                             interval_runs_success = self._run_admin_command("admin_reported_runs.py", "update")
                         
-                        # Mark today as complete if collections succeeded
-                        if interval_schedules_success and interval_runs_success:
-                            self._mark_collection_complete(
-                                current_date, 
-                                schedules_complete=self.config.collect_schedules, 
-                                runs_complete=self.config.collect_reported_runs
-                            )
+                        # NOTE: Do NOT mark today as complete during interval collection - today's data is ongoing
+                        # Interval collection updates current data but should not mark the day as complete
                         
                         self.last_interval_time = now
                         self.logger.info("[INTERVAL] Interval collection completed")
