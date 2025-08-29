@@ -18,8 +18,10 @@ import argparse
 import sys
 import os
 import json
+import logging
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
+from io import StringIO
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +29,74 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database.usage_analytics import UsageAnalytics
 from database.irrigation_analytics import IrrigationAnalytics
 from utils.timezone_utils import get_houston_now, get_display_timestamp
+
+class OutputLogger:
+    """
+    Custom logging class that captures stdout and writes to both console and log file
+    with Houston timezone timestamps in the log filename
+    """
+    def __init__(self, log_filename=None):
+        # Capture original stdout for console output
+        self.console = sys.stdout
+        # StringIO buffer to capture output for logging
+        self.log_buffer = StringIO()
+        # Flag to track if logging is enabled
+        self.logging_enabled = log_filename is not None
+        self.log_filename = log_filename
+        
+        if self.logging_enabled:
+            # Ensure logs directory exists
+            os.makedirs('logs', exist_ok=True)
+            
+    def write(self, text):
+        """Write text to both console and log buffer"""
+        # Always write to console for immediate display
+        self.console.write(text)
+        # If logging enabled, also capture to buffer
+        if self.logging_enabled:
+            self.log_buffer.write(text)
+    
+    def flush(self):
+        """Flush both console and log buffer"""
+        self.console.flush()
+        if self.logging_enabled:
+            self.log_buffer.flush()
+    
+    def save_log(self):
+        """Save the captured output to log file with Houston timezone timestamp"""
+        if not self.logging_enabled:
+            return
+            
+        try:
+            log_content = self.log_buffer.getvalue()
+            if log_content.strip():  # Only save if there's actual content
+                with open(self.log_filename, 'w', encoding='utf-8') as f:
+                    # Add header with timestamp information
+                    houston_now = get_houston_now()
+                    f.write(f"# Enhanced Analytics Log\n")
+                    f.write(f"# Generated: {get_display_timestamp(houston_now)}\n")
+                    f.write(f"# Command: {' '.join(sys.argv)}\n")
+                    f.write("#" + "=" * 68 + "\n\n")
+                    f.write(log_content)
+                print(f"\n[LOG] Output saved to: {self.log_filename}")
+        except Exception as e:
+            print(f"\n[ERROR] Failed to save log file: {e}")
+
+def setup_logging(enable_logging=False):
+    """
+    Set up logging with Houston timezone timestamp in filename
+    Returns the OutputLogger instance
+    """
+    if not enable_logging:
+        return OutputLogger()  # Return logger with logging disabled
+    
+    # Generate filename with Houston timezone timestamp
+    houston_now = get_houston_now()
+    # Format: logfile-YYYYMMDD_HHMMSS.txt (avoiding special characters per user preference)
+    timestamp_str = houston_now.strftime("%Y%m%d_%H%M%S")
+    log_filename = f"logs/logfile-{timestamp_str}.txt"
+    
+    return OutputLogger(log_filename)
 
 def print_banner():
     """Print the enhanced analytics banner"""
@@ -253,10 +323,15 @@ def cmd_daily_comparison(args):
             too_low_multiplier=args.too_low_threshold
         )
         
-        # Parse target date
+        # Parse target date with support for 'today' and 'yesterday'
         target_date = date.today() - timedelta(days=1)  # Default to yesterday
         if args.date:
-            target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
+            if args.date.lower() == 'today':
+                target_date = date.today()
+            elif args.date.lower() == 'yesterday':
+                target_date = date.today() - timedelta(days=1)
+            else:
+                target_date = datetime.strptime(args.date, '%Y-%m-%d').date()
         
         print(f"Analysis Date: {target_date}")
         print()
@@ -461,8 +536,10 @@ def main():
 Examples:
   %(prog)s usage-flags --days 30 --detailed
   %(prog)s zone-health --too-high-threshold 2.5 --too-low-threshold 0.4
+  %(prog)s daily-comparison --date today --detailed --filter-anomalies
+  %(prog)s daily-comparison --date yesterday --detailed --log
   %(prog)s daily-comparison --date 2025-08-26 --detailed
-  %(prog)s flow-meter --days 14
+  %(prog)s flow-meter --days 14 --detailed --log
   %(prog)s configure --too-high-threshold 3.0
         """
     )
@@ -472,6 +549,8 @@ Examples:
                        help='Multiplier for too_high usage flag (default: 2.0)')
     parser.add_argument('--too-low-threshold', type=float, default=0.5,
                        help='Multiplier for too_low usage flag (default: 0.5)')
+    parser.add_argument('--log', action='store_true',
+                       help='Save output to log file in logs/ directory with Houston timezone timestamp')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -497,11 +576,11 @@ Examples:
     comparison_parser = subparsers.add_parser('daily-comparison',
                                             help='Generate daily usage comparison report')
     comparison_parser.add_argument('--date', type=str,
-                                 help='Date to analyze (YYYY-MM-DD, default: yesterday)')
+                                 help='Date to analyze (YYYY-MM-DD, "today", or "yesterday", default: yesterday)')
     comparison_parser.add_argument('--detailed', action='store_true',
                                  help='Show detailed zone-by-zone analysis')
     comparison_parser.add_argument('--filter-anomalies', action='store_true',
-                                 help='Replace too_high/too_low values with estimated values for trend analysis')
+                                 help='Replace too_high/too_low usage values with estimated values to filter out anomalies for cleaner trend analysis')
     
     # Flow meter performance
     flow_parser = subparsers.add_parser('flow-meter',
@@ -530,22 +609,40 @@ Examples:
         print(f"[ERROR] too-low-threshold must be < 1.0 (got {args.too_low_threshold})")
         return 1
     
-    # Route to appropriate command handler
-    command_handlers = {
-        'usage-flags': cmd_usage_flags,
-        'zone-health': cmd_zone_health,
-        'daily-comparison': cmd_daily_comparison,
-        'flow-meter': cmd_flow_meter_performance,
-        'configure': cmd_configure_thresholds
-    }
+    # Set up logging system if requested
+    logger = setup_logging(enable_logging=args.log)
+    original_stdout = sys.stdout
     
-    handler = command_handlers.get(args.command)
-    if handler:
-        success = handler(args)
-        return 0 if success else 1
-    else:
-        print(f"[ERROR] Unknown command: {args.command}")
-        return 1
+    try:
+        # Redirect stdout to our logger if logging is enabled
+        if logger.logging_enabled:
+            sys.stdout = logger
+            print(f"[LOG] Logging enabled - output will be saved to: {logger.log_filename}")
+        
+        # Route to appropriate command handler
+        command_handlers = {
+            'usage-flags': cmd_usage_flags,
+            'zone-health': cmd_zone_health,
+            'daily-comparison': cmd_daily_comparison,
+            'flow-meter': cmd_flow_meter_performance,
+            'configure': cmd_configure_thresholds
+        }
+        
+        handler = command_handlers.get(args.command)
+        if handler:
+            success = handler(args)
+            result = 0 if success else 1
+        else:
+            print(f"[ERROR] Unknown command: {args.command}")
+            result = 1
+            
+    finally:
+        # Always restore original stdout and save log if enabled
+        sys.stdout = original_stdout
+        if logger.logging_enabled:
+            logger.save_log()
+    
+    return result
 
 if __name__ == "__main__":
     sys.exit(main())
