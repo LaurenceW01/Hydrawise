@@ -46,6 +46,45 @@ class HydrawiseNavigationHelper:
         self.wait = scraper.wait
         self.logger = scraper.logger
     
+    def _is_headless_mode(self) -> bool:
+        """
+        Check if browser is running in headless mode
+        
+        Returns:
+            bool: True if running in headless mode
+        """
+        try:
+            # Access headless mode from scraper instance
+            return getattr(self.scraper, 'headless', False)
+        except:
+            # Default to False if unable to determine
+            return False
+    
+    def _get_headless_wait_time(self, base_wait: float) -> float:
+        """
+        Get appropriate wait time based on browser mode
+        
+        Args:
+            base_wait: Base wait time for visible mode
+            
+        Returns:
+            float: Adjusted wait time (longer for headless mode)
+        """
+        if self._is_headless_mode():
+            # Increase wait times by 50% for headless mode to account for timing issues
+            return base_wait * 1.5
+        return base_wait
+    
+    def _headless_safe_wait(self, seconds: float):
+        """
+        Perform a wait that's adjusted for headless mode timing issues
+        
+        Args:
+            seconds: Base wait time in seconds
+        """
+        adjusted_wait = self._get_headless_wait_time(seconds)
+        time.sleep(adjusted_wait)
+    
     # ========== TAB NAVIGATION ==========
     
     def navigate_to_schedule_tab(self, wait_seconds: int = 5) -> bool:
@@ -138,18 +177,42 @@ class HydrawiseNavigationHelper:
         """
         self.logger.info("[PERIODIC] Switching to Day view...")
         
-        # Wait for UI to be ready
-        time.sleep(2)
+        # Wait for UI to be ready - longer wait in headless mode
+        if self._is_headless_mode():
+            self.logger.debug("[HEADLESS] Adding extra wait for DOM rendering...")
+            self._headless_safe_wait(2.0)
+        else:
+            time.sleep(2)
         
-        # Multiple selector strategies
-        day_selectors = [
-            "//button[text()='Day']",  # Exact text match
-            "//button[contains(text(), 'Day')]",  # Contains match
-            "//button[contains(text(), 'day')]",  # lowercase
-            "//button[@type='button' and contains(text(), 'day')]",
-            "//button[contains(@class, 'rbc') and contains(text(), 'day')]",
-            "//*[@data-testid='day-button']"
-        ]
+        # Enhanced selector strategies with more aggressive headless mode detection
+        if self._is_headless_mode():
+            # More comprehensive selectors for headless mode
+            day_selectors = [
+                "//button[text()='Day']",  # Exact text match
+                "//button[contains(text(), 'Day')]",  # Contains match
+                "//button[contains(text(), 'day')]",  # lowercase
+                "//button[@type='button' and contains(text(), 'Day')]",
+                "//button[@type='button' and contains(text(), 'day')]",
+                "//button[contains(@class, 'rbc') and contains(text(), 'Day')]",
+                "//button[contains(@class, 'rbc') and contains(text(), 'day')]",
+                "//*[@data-testid='day-button']",
+                "//*[@role='button' and contains(text(), 'Day')]",
+                "//*[@role='button' and contains(text(), 'day')]",
+                "//div[contains(@class, 'rbc-toolbar')]//button[contains(text(), 'Day')]",
+                "//div[contains(@class, 'rbc-btn-group')]//button[contains(text(), 'Day')]",
+                "//span[contains(text(), 'Day')]/parent::button",
+                "//*[normalize-space(text())='Day' and name()='button']",
+            ]
+        else:
+            # Standard selectors for visible mode (unchanged)
+            day_selectors = [
+                "//button[text()='Day']",  # Exact text match
+                "//button[contains(text(), 'Day')]",  # Contains match
+                "//button[contains(text(), 'day')]",  # lowercase
+                "//button[@type='button' and contains(text(), 'day')]",
+                "//button[contains(@class, 'rbc') and contains(text(), 'day')]",
+                "//*[@data-testid='day-button']"
+            ]
         
         # Quick check for immediately available buttons
         day_button = None
@@ -168,39 +231,127 @@ class HydrawiseNavigationHelper:
             except:
                 continue
         
-        # If not found, try general button search
+        # If not found, try general button search with headless mode enhancements
         if not day_button:
             self.logger.info("Day button not immediately found, searching all buttons...")
-            all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-            for button in all_buttons:
-                try:
-                    if button.text.strip().lower() == 'day' and button.is_displayed():
-                        day_button = button
-                        successful_selector = "General button search"
+            
+            # In headless mode, add retry logic and extra waits
+            if self._is_headless_mode():
+                for retry in range(2):  # Try twice in headless mode
+                    if retry > 0:
+                        self.logger.debug(f"[HEADLESS] Retry {retry + 1}/2 for Day button search...")
+                        self._headless_safe_wait(1.0)
+                    
+                    all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                    for button in all_buttons:
+                        try:
+                            if button.text.strip().lower() == 'day' and button.is_displayed():
+                                day_button = button
+                                successful_selector = f"General button search (headless retry {retry + 1})"
+                                break
+                        except:
+                            continue
+                    
+                    if day_button:
                         break
-                except:
-                    continue
+            else:
+                # Original logic for visible mode (unchanged)
+                all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                for button in all_buttons:
+                    try:
+                        if button.text.strip().lower() == 'day' and button.is_displayed():
+                            day_button = button
+                            successful_selector = "General button search"
+                            break
+                    except:
+                        continue
         
         if day_button:
             try:
-                # Try multiple click methods
-                try:
-                    day_button.click()
-                    self.logger.info(f"[OK] Clicked Day button (direct) using: {successful_selector}")
-                except Exception as e:
-                    self.logger.debug(f"Direct click failed: {e}")
-                    # Try JavaScript click
-                    self.driver.execute_script("arguments[0].click();", day_button)
-                    self.logger.info(f"[OK] Clicked Day button (JavaScript) using: {successful_selector}")
+                # Enhanced click logic with headless mode support
+                if self._is_headless_mode():
+                    # In headless mode, ensure element is ready and try multiple methods
+                    self.logger.debug("[HEADLESS] Ensuring Day button is ready for interaction...")
+                    
+                    # Scroll element into view first (important for headless)
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", day_button)
+                    self._headless_safe_wait(0.5)
+                    
+                    # Try multiple click methods with enhanced error handling
+                    click_success = False
+                    
+                    try:
+                        # Method 1: Direct click
+                        day_button.click()
+                        self.logger.info(f"[OK] Clicked Day button (direct) using: {successful_selector}")
+                        click_success = True
+                    except Exception as e:
+                        self.logger.debug(f"[HEADLESS] Direct click failed: {e}")
+                        
+                        try:
+                            # Method 2: JavaScript click
+                            self.driver.execute_script("arguments[0].click();", day_button)
+                            self.logger.info(f"[OK] Clicked Day button (JavaScript) using: {successful_selector}")
+                            click_success = True
+                        except Exception as e2:
+                            self.logger.debug(f"[HEADLESS] JavaScript click failed: {e2}")
+                            
+                            try:
+                                # Method 3: ActionChains click
+                                ActionChains(self.driver).move_to_element(day_button).click().perform()
+                                self.logger.info(f"[OK] Clicked Day button (ActionChains) using: {successful_selector}")
+                                click_success = True
+                            except Exception as e3:
+                                self.logger.error(f"[HEADLESS] All Day button click methods failed: {e3}")
+                    
+                    if not click_success:
+                        return False
+                        
+                else:
+                    # Original logic for visible mode (unchanged)
+                    try:
+                        day_button.click()
+                        self.logger.info(f"[OK] Clicked Day button (direct) using: {successful_selector}")
+                    except Exception as e:
+                        self.logger.debug(f"Direct click failed: {e}")
+                        # Try JavaScript click
+                        self.driver.execute_script("arguments[0].click();", day_button)
+                        self.logger.info(f"[OK] Clicked Day button (JavaScript) using: {successful_selector}")
                 
-                time.sleep(wait_seconds)
-                return True
+                # Use headless-aware wait time
+                adjusted_wait = self._get_headless_wait_time(wait_seconds)
+                time.sleep(adjusted_wait)
+                
+                # CRITICAL: Verify we actually switched to Day view
+                if self._is_headless_mode():
+                    self.logger.debug("[HEADLESS] Verifying Day view switch was successful...")
+                    self._headless_safe_wait(1.0)  # Extra time for view to update
+                    
+                    current_view = self.get_current_view_type()
+                    if current_view == "day":
+                        self.logger.info("[OK] Successfully switched to Day view")
+                        return True
+                    else:
+                        self.logger.error(f"[HEADLESS ERROR] Day view switch failed - still in {current_view} view")
+                        return False
+                else:
+                    # In visible mode, trust the click succeeded (original behavior)
+                    return True
+                
             except Exception as e:
                 self.logger.error(f"Failed to click Day button: {e}")
                 return False
         else:
-            self.logger.warning("[WARNING] Could not find Day button - may already be in daily view")
-            return True  # Assume already in day view
+            # CRITICAL: Don't assume we're in day view - verify it!
+            current_view = self.get_current_view_type()
+            self.logger.warning(f"[WARNING] Could not find Day button - current view: {current_view}")
+            
+            if current_view == "day":
+                self.logger.info("[OK] Already in Day view")
+                return True
+            else:
+                self.logger.error(f"[ERROR] Failed to switch to Day view - still in {current_view} view")
+                return False
     
     def switch_to_week_view(self, wait_seconds: int = 3) -> bool:
         """
@@ -289,7 +440,7 @@ class HydrawiseNavigationHelper:
     def click_previous_button(self, wait_seconds: int = 3) -> bool:
         """
         Click Previous button with optimized detection order
-        Prioritizes the most reliable method first (General button search)
+        Enhanced with headless-specific timing and retry logic
         
         Args:
             wait_seconds: Seconds to wait after clicking
@@ -299,18 +450,41 @@ class HydrawiseNavigationHelper:
         """
         self.logger.info("[PERIODIC] Clicking Previous button...")
         
-        # Step 1: PRIMARY METHOD - General button search (most reliable)
-        self.logger.debug("Trying primary method: General button search...")
-        buttons = self.driver.find_elements(By.TAG_NAME, "button")
+        # Add extra wait for headless mode to allow DOM to stabilize
+        if self._is_headless_mode():
+            self.logger.debug("[HEADLESS] Adding extra wait before Previous button search...")
+            self._headless_safe_wait(1.0)
         
-        for button in buttons:
-            try:
-                button_text = button.text.strip()
-                if button_text.lower() == "previous":
-                    if button.is_enabled() and button.is_displayed():
-                        return self._robust_click(button, "Previous", "General button search (primary)", wait_seconds)
-            except:
-                continue
+        # Step 1: PRIMARY METHOD - General button search with headless enhancements
+        self.logger.debug("Trying primary method: General button search...")
+        
+        # In headless mode, use retry logic for button finding
+        if self._is_headless_mode():
+            for retry in range(2):  # Try twice in headless mode
+                if retry > 0:
+                    self.logger.debug(f"[HEADLESS] Retry {retry + 1}/2 for Previous button search...")
+                    self._headless_safe_wait(1.0)
+                
+                buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                for button in buttons:
+                    try:
+                        button_text = button.text.strip()
+                        if button_text.lower() == "previous":
+                            if button.is_enabled() and button.is_displayed():
+                                return self._robust_click(button, "Previous", f"General button search (headless retry {retry + 1})", wait_seconds)
+                    except:
+                        continue
+        else:
+            # Original logic for visible mode (unchanged)
+            buttons = self.driver.find_elements(By.TAG_NAME, "button")
+            for button in buttons:
+                try:
+                    button_text = button.text.strip()
+                    if button_text.lower() == "previous":
+                        if button.is_enabled() and button.is_displayed():
+                            return self._robust_click(button, "Previous", "General button search (primary)", wait_seconds)
+                except:
+                    continue
         
         # Step 2: FALLBACK - Quick XPath selectors
         self.logger.debug("Primary method failed, trying XPath selectors...")
@@ -426,6 +600,7 @@ class HydrawiseNavigationHelper:
     def _robust_click(self, element, button_name: str, selector_info: str, wait_seconds: int) -> bool:
         """
         Perform robust clicking with multiple fallback methods
+        Enhanced with headless-specific logic and timing
         
         Args:
             element: WebElement to click
@@ -436,12 +611,30 @@ class HydrawiseNavigationHelper:
         Returns:
             bool: True if successful
         """
+        # In headless mode, ensure element is properly prepared
+        if self._is_headless_mode():
+            self.logger.debug(f"[HEADLESS] Preparing {button_name} button for interaction...")
+            
+            # Scroll element into view first (critical for headless)
+            try:
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                self._headless_safe_wait(0.5)
+            except Exception as e:
+                self.logger.debug(f"[HEADLESS] Scroll into view failed: {e}")
+            
+            # Wait for element to be stable
+            self._headless_safe_wait(0.5)
+        
         try:
             # Method 1: Direct click
             element.click()
             self.logger.info(f"[OK] Clicked {button_name} button (direct) using: {selector_info}")
-            time.sleep(wait_seconds)
+            
+            # Use headless-aware wait time
+            adjusted_wait = self._get_headless_wait_time(wait_seconds)
+            time.sleep(adjusted_wait)
             return True
+            
         except Exception as e:
             self.logger.debug(f"Direct click failed: {e}")
             
@@ -449,19 +642,33 @@ class HydrawiseNavigationHelper:
                 # Method 2: JavaScript click
                 self.driver.execute_script("arguments[0].click();", element)
                 self.logger.info(f"[OK] Clicked {button_name} button (JavaScript) using: {selector_info}")
-                time.sleep(wait_seconds)
+                
+                # Use headless-aware wait time
+                adjusted_wait = self._get_headless_wait_time(wait_seconds)
+                time.sleep(adjusted_wait)
                 return True
+                
             except Exception as e:
                 self.logger.debug(f"JavaScript click failed: {e}")
                 
                 try:
                     # Method 3: ActionChains click after scroll
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                    time.sleep(1)
+                    
+                    # In headless mode, add extra wait after scroll
+                    if self._is_headless_mode():
+                        self._headless_safe_wait(1.0)
+                    else:
+                        time.sleep(1)
+                    
                     ActionChains(self.driver).move_to_element(element).click().perform()
                     self.logger.info(f"[OK] Clicked {button_name} button (ActionChains) using: {selector_info}")
-                    time.sleep(wait_seconds)
+                    
+                    # Use headless-aware wait time
+                    adjusted_wait = self._get_headless_wait_time(wait_seconds)
+                    time.sleep(adjusted_wait)
                     return True
+                    
                 except Exception as e:
                     self.logger.error(f"All click methods failed for {button_name}: {e}")
                     return False
@@ -540,29 +747,53 @@ class HydrawiseNavigationHelper:
     def get_current_view_type(self) -> Optional[str]:
         """
         Determine current view type (day/week/month) by checking active buttons
+        Enhanced with headless mode retry logic and additional detection methods
         
         Returns:
             Optional[str]: 'day', 'week', 'month', or None
         """
         try:
-            # Check for active button classes
-            view_checks = [
-                ("//button[contains(@class, 'rbc-active') and contains(text(), 'Day')]", "day"),
-                ("//button[contains(@class, 'rbc-active') and contains(text(), 'Week')]", "week"),
-                ("//button[contains(@class, 'rbc-active') and contains(text(), 'Month')]", "month"),
-                ("//button[contains(@class, 'active') and contains(text(), 'Day')]", "day"),
-                ("//button[contains(@class, 'active') and contains(text(), 'Week')]", "week"),
-                ("//button[contains(@class, 'active') and contains(text(), 'Month')]", "month"),
-            ]
+            # In headless mode, try multiple times with waits for DOM to update
+            max_attempts = 3 if self._is_headless_mode() else 1
             
-            for selector, view_type in view_checks:
-                try:
-                    element = self.driver.find_element(By.XPATH, selector)
-                    if element.is_displayed():
-                        self.logger.debug(f"Detected {view_type} view using: {selector}")
-                        return view_type
-                except:
-                    continue
+            for attempt in range(max_attempts):
+                if attempt > 0 and self._is_headless_mode():
+                    self.logger.debug(f"[HEADLESS] View detection attempt {attempt + 1}/{max_attempts}...")
+                    self._headless_safe_wait(1.0)
+                
+                # Check for active button classes
+                view_checks = [
+                    ("//button[contains(@class, 'rbc-active') and contains(text(), 'Day')]", "day"),
+                    ("//button[contains(@class, 'rbc-active') and contains(text(), 'Week')]", "week"),
+                    ("//button[contains(@class, 'rbc-active') and contains(text(), 'Month')]", "month"),
+                    ("//button[contains(@class, 'active') and contains(text(), 'Day')]", "day"),
+                    ("//button[contains(@class, 'active') and contains(text(), 'Week')]", "week"),
+                    ("//button[contains(@class, 'active') and contains(text(), 'Month')]", "month"),
+                ]
+                
+                for selector, view_type in view_checks:
+                    try:
+                        element = self.driver.find_element(By.XPATH, selector)
+                        if element.is_displayed():
+                            self.logger.debug(f"Detected {view_type} view using: {selector}")
+                            return view_type
+                    except:
+                        continue
+                
+                # If no active button found, try alternative detection methods
+                if self._is_headless_mode():
+                    # Method 2: Check date display patterns to infer view type
+                    current_date = self.get_current_displayed_date()
+                    if current_date:
+                        # Single date patterns suggest Day view
+                        if any(pattern in current_date.lower() for pattern in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']):
+                            if '–' not in current_date and '-' not in current_date:
+                                self.logger.debug(f"Inferred Day view from date pattern: '{current_date}'")
+                                return "day"
+                        # Date ranges suggest Week view  
+                        elif '–' in current_date or '-' in current_date:
+                            self.logger.debug(f"Inferred Week view from date range: '{current_date}'")
+                            return "week"
             
             return None
             
@@ -767,7 +998,19 @@ class HydrawiseNavigationHelper:
             if abs(days_diff) == 0:
                 self.logger.info("[OK] Already on target date")
                 # Still ensure we're in day view
-                return self.switch_to_day_view()
+                day_view_success = self.switch_to_day_view()
+                
+                if not day_view_success:
+                    # FALLBACK STRATEGY: If Day view switching fails in headless mode, 
+                    # allow navigation to proceed (we're already on the right date)
+                    if self._is_headless_mode():
+                        self.logger.warning("[HEADLESS FALLBACK] Day view switch failed for current date, but already on target date")
+                        self.logger.warning("[HEADLESS FALLBACK] Proceeding with data collection...")
+                        return True
+                    else:
+                        return False
+                
+                return True
             elif abs(days_diff) <= 6:
                 # Small difference: Use day view directly
                 self.logger.info(f"[DATE] Small date difference ({abs(days_diff)} days) - using day navigation")
@@ -943,8 +1186,16 @@ class HydrawiseNavigationHelper:
             self.logger.info("[PERIODIC] Using day view navigation...")
             
             # Switch to day view
-            if not self.switch_to_day_view():
-                return False
+            day_view_success = self.switch_to_day_view()
+            
+            if not day_view_success:
+                # FALLBACK STRATEGY: If Day view switching fails in headless mode, 
+                # try to proceed with current view (likely Week view)
+                if self._is_headless_mode():
+                    self.logger.warning("[HEADLESS FALLBACK] Day view switch failed, attempting navigation in current view...")
+                    self.logger.warning("[HEADLESS FALLBACK] This may be less reliable but will be attempted...")
+                else:
+                    return False
             
             # Calculate difference and navigate
             days_diff = (target_date - current_date).days

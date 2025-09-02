@@ -18,7 +18,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
-def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None, skip_schedule_click: bool = False) -> List:
+def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None, skip_schedule_click: bool = False, skip_day_click: bool = False) -> List:
     """
     Extract scheduled runs from the Schedule tab
     
@@ -66,52 +66,66 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
         else:
             self.logger.info("[SYMBOL][SYMBOL] Skipping Schedule tab click (already in Schedule view)")
         
-        # SECOND: CRITICAL - Must click Day button to get daily schedule (not week view)
-        try:
-            # Wait longer for Day button to appear after Schedule tab loads
-            time.sleep(2)  # Extra wait for UI to fully load
-            
-            # Try multiple selectors for Day button based on actual HTML
-            day_selectors = [
-                "//button[contains(text(), 'day')]",  # lowercase
-                "//button[contains(text(), 'Day')]",  # uppercase  
-                "//button[@type='button' and contains(text(), 'day')]",
-                "//button[contains(@class, 'rbc') and contains(text(), 'day')]"
-            ]
-            
-            day_button = None
-            for selector in day_selectors:
-                try:
-                    elements = self.driver.find_elements(By.XPATH, selector)
-                    for element in elements:
-                        if element.is_displayed() and element.text.strip().lower() == 'day':
-                            day_button = element
-                            break
+        # SECOND: Click Day button to get daily schedule (unless already done by navigation)
+        if not skip_day_click:
+            try:
+                # Use the enhanced navigation helper if available
+                if hasattr(self, 'logger') and hasattr(self, 'driver'):
+                    from shared_navigation_helper import create_navigation_helper
+                    nav_helper = create_navigation_helper(self)
+                    
+                    if nav_helper.switch_to_day_view():
+                        self.logger.info("[OK] Successfully switched to Day view using navigation helper")
+                    else:
+                        self.logger.warning("[WARNING] Day view switch failed - may be extracting week schedule")
+                else:
+                    # Fallback to original logic if navigation helper not available
+                    # Wait longer for Day button to appear after Schedule tab loads
+                    time.sleep(2)  # Extra wait for UI to fully load
+                    
+                    # Try multiple selectors for Day button based on actual HTML
+                    day_selectors = [
+                        "//button[contains(text(), 'day')]",  # lowercase
+                        "//button[contains(text(), 'Day')]",  # uppercase  
+                        "//button[@type='button' and contains(text(), 'day')]",
+                        "//button[contains(@class, 'rbc') and contains(text(), 'day')]"
+                    ]
+                    
+                    day_button = None
+                    for selector in day_selectors:
+                        try:
+                            elements = self.driver.find_elements(By.XPATH, selector)
+                            for element in elements:
+                                if element.is_displayed() and element.text.strip().lower() == 'day':
+                                    day_button = element
+                                    break
+                            if day_button:
+                                break
+                        except:
+                            continue
+                    
+                    if not day_button:
+                        # Try a more general search
+                        all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                        for button in all_buttons:
+                            if button.text.strip().lower() == 'day' and button.is_displayed():
+                                day_button = button
+                                break
+                    
                     if day_button:
-                        break
-                except:
-                    continue
-            
-            if not day_button:
-                # Try a more general search
-                all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                for button in all_buttons:
-                    if button.text.strip().lower() == 'day' and button.is_displayed():
-                        day_button = button
-                        break
-            
-            if day_button:
-                # Always click Day button to ensure we get daily view (not week view)
-                day_button.click()
-                time.sleep(3)  # Wait for day view to load
-                self.logger.info("Clicked Day button - switched to daily view")
-            else:
-                self.logger.error("CRITICAL: Could not find Day button - may be viewing week schedule instead of daily")
-                # Continue but warn that data might be weekly not daily
-                
-        except Exception as e:
-            self.logger.error(f"CRITICAL: Failed to click Day button: {e}")
-            self.logger.error("WARNING: May be extracting week schedule instead of daily schedule")
+                        # Always click Day button to ensure we get daily view (not week view)
+                        day_button.click()
+                        time.sleep(3)  # Wait for day view to load
+                        self.logger.info("Clicked Day button - switched to daily view")
+                    else:
+                        self.logger.error("CRITICAL: Could not find Day button - may be viewing week schedule instead of daily")
+                        # Continue but warn that data might be weekly not daily
+                        
+            except Exception as e:
+                self.logger.error(f"CRITICAL: Failed to click Day button: {e}")
+                self.logger.error("WARNING: May be extracting week schedule instead of daily schedule")
+        else:
+            self.logger.info("[SYMBOL][SYMBOL] Skipping Day button click (already in Day view)")
         
         # Strategy 1: Look for individual zone elements (rbc-event-content)
         self.logger.info("Strategy 1: Looking for individual rbc-event-content elements...")

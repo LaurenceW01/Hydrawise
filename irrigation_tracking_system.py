@@ -481,8 +481,16 @@ class IrrigationTrackingSystem:
                     self.logger.error(f"[EMAIL ERROR] Error in email thread: {e}")
             
             # Send email in background thread to not block collection
-            email_thread = threading.Thread(target=send_email, daemon=True)
+            # Use non-daemon thread with timeout to ensure completion
+            email_thread = threading.Thread(target=send_email, daemon=False)
             email_thread.start()
+            
+            # Wait up to 15 seconds for email to send (ensures completion)
+            email_thread.join(timeout=15)
+            if email_thread.is_alive():
+                self.logger.warning("[EMAIL] Daily email thread still running after 15 seconds, but continuing main process...")
+            else:
+                self.logger.debug("[EMAIL] Daily email thread completed successfully")
             
         except Exception as e:
             self.logger.error(f"[EMAIL ERROR] Error starting email thread: {e}")
@@ -511,8 +519,16 @@ class IrrigationTrackingSystem:
                     self.logger.error(f"[EMAIL ERROR] Error in comprehensive email thread: {e}")
             
             # Send email in background thread to not block collection
-            email_thread = threading.Thread(target=send_email, daemon=True)
+            # Use non-daemon thread with timeout to ensure completion
+            email_thread = threading.Thread(target=send_email, daemon=False)
             email_thread.start()
+            
+            # Wait up to 15 seconds for email to send (ensures completion)
+            email_thread.join(timeout=15)
+            if email_thread.is_alive():
+                self.logger.warning("[EMAIL] Comprehensive email thread still running after 15 seconds, but continuing main process...")
+            else:
+                self.logger.debug("[EMAIL] Comprehensive email thread completed successfully")
             
         except Exception as e:
             self.logger.error(f"[EMAIL ERROR] Error starting comprehensive email thread: {e}")

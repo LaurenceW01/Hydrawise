@@ -118,7 +118,7 @@ def cmd_collect(args):
         print(f"[LOG] Collecting scheduled runs for {target_date}...")
         target_datetime = datetime.combine(target_date, datetime.min.time())
         # Skip schedule tab click since we already navigated there
-        scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True)
+        scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True, skip_day_click=True)
         
         scraper.stop_browser()
         
@@ -417,7 +417,7 @@ def cmd_collect_range(args):
             
             # Collect scheduled runs for current date
             target_datetime = datetime.combine(current_date, datetime.min.time())
-            scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True)
+            scheduled_runs = scraper.extract_scheduled_runs(target_datetime, limit_zones=args.limit, skip_schedule_click=True, skip_day_click=True)
             
             if scheduled_runs:
                 print(f"[OK] Collected {len(scheduled_runs)} runs for {current_date}")
