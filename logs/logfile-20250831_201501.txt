@@ -1,0 +1,14 @@
+# Enhanced Analytics Log
+# Generated: 08/31/2025 08:15:01 PM CDT
+# Command: C:\Users\laure\Dev\Hydrawise\admin_enhanced_analytics.py --log daily-comparison --filter-anomalies --detailed --date today
+#====================================================================
+
+[LOG] Logging enabled - output will be saved to: logs/logfile-20250831_201501.txt
+======================================================================
+[ENHANCED] HYDRAWISE USAGE & ZONE HEALTH ANALYTICS
+======================================================================
+[ANALYSIS] DAILY USAGE COMPARISON REPORT
+
+Analysis Date: 2025-08-31
+
+[WARNING] No data found for the specified date

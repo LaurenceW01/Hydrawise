@@ -1,0 +1,200 @@
+# Enhanced Analytics Log
+# Generated: 08/29/2025 08:15:02 PM CDT
+# Command: C:\Users\laure\Dev\Hydrawise\admin_enhanced_analytics.py --log daily-comparison --filter-anomalies --detailed --date today
+#====================================================================
+
+[LOG] Logging enabled - output will be saved to: logs/logfile-20250829_201502.txt
+======================================================================
+[ENHANCED] HYDRAWISE USAGE & ZONE HEALTH ANALYTICS
+======================================================================
+[ANALYSIS] DAILY USAGE COMPARISON REPORT
+
+Analysis Date: 2025-08-29
+
+[SUMMARY] Overall Usage Comparison:
+  Usage (from usage column):       838.50 gallons
+  Calculated (flow rate * time):   847.10 gallons
+  Variance:                         -8.60 gallons (  -1.0%)
+  Zones Analyzed:                      14 zones
+  Total Runs:                          39 runs
+  Estimated Runs:                      20 runs ( 51.3%)
+  [FILTER] Anomaly filtering enabled - too_high/too_low values replaced with estimates
+
+[OK] Variance within acceptable range
+
+[DETAILS] Zone-by-Zone Analysis:
+
+  Zone: Front Color (S)
+    Usage:           53.50 gallons
+    Calculated:      54.50 gallons
+    Variance:        -1.00 gallons (  -1.8%)
+    Actual Reported:    53.50 gallons
+    Reporting Accuracy:   98.2%
+    Unreported:       1.00 gallons
+    Runs:                2 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:2
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Front Left Turf (MP)
+    Usage:           96.00 gallons
+    Calculated:      96.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     0.00 gallons
+    Reporting Accuracy:    0.0%
+    Unreported:      96.00 gallons
+    Runs:                3 runs
+    Estimated:           3 runs (100.0%)
+    Flags: zero_reported:3
+    [ANALYSIS] Flow meter likely not working - mostly zero readings | Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity | Turf zone with poor flow reporting - check for clogged meter or wiring issues
+
+  Zone: Front Planters & Pots
+    Usage:            2.00 gallons
+    Calculated:       2.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     1.00 gallons
+    Reporting Accuracy:   50.0%
+    Unreported:       1.00 gallons
+    Runs:                2 runs
+    Estimated:           1 runs ( 50.0%)
+    Flags: normal:1, zero_reported:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out | Moderate flow meter issues - some readings not captured
+
+  Zone: Front Right Turf (MP)
+    Usage:           72.00 gallons
+    Calculated:      75.00 gallons
+    Variance:        -3.00 gallons (  -4.0%)
+    Actual Reported:    22.00 gallons
+    Reporting Accuracy:   29.3%
+    Unreported:      53.00 gallons
+    Runs:                3 runs
+    Estimated:           2 runs ( 66.7%)
+    Flags: normal:1, zero_reported:2
+    [ANALYSIS] Significant flow meter reliability issues detected | Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity | Turf zone with poor flow reporting - check for clogged meter or wiring issues
+
+  Zone: Front Turf Across Sidewalk (MP)
+    Usage:          135.00 gallons
+    Calculated:     135.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     0.00 gallons
+    Reporting Accuracy:    0.0%
+    Unreported:     135.00 gallons
+    Runs:                3 runs
+    Estimated:           3 runs (100.0%)
+    Flags: zero_reported:3
+    [ANALYSIS] Flow meter likely not working - mostly zero readings | Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity | Turf zone with poor flow reporting - check for clogged meter or wiring issues
+
+  Zone: Left Side Turf (MP)
+    Usage:          126.00 gallons
+    Calculated:     126.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     2.00 gallons
+    Reporting Accuracy:    1.6%
+    Unreported:     124.00 gallons
+    Runs:                3 runs
+    Estimated:           3 runs (100.0%)
+    Flags: too_low:2, zero_reported:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity
+
+  Zone: Rear Bed/Planters at Pool (M)
+    Usage:            5.00 gallons
+    Calculated:       5.20 gallons
+    Variance:        -0.20 gallons (  -3.8%)
+    Actual Reported:     5.00 gallons
+    Reporting Accuracy:   96.2%
+    Unreported:       0.20 gallons
+    Runs:                2 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:2
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Rear Left Beds at Fence (S)
+    Usage:           33.90 gallons
+    Calculated:      33.90 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:   110.00 gallons
+    Reporting Accuracy:  100.0%
+    Unreported:       0.00 gallons
+    Runs:                1 runs
+    Estimated:           1 runs (100.0%)
+    Flags: too_high:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Rear Left Pots, Baskets & Planters (M)
+    Usage:           22.40 gallons
+    Calculated:      23.40 gallons
+    Variance:        -1.00 gallons (  -4.3%)
+    Actual Reported:    18.50 gallons
+    Reporting Accuracy:   79.1%
+    Unreported:       4.90 gallons
+    Runs:                6 runs
+    Estimated:           1 runs ( 16.7%)
+    Flags: normal:5, zero_reported:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out | Moderate flow meter issues - some readings not captured
+
+  Zone: Rear Left Turf (MP)
+    Usage:           66.00 gallons
+    Calculated:      66.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     0.00 gallons
+    Reporting Accuracy:    0.0%
+    Unreported:      66.00 gallons
+    Runs:                2 runs
+    Estimated:           2 runs (100.0%)
+    Flags: zero_reported:2
+    [ANALYSIS] Flow meter likely not working - mostly zero readings | Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity | Turf zone with poor flow reporting - check for clogged meter or wiring issues
+
+  Zone: Rear Right Bed at House and Pool (M/D)
+    Usage:           10.00 gallons
+    Calculated:      12.00 gallons
+    Variance:        -2.00 gallons ( -16.7%)
+    Actual Reported:    10.00 gallons
+    Reporting Accuracy:   83.3%
+    Unreported:       2.00 gallons
+    Runs:                2 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:2
+    [ANALYSIS] Flow rate may be too high - consider reducing average_flow_rate
+
+  Zone: Rear Right Beds at Fence (S)
+    Usage:           22.50 gallons
+    Calculated:      24.90 gallons
+    Variance:        -2.40 gallons (  -9.6%)
+    Actual Reported:    22.50 gallons
+    Reporting Accuracy:   90.4%
+    Unreported:       2.40 gallons
+    Runs:                1 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:1
+    [ANALYSIS] Zone operating normally with good flow meter accuracy
+
+  Zone: Rear Right Pots, Baskets & Planters (M)
+    Usage:           35.20 gallons
+    Calculated:      34.20 gallons
+    Variance:         1.00 gallons (  +2.9%)
+    Actual Reported:    29.50 gallons
+    Reporting Accuracy:   86.3%
+    Unreported:       4.70 gallons
+    Runs:                6 runs
+    Estimated:           1 runs ( 16.7%)
+    Flags: normal:5, zero_reported:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Rear Right Turf (MP)
+    Usage:          159.00 gallons
+    Calculated:     159.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     0.00 gallons
+    Reporting Accuracy:    0.0%
+    Unreported:     159.00 gallons
+    Runs:                3 runs
+    Estimated:           3 runs (100.0%)
+    Flags: zero_reported:3
+    [ANALYSIS] Flow meter likely not working - mostly zero readings | Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity | Turf zone with poor flow reporting - check for clogged meter or wiring issues
+
+[METHODOLOGY]
+  Usage Methodology: Uses the usage column which contains actual or estimated values
+  Calculation Methodology: Uses zone flow_rate_gpm * duration_minutes
+  Positive Variance: Usage > Calculated (possible flow meter over-reporting)
+  Negative Variance: Usage < Calculated (possible flow meter under-reporting or issues)
+[SUCCESS] Daily comparison report completed

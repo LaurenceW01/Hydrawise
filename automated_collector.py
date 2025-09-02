@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from reported_runs_manager import ReportedRunsManager
 from utils.timezone_utils import get_houston_now, get_display_timestamp, get_database_timestamp
 from utils.logging_utils import setup_instance_logging, setup_main_logging
+from utils.automated_collector_integration import initialize_tracking, add_tracking_to_collection, is_tracking_enabled
 import subprocess
 
 @dataclass
@@ -74,7 +75,14 @@ class AutomatedCollector:
         self.last_interval_time = None
         self.startup_completed = False
         
-        self.logger.info("AutomatedCollector initialized")
+        # Initialize tracking system from environment variables [[memory:7332534]]
+        try:
+            if initialize_tracking():  # Load config from environment variables
+                self.logger.info("AutomatedCollector initialized with tracking capabilities from environment config")
+            else:
+                self.logger.info("AutomatedCollector initialized (tracking disabled)")
+        except Exception as e:
+            self.logger.warning(f"AutomatedCollector initialized (tracking failed to initialize: {e})")
     
     def start(self):
         """Start the automated collection service"""
@@ -218,6 +226,27 @@ class AutomatedCollector:
             
             # NOTE: Do NOT mark today as complete - today's data is ongoing and should not be marked complete
             # Only yesterday's data should be marked complete since it represents a finalized day
+            
+            # Add tracking for status changes after collection [[memory:7332534]]
+            if is_tracking_enabled():
+                try:
+                    if self.config.collect_schedules:
+                        self.logger.info("[STARTUP] Running tracking analysis...")
+                        
+                        # Track yesterday's data if it was collected
+                        if self.config.collect_yesterday_on_startup:
+                            yesterday_date = (now - timedelta(days=1)).date()
+                            yesterday_tracking = add_tracking_to_collection(yesterday_date, "startup_yesterday")
+                            if yesterday_tracking.get("status_changes_detected", 0) > 0:
+                                self.logger.warning(f"[STARTUP] Yesterday: {yesterday_tracking['status_changes_detected']} status changes detected")
+                        
+                        # Track today's data
+                        today_date = now.date()
+                        today_tracking = add_tracking_to_collection(today_date, "startup_today")
+                        if today_tracking.get("status_changes_detected", 0) > 0:
+                            self.logger.warning(f"[STARTUP] Today: {today_tracking['status_changes_detected']} status changes detected")
+                except Exception as e:
+                    self.logger.error(f"[STARTUP] Tracking analysis failed: {e}")
             
             self.startup_completed = True
             self.last_daily_date = now.date()
@@ -426,6 +455,24 @@ class AutomatedCollector:
                         # NOTE: Do NOT mark today as complete - today's data is ongoing and should not be marked complete
                         # Only yesterday's data should be marked complete since it represents a finalized day
                         
+                        # Add tracking for status changes after daily collection [[memory:7332534]]
+                        if is_tracking_enabled():
+                            try:
+                                if self.config.collect_schedules:
+                                    self.logger.info("[DAILY] Running tracking analysis...")
+                                    # Track yesterday's data
+                                    yesterday_date = current_date - timedelta(days=1)
+                                    yesterday_tracking = add_tracking_to_collection(yesterday_date, "daily_yesterday")
+                                    if yesterday_tracking.get("status_changes_detected", 0) > 0:
+                                        self.logger.warning(f"[DAILY] Yesterday: {yesterday_tracking['status_changes_detected']} status changes detected")
+                                    
+                                    # Track today's data
+                                    today_tracking = add_tracking_to_collection(current_date, "daily_today")
+                                    if today_tracking.get("status_changes_detected", 0) > 0:
+                                        self.logger.warning(f"[DAILY] Today: {today_tracking['status_changes_detected']} status changes detected")
+                            except Exception as e:
+                                self.logger.error(f"[DAILY] Tracking analysis failed: {e}")
+                        
                         self.last_daily_date = current_date
                         self.logger.info("[DAILY] Daily collection completed")
                     except Exception as e:
@@ -448,6 +495,18 @@ class AutomatedCollector:
                         
                         # NOTE: Do NOT mark today as complete during interval collection - today's data is ongoing
                         # Interval collection updates current data but should not mark the day as complete
+                        
+                        # Add tracking for status changes after interval collection [[memory:7332534]]
+                        if is_tracking_enabled():
+                            try:
+                                if self.config.collect_schedules:
+                                    self.logger.info("[INTERVAL] Running tracking analysis...")
+                                    # Track today's data for interval updates
+                                    interval_tracking = add_tracking_to_collection(current_date, "interval_today")
+                                    if interval_tracking.get("status_changes_detected", 0) > 0:
+                                        self.logger.warning(f"[INTERVAL] {interval_tracking['status_changes_detected']} status changes detected")
+                            except Exception as e:
+                                self.logger.error(f"[INTERVAL] Tracking analysis failed: {e}")
                         
                         self.last_interval_time = now
                         self.logger.info("[INTERVAL] Interval collection completed")

@@ -1,0 +1,128 @@
+# Enhanced Analytics Log
+# Generated: 08/28/2025 09:09:16 PM CDT
+# Command: C:\Users\laure\Dev\Hydrawise\admin_enhanced_analytics.py --log daily-comparison --filter-anomalies --detailed --date today
+#====================================================================
+
+[LOG] Logging enabled - output will be saved to: logs/logfile-20250828_210916.txt
+======================================================================
+[ENHANCED] HYDRAWISE USAGE & ZONE HEALTH ANALYTICS
+======================================================================
+[ANALYSIS] DAILY USAGE COMPARISON REPORT
+
+Analysis Date: 2025-08-28
+
+[SUMMARY] Overall Usage Comparison:
+  Usage (from usage column):       152.50 gallons
+  Calculated (flow rate * time):   158.90 gallons
+  Variance:                         -6.40 gallons (  -4.0%)
+  Zones Analyzed:                       8 zones
+  Total Runs:                          24 runs
+  Estimated Runs:                       2 runs (  8.3%)
+  [FILTER] Anomaly filtering enabled - too_high/too_low values replaced with estimates
+
+[OK] Variance within acceptable range
+
+[DETAILS] Zone-by-Zone Analysis:
+
+  Zone: Front Color (S)
+    Usage:           53.50 gallons
+    Calculated:      54.50 gallons
+    Variance:        -1.00 gallons (  -1.8%)
+    Actual Reported:    53.50 gallons
+    Reporting Accuracy:   98.2%
+    Unreported:       1.00 gallons
+    Runs:                2 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:2
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Front Left Beds (D)
+    Usage:           12.50 gallons
+    Calculated:      13.00 gallons
+    Variance:        -0.50 gallons (  -3.8%)
+    Actual Reported:    12.50 gallons
+    Reporting Accuracy:   96.2%
+    Unreported:       0.50 gallons
+    Runs:                1 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Front Planters & Pots
+    Usage:            2.00 gallons
+    Calculated:       2.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     0.00 gallons
+    Reporting Accuracy:    0.0%
+    Unreported:       2.00 gallons
+    Runs:                2 runs
+    Estimated:           2 runs (100.0%)
+    Flags: zero_reported:2
+    [ANALYSIS] Flow meter likely not working - mostly zero readings | Flow rate appears accurate when anomalies filtered out | Poor flow meter accuracy - frequent zero readings despite run activity
+
+  Zone: Rear Bed/Planters at Pool (M)
+    Usage:            6.50 gallons
+    Calculated:       7.80 gallons
+    Variance:        -1.30 gallons ( -16.7%)
+    Actual Reported:     6.50 gallons
+    Reporting Accuracy:   83.3%
+    Unreported:       1.30 gallons
+    Runs:                3 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:3
+    [ANALYSIS] Flow rate may be too high - consider reducing average_flow_rate | Drip/micro irrigation may have lower actual flow than configured rate
+
+  Zone: Rear Left Bed at House (M/D)
+    Usage:            6.00 gallons
+    Calculated:       6.00 gallons
+    Variance:         0.00 gallons (  +0.0%)
+    Actual Reported:     6.00 gallons
+    Reporting Accuracy:  100.0%
+    Unreported:       0.00 gallons
+    Runs:                1 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:1
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+  Zone: Rear Left Pots, Baskets & Planters (M)
+    Usage:           21.50 gallons
+    Calculated:      23.40 gallons
+    Variance:        -1.90 gallons (  -8.1%)
+    Actual Reported:    21.50 gallons
+    Reporting Accuracy:   91.9%
+    Unreported:       1.90 gallons
+    Runs:                6 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:6
+    [ANALYSIS] Zone operating normally with good flow meter accuracy
+
+  Zone: Rear Right Bed at House and Pool (M/D)
+    Usage:           15.00 gallons
+    Calculated:      18.00 gallons
+    Variance:        -3.00 gallons ( -16.7%)
+    Actual Reported:    15.00 gallons
+    Reporting Accuracy:   83.3%
+    Unreported:       3.00 gallons
+    Runs:                3 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:3
+    [ANALYSIS] Flow rate may be too high - consider reducing average_flow_rate
+
+  Zone: Rear Right Pots, Baskets & Planters (M)
+    Usage:           35.50 gallons
+    Calculated:      34.20 gallons
+    Variance:         1.30 gallons (  +3.8%)
+    Actual Reported:    35.50 gallons
+    Reporting Accuracy:  100.0%
+    Unreported:       0.00 gallons
+    Runs:                6 runs
+    Estimated:           0 runs (  0.0%)
+    Flags: normal:6
+    [ANALYSIS] Flow rate appears accurate when anomalies filtered out
+
+[METHODOLOGY]
+  Usage Methodology: Uses the usage column which contains actual or estimated values
+  Calculation Methodology: Uses zone flow_rate_gpm * duration_minutes
+  Positive Variance: Usage > Calculated (possible flow meter over-reporting)
+  Negative Variance: Usage < Calculated (possible flow meter under-reporting or issues)
+[SUCCESS] Daily comparison report completed

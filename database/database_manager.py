@@ -420,8 +420,168 @@ class DatabaseManager:
                 )
             """)
             
+        # Add rain sensor and status change tracking tables [[memory:7332534]]
+        self._add_tracking_tables(cursor)
+        
         conn.commit()
         logger.info("Schema migration completed successfully")
+    
+    def _add_tracking_tables(self, cursor):
+        """
+        Add new tables for rain sensor and status change tracking
+        Based on requirements in docs/RAIN_SENSOR_AND_STATUS_TRACKING_REQUIREMENTS.md
+        """
+        # Check if rain sensor status history table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='rain_sensor_status_history'")
+        if not cursor.fetchone():
+            logger.info("Creating rain_sensor_status_history table for sensor tracking")
+            cursor.execute("""
+                CREATE TABLE rain_sensor_status_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    status_date DATE NOT NULL,                    -- Date sensor status was detected (Houston time)
+                    status_time TIMESTAMP NOT NULL,               -- Exact time sensor status was detected (Houston time)
+                    sensor_status TEXT NOT NULL,                  -- Raw sensor status text from dashboard
+                    is_stopping_irrigation BOOLEAN NOT NULL,     -- True if sensor is actively stopping irrigation
+                    irrigation_suspended BOOLEAN NOT NULL,       -- True if irrigation is suspended due to sensor
+                    sensor_text_raw TEXT,                         -- Complete sensor status text found on dashboard
+                    collection_run_id TEXT,                       -- Which automated collection detected this
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    
+                    UNIQUE(status_date, status_time)              -- Prevent duplicate status entries for same time
+                )
+            """)
+        
+        # Check if scheduled run status changes table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_run_status_changes'")
+        if not cursor.fetchone():
+            logger.info("Creating scheduled_run_status_changes table for popup change tracking")
+            cursor.execute("""
+                CREATE TABLE scheduled_run_status_changes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    zone_id INTEGER NOT NULL,
+                    zone_name TEXT NOT NULL,
+                    
+                    -- When the change was detected
+                    change_detected_date DATE NOT NULL,          -- Date change was detected (Houston time)
+                    change_detected_time TIMESTAMP NOT NULL,     -- Exact time change was detected (Houston time)
+                    collection_run_id TEXT,                       -- Which automated collection detected this
+                    
+                    -- Current run being compared (from web scraping)
+                    current_run_date DATE NOT NULL,              -- Date of current run being collected
+                    current_scheduled_start_time TIMESTAMP NOT NULL,  -- Scheduled start time of current run
+                    current_status_type TEXT NOT NULL,           -- Classified status type (rainfall_abort, sensor_abort, etc.)
+                    current_popup_text TEXT,                     -- Complete current popup text
+                    
+                    -- Previous run used for comparison (from database)
+                    previous_run_date DATE NOT NULL,             -- Date of previous run used for comparison
+                    previous_scheduled_start_time TIMESTAMP NOT NULL,  -- Scheduled start time of previous run
+                    previous_status_type TEXT NOT NULL,          -- Classified status type of previous run
+                    previous_popup_text TEXT,                    -- Complete previous popup text
+                    
+                    -- Change analysis
+                    change_type TEXT NOT NULL CHECK (change_type IN (
+                        'rainfall_abort',                        -- "Aborted due to high daily rainfall"
+                        'sensor_abort',                          -- "Aborted due to sensor input"
+                        'user_suspended',                        -- "Water cycle suspended"
+                        'normal_restored',                       -- Changed back to normal operation
+                        'other_change'                           -- Any other status change
+                    )),
+                    irrigation_prevented BOOLEAN DEFAULT TRUE,   -- Does this change prevent irrigation?
+                    expected_gallons_lost REAL DEFAULT 0,       -- Water that won't be delivered due to this change
+                    time_since_last_record_hours REAL,          -- Hours between previous record and current detection
+                    
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    
+                    FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+                )
+            """)
+        
+        # Check if daily status summary table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='daily_status_summary'")
+        if not cursor.fetchone():
+            logger.info("Creating daily_status_summary table for daily change aggregation")
+            cursor.execute("""
+                CREATE TABLE daily_status_summary (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    summary_date DATE NOT NULL UNIQUE,           -- Date being summarized (Houston time)
+                    
+                    -- Change counts by type
+                    rainfall_aborts_count INTEGER DEFAULT 0,     -- Number of rainfall aborts detected
+                    sensor_aborts_count INTEGER DEFAULT 0,       -- Number of sensor aborts detected
+                    user_suspensions_count INTEGER DEFAULT 0,    -- Number of user suspensions detected
+                    normal_restorations_count INTEGER DEFAULT 0, -- Number of restorations to normal operation
+                    total_changes_count INTEGER DEFAULT 0,       -- Total status changes detected
+                    
+                    -- Impact summary
+                    zones_affected_count INTEGER DEFAULT 0,      -- Number of unique zones affected
+                    total_gallons_lost REAL DEFAULT 0,           -- Total water prevented from being delivered
+                    irrigation_runs_prevented INTEGER DEFAULT 0, -- Number of irrigation runs prevented
+                    
+                    -- Rain sensor context (from sensor history table)
+                    sensor_stopping_periods INTEGER DEFAULT 0,   -- How many times sensor was active during day
+                    sensor_active_duration_minutes INTEGER DEFAULT 0,  -- Total minutes sensor was active
+                    
+                    -- Notification tracking
+                    email_notification_sent BOOLEAN DEFAULT FALSE,  -- Whether daily email was sent
+                    email_sent_at TIMESTAMP,                     -- When email was sent (Houston time)
+                    email_recipients TEXT,                       -- JSON array of email recipients
+                    
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        
+        # Check if email notifications log table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='email_notifications_log'")
+        if not cursor.fetchone():
+            logger.info("Creating email_notifications_log table for email tracking")
+            cursor.execute("""
+                CREATE TABLE email_notifications_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    notification_date DATE NOT NULL,             -- Date notification was sent (Houston time)
+                    notification_type TEXT NOT NULL CHECK (notification_type IN (
+                        'sensor_change',                         -- Rain sensor status change notification
+                        'daily_summary',                         -- Daily summary of all changes
+                        'status_changes',                        -- Individual status change notifications
+                        'comprehensive_status',                  -- Comprehensive status alerts (changes + current)
+                        'email_test',                           -- Email system test messages
+                        'comprehensive_test'                     -- Comprehensive email format test
+                    )),
+                    trigger_event TEXT NOT NULL,                 -- What triggered this email
+                    recipients TEXT NOT NULL,                    -- JSON array of email addresses
+                    subject TEXT NOT NULL,                       -- Email subject line
+                    body_preview TEXT,                           -- First 200 chars of email body
+                    affected_zones TEXT,                         -- JSON array of zone names affected
+                    sensor_status_changed BOOLEAN DEFAULT FALSE, -- Whether rain sensor status changed
+                    runs_affected_count INTEGER DEFAULT 0,       -- Number of runs affected
+                    email_sent BOOLEAN DEFAULT FALSE,            -- Whether email was successfully sent
+                    sent_at TIMESTAMP,                           -- When email was actually sent
+                    error_message TEXT,                          -- Error message if email failed to send
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        
+        # Create indexes for the new tables to optimize queries
+        logger.info("Creating indexes for tracking tables")
+        
+        # Indexes for rain_sensor_status_history
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rain_sensor_status_date ON rain_sensor_status_history(status_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rain_sensor_status_time ON rain_sensor_status_history(status_time)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rain_sensor_stopping ON rain_sensor_status_history(is_stopping_irrigation)")
+        
+        # Indexes for scheduled_run_status_changes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_changes_date_zone ON scheduled_run_status_changes(change_detected_date, zone_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_changes_type ON scheduled_run_status_changes(change_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_changes_zone ON scheduled_run_status_changes(zone_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_status_changes_time ON scheduled_run_status_changes(change_detected_time)")
+        
+        # Indexes for daily_status_summary
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_summary_date ON daily_status_summary(summary_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_summary_email_sent ON daily_status_summary(email_notification_sent)")
+        
+        # Indexes for email_notifications_log
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_notifications_date ON email_notifications_log(notification_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_notifications_type ON email_notifications_log(notification_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_notifications_sent ON email_notifications_log(email_sent)")
                 
     def _initialize_zones(self):
         """Initialize zones table with configured irrigation zones"""

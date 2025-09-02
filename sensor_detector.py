@@ -99,7 +99,7 @@ def check_rain_sensor_status(self) -> Dict[str, any]:
                 if any(keyword in sensor_lower for keyword in suspension_keywords):
                     sensor_info['rain_sensor_active'] = True
                     sensor_info['irrigation_suspended'] = True
-                    self.logger.warning(f"[SYMBOL][SYMBOL]  Rain sensor detected: {sensor_text}")
+                    self.logger.warning(f"[ALERT] Rain sensor detected: {sensor_text}")
                 else:
                     sensor_info['rain_sensor_active'] = False
                     sensor_info['irrigation_suspended'] = False
