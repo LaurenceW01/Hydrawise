@@ -364,91 +364,47 @@ class ComprehensiveStatusMonitor:
                                            current_alerts: List[CurrentStatusAlert],
                                            target_date: date, 
                                            sensor_status_changed: bool = False) -> Dict[str, str]:
-        """Generate email content focusing on CHANGES, not repetitive current status"""
+        """Generate concise email content using the improved format from ComprehensiveEmailGenerator"""
         
-        # Determine email urgency and subject
-        critical_alerts = [a for a in current_alerts if a.severity == 'critical']
-        has_changes = change_results.changes_detected > 0
+        # Use the improved email generator for consistent, concise formatting
+        from comprehensive_rain_sensor_email import ComprehensiveEmailGenerator
         
-        if critical_alerts and sensor_status_changed:
-            subject = f"CRITICAL: Hydrawise - Rain sensor status CHANGED"
-            urgency = "CRITICAL"
-        elif has_changes:
-            affected_count = len(change_results.affected_zones)
-            subject = f"Hydrawise Alert - {affected_count} zones affected by irrigation changes"
-            urgency = "WARNING"
-        else:
-            subject = f"Hydrawise Update - Status changes detected"
-            urgency = "INFO"
-        
-        # Build email body
-        body = f"""Hydrawise Status Change Report - {target_date.strftime('%B %d, %Y')}
-URGENCY: {urgency}
+        try:
+            generator = ComprehensiveEmailGenerator(self.db_path)
+            email_content = generator.generate_comprehensive_email_content(target_date)
+            
+            # If this is a critical sensor change, update the subject to reflect urgency
+            critical_alerts = [a for a in current_alerts if a.severity == 'critical']
+            if critical_alerts and sensor_status_changed:
+                email_content['subject'] = f"CRITICAL: {email_content['subject']} - Rain sensor status CHANGED"
+            
+            return email_content
+            
+        except Exception as e:
+            self.logger.error(f"Error generating improved email content: {e}")
+            
+            # Fallback to a simple summary if the improved generator fails
+            has_changes = change_results.changes_detected > 0
+            critical_alerts = [a for a in current_alerts if a.severity == 'critical']
+            
+            if critical_alerts and sensor_status_changed:
+                subject = f"CRITICAL: Hydrawise - Rain sensor status CHANGED"
+            elif has_changes:
+                unique_zones = len(set(change_results.affected_zones)) if change_results.affected_zones else 0
+                subject = f"Hydrawise Status Update - {unique_zones} zones changed"
+            else:
+                subject = f"Hydrawise Status Update - {target_date.strftime('%B %d')}"
+            
+            body = f"""Hydrawise Status Report - {target_date.strftime('%B %d, %Y')}
 
+Status changes detected: {change_results.changes_detected}
+Zones affected: {len(set(change_results.affected_zones)) if change_results.affected_zones else 0}
+
+Generated: {get_houston_now().strftime('%B %d, %Y %I:%M %p')} Houston time
+System: Hydrawise Status Monitor
 """
-        
-        # CRITICAL FIX: Only include sensor status if it actually CHANGED
-        if critical_alerts and sensor_status_changed:
-            body += "RAIN SENSOR STATUS CHANGE:\n"
-            for alert in critical_alerts:
-                body += f"🔴 {alert.message}\n"
-                if alert.expected_gallons_lost > 0:
-                    body += f"   Water impact: {alert.expected_gallons_lost:.1f} gallons\n"
-            body += "\n"
-        
-        # Current non-critical alerts (ongoing issues with zones)
-        non_critical_alerts = [a for a in current_alerts if a.severity != 'critical']
-        if non_critical_alerts:
-            body += "ZONES WITH ONGOING IRRIGATION ISSUES:\n"
-            for alert in non_critical_alerts:
-                icon = "🟡" if alert.severity == 'warning' else "🔵"
-                body += f"{icon} {alert.message}\n"
-                
-                if alert.affected_zones and alert.affected_zones[0] != 'ALL_ZONES':
-                    unique_zones = list(set(alert.affected_zones))
-                    if len(unique_zones) <= 5:
-                        body += f"   Affected zones: {', '.join(unique_zones)}\n"
-                    else:
-                        body += f"   Affected zones: {len(unique_zones)} zones ({', '.join(unique_zones[:3])}, and {len(unique_zones)-3} more)\n"
-                
-                if alert.expected_gallons_lost > 0:
-                    body += f"   Water impact: {alert.expected_gallons_lost:.1f} gallons\n"
-            body += "\n"
-        
-        # Changes detected
-        if has_changes:
-            body += "📊 STATUS CHANGES DETECTED:\n\n"
             
-            for change_type, count in change_results.changes_by_type.items():
-                if change_type == 'rainfall_abort':
-                    body += f"🌧️ HIGH RAINFALL ABORTS: {count} zones\n"
-                elif change_type == 'sensor_abort':
-                    body += f"🔧 SENSOR INPUT ABORTS: {count} zones\n"
-                elif change_type == 'user_suspended':
-                    body += f"⏸️ USER SUSPENSIONS: {count} zones\n"
-                elif change_type == 'normal_restored':
-                    body += f"✅ NORMAL OPERATION RESTORED: {count} zones\n"
-                else:
-                    body += f"📝 OTHER CHANGES: {count} zones\n"
-            
-            body += f"\nZones with changes: {', '.join(change_results.affected_zones)}\n"
-            body += f"Total water impact: {change_results.total_gallons_lost:.1f} gallons\n\n"
-        
-        # Summary and next steps
-        body += "SUMMARY:\n"
-        if critical_alerts:
-            body += "🌱 PLANT MONITORING REQUIRED: Rain sensor has stopped all automatic irrigation\n"
-            body += "   Monitor plants carefully for water stress until sensor re-enables\n"
-        elif current_alerts:
-            body += f"⚠️ {len(current_alerts)} zone runs not receiving irrigation\n"
-        
-        if has_changes:
-            body += f"📈 {change_results.changes_detected} status changes detected for historical analysis\n"
-        
-        body += f"\nReport generated: {get_houston_now().strftime('%B %d, %Y %I:%M %p')} Houston time\n"
-        body += "This comprehensive report tracks both changes and current status.\n"
-        
-        return {'subject': subject, 'body': body}
+            return {'subject': subject, 'body': body}
 
 
 def integrate_comprehensive_monitoring(tracking_system, target_date: date, 
