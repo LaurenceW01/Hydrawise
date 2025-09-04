@@ -42,6 +42,21 @@ def start_browser(self):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
+    # Set Chrome binary location for render.com
+    chrome_binary_paths = [
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable", 
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+        os.getenv('CHROME_BIN')
+    ]
+    
+    for chrome_path in chrome_binary_paths:
+        if chrome_path and os.path.exists(chrome_path):
+            options.binary_location = chrome_path
+            logger.info(f"Using Chrome binary: {chrome_path}")
+            break
+    
     # Conservative GPU disabling - just enough to prevent errors without breaking functionality
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-gpu-sandbox")

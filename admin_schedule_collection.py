@@ -75,22 +75,21 @@ def cmd_collect(args):
         # Clear existing data if requested
         if args.clear:
             print("[DELETE]  Clearing existing scheduled runs for this date...")
-            with sqlite3.connect(storage.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute('DELETE FROM scheduled_runs WHERE schedule_date = ?', (target_date,))
-                deleted_count = cursor.rowcount
-                conn.commit()
-                print(f"   Cleared {deleted_count} existing records")
+            from database.db_config import is_postgresql
+            if is_postgresql():
+                query = "DELETE FROM scheduled_runs WHERE schedule_date = %s"
+            else:
+                query = "DELETE FROM scheduled_runs WHERE schedule_date = ?"
+            deleted_count = storage.adapter.execute_delete(query, (target_date,))
+            print(f"   Cleared {deleted_count} existing records")
         
         # Check existing data
-        with sqlite3.connect(storage.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) FROM scheduled_runs WHERE schedule_date = ?', (target_date,))
-            existing_count = cursor.fetchone()[0]
-            if existing_count > 0:
-                print(f"[WARNING]  Found {existing_count} existing scheduled runs for {target_date}")
-                if not args.clear:
-                    print("   Use --clear to remove existing data before collection")
+        existing_runs = storage.get_scheduled_runs(target_date)
+        existing_count = len(existing_runs)
+        if existing_count > 0:
+            print(f"[WARNING]  Found {existing_count} existing scheduled runs for {target_date}")
+            if not args.clear:
+                print("   Use --clear to remove existing data before collection")
         
         # Initialize scraper
         print("[WEB] Starting browser and logging in...")

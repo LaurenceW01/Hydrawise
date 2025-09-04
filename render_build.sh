@@ -3,39 +3,43 @@
 
 echo "=== Installing Chrome for Selenium ==="
 
-# Update package lists
-apt-get update
+# Install Chrome via direct download (more reliable on render.com)
+wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
 
-# Install Chrome dependencies
+# Update and install Chrome with dependencies
+apt-get update
 apt-get install -y \
-    wget \
-    gnupg \
-    unzip \
-    curl \
+    google-chrome-stable \
     xvfb \
     libxi6 \
     libgconf-2-4 \
-    default-jdk
+    libnss3 \
+    libxss1 \
+    libasound2 \
+    libxtst6 \
+    libxrandr2 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libatk1.0-0 \
+    libcairo-gobject2 \
+    libgtk-3-0 \
+    libgdk-pixbuf2.0-0
 
-# Add Google's official GPG key
-wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+# Verify Chrome installation
+if command -v google-chrome >/dev/null 2>&1; then
+    echo "✅ Chrome installed successfully"
+    google-chrome --version
+else
+    echo "❌ Chrome installation failed"
+    exit 1
+fi
 
-# Add Google Chrome repository
-echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-
-# Update package lists again
-apt-get update
-
-# Install Google Chrome
-apt-get install -y google-chrome-stable
-
-# Verify installation
-google-chrome --version
-
-echo "=== Chrome installation completed ==="
+# Set Chrome binary path for Selenium
+export CHROME_BIN=/usr/bin/google-chrome
 
 # Install Python dependencies
 echo "=== Installing Python dependencies ==="
 pip install -r requirements.txt
 
-echo "=== Build completed ==="
+echo "=== Build completed successfully ==="
