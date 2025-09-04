@@ -10,25 +10,33 @@ echo "Setting up Chrome installation directory: $STORAGE_DIR"
 mkdir -p $STORAGE_DIR/chrome
 cd $STORAGE_DIR/chrome
 
-# Download Chrome stable .deb package (more reliable)
-echo "Downloading Google Chrome stable..."
-if ! wget -O google-chrome-stable_current_amd64.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; then
-    echo "❌ Failed to download Chrome .deb package"
-    exit 1
+# Check if Chrome is already installed (build caching optimization)
+if [ -f "./opt/google/chrome/chrome" ]; then
+    echo "✅ Chrome already installed (using cached version)"
+    echo "Chrome location: $STORAGE_DIR/chrome/opt/google/chrome/chrome"
+else
+    echo "Chrome not found in cache, downloading..."
+    
+    # Download Chrome stable .deb package (more reliable)
+    echo "Downloading Google Chrome stable..."
+    if ! wget -O google-chrome-stable_current_amd64.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; then
+        echo "❌ Failed to download Chrome .deb package"
+        exit 1
+    fi
+
+    # Extract Chrome from .deb package (no installation needed)
+    echo "Extracting Chrome from .deb package..."
+    if ! dpkg-deb -x google-chrome-stable_current_amd64.deb ./; then
+        echo "❌ Failed to extract Chrome .deb package"
+        exit 1
+    fi
+
+    # Clean up .deb file
+    rm google-chrome-stable_current_amd64.deb
+
+    # Chrome binary will be at ./opt/google/chrome/chrome
+    echo "✅ Chrome extracted to: $STORAGE_DIR/chrome/opt/google/chrome/chrome"
 fi
-
-# Extract Chrome from .deb package (no installation needed)
-echo "Extracting Chrome from .deb package..."
-if ! dpkg-deb -x google-chrome-stable_current_amd64.deb ./; then
-    echo "❌ Failed to extract Chrome .deb package"
-    exit 1
-fi
-
-# Clean up .deb file
-rm google-chrome-stable_current_amd64.deb
-
-# Chrome binary will be at ./opt/google/chrome/chrome
-echo "Chrome extracted to: $STORAGE_DIR/chrome/opt/google/chrome/chrome"
 
 # Download latest stable ChromeDriver
 echo "Downloading ChromeDriver..."
@@ -39,12 +47,18 @@ echo "Chrome version: $CHROME_VERSION"
 CHROME_MAJOR_VERSION=${CHROME_VERSION%%.*}
 echo "Chrome major version: $CHROME_MAJOR_VERSION"
 
-# Download ChromeDriver - use webdriver-manager (most reliable)
-echo "Downloading ChromeDriver using webdriver-manager..."
-pip install webdriver-manager
+# Check if ChromeDriver is already installed (build caching optimization)
+if [ -f "./chromedriver" ]; then
+    echo "✅ ChromeDriver already installed (using cached version)"
+else
+    echo "ChromeDriver not found in cache, downloading..."
+    
+    # Download ChromeDriver - use webdriver-manager (most reliable)
+    echo "Downloading ChromeDriver using webdriver-manager..."
+    pip install webdriver-manager
 
-# Create a simple Python script to download ChromeDriver
-cat > download_chromedriver.py << 'EOF'
+    # Create a simple Python script to download ChromeDriver
+    cat > download_chromedriver.py << 'EOF'
 import os
 from webdriver_manager.chrome import ChromeDriverManager
 
@@ -64,12 +78,13 @@ except Exception as e:
     exit(1)
 EOF
 
-if ! python download_chromedriver.py; then
-    echo "❌ Failed to download ChromeDriver"
-    exit 1
-fi
+    if ! python download_chromedriver.py; then
+        echo "❌ Failed to download ChromeDriver"
+        exit 1
+    fi
 
-rm download_chromedriver.py
+    rm download_chromedriver.py
+fi
 
 # Add Chrome to PATH for this build
 export PATH="$STORAGE_DIR/chrome:$PATH"
