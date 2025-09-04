@@ -149,6 +149,7 @@ def health_check_server():
     """
     import socket
     import json
+    import logging
     from datetime import datetime
     
     logger = logging.getLogger('health_check')
