@@ -1,0 +1,94 @@
+# Render.com Configuration for Hydrawise Automated Collection
+# This file defines the services and configuration for deploying to render.com
+
+services:
+  # Main automated collection service
+  - type: web
+    name: hydrawise-collector
+    env: python3
+    plan: starter  # Can be upgraded to standard/pro as needed
+    buildCommand: pip install -r requirements.txt
+    startCommand: python render_deployment.py
+    
+    # Health check configuration
+    healthCheckPath: /
+    
+    # Environment variables (set in render.com dashboard)
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: DATABASE_TYPE
+        value: postgresql
+      - key: LOGGING_MODE
+        value: stdout
+      - key: ENABLE_FILE_LOGGING
+        value: false
+      - key: ENABLE_CONSOLE_LOGGING
+        value: true
+      - key: LOG_LEVEL
+        value: INFO
+      - key: HEADLESS_MODE
+        value: true
+      - key: TZ
+        value: America/Chicago
+      
+      # Collection schedule (Houston time)
+      - key: DAILY_COLLECTION_TIME
+        value: "06:00"
+      - key: HOURLY_INTERVAL_MINUTES
+        value: "60"
+      - key: ACTIVE_START_TIME
+        value: "06:00"
+      - key: ACTIVE_END_TIME
+        value: "20:00"
+      
+      # Collection options
+      - key: COLLECTION_ENABLED
+        value: true
+      - key: COLLECT_SCHEDULES
+        value: true
+      - key: COLLECT_REPORTED_RUNS
+        value: true
+      - key: COLLECT_YESTERDAY_ON_STARTUP
+        value: true
+      - key: SMART_STARTUP_CHECK
+        value: true
+      
+      # Hydrawise credentials (set these securely in render.com dashboard)
+      # - key: HYDRAWISE_USERNAME
+      #   fromSecret: hydrawise-username
+      # - key: HYDRAWISE_PASSWORD
+      #   fromSecret: hydrawise-password
+      
+      # Email notification settings (optional)
+      # - key: EMAIL_NOTIFICATIONS_ENABLED
+      #   value: false
+      # - key: EMAIL_RECIPIENTS
+      #   value: ""
+      # - key: SMTP_SERVER
+      #   value: smtp.gmail.com
+      # - key: SMTP_PORT
+      #   value: "587"
+      # - key: SMTP_USERNAME
+      #   fromSecret: smtp-username
+      # - key: SMTP_PASSWORD
+      #   fromSecret: smtp-password
+      # - key: SMTP_FROM_ADDRESS
+      #   fromSecret: smtp-from-address
+
+  # PostgreSQL database service
+  - type: pserv
+    name: hydrawise-database
+    plan: starter  # Can be upgraded as needed
+    
+    # Database configuration
+    databaseName: hydrawise
+    databaseUser: hydrawise
+    
+    # Backup configuration
+    # backupRetentionDays: 7
+
+# Additional configuration
+buildSettings:
+  # Python build settings
+  pythonVersion: "3.11"

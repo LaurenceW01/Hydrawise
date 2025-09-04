@@ -1,0 +1,101 @@
+# Local Development Environment Variables for Hydrawise
+# Copy this to .env and fill in your values
+
+# =============================================================================
+# HYDRAWISE CREDENTIALS (REQUIRED)
+# =============================================================================
+HYDRAWISE_USERNAME=your_hydrawise_username
+HYDRAWISE_PASSWORD=your_hydrawise_password
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+# Use SQLite for local development
+DATABASE_TYPE=sqlite
+DB_PATH=database/irrigation_data.db
+
+# Alternative: Use local PostgreSQL for testing
+# DATABASE_TYPE=postgresql
+# DATABASE_URL=postgresql://hydrawise:password@localhost:5432/hydrawise_db
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+LOGGING_MODE=file
+LOG_LEVEL=INFO
+ENABLE_FILE_LOGGING=true
+ENABLE_CONSOLE_LOGGING=true
+LOG_DIRECTORY=logs
+LOG_FORMAT=detailed
+
+# =============================================================================
+# COLLECTION SCHEDULE (Houston Time - 24-hour format)
+# =============================================================================
+DAILY_COLLECTION_TIME=06:00
+HOURLY_INTERVAL_MINUTES=60
+ACTIVE_START_TIME=06:00
+ACTIVE_END_TIME=20:00
+
+# =============================================================================
+# COLLECTION OPTIONS
+# =============================================================================
+COLLECTION_ENABLED=true
+COLLECT_SCHEDULES=true
+COLLECT_REPORTED_RUNS=true
+COLLECT_YESTERDAY_ON_STARTUP=true
+SMART_STARTUP_CHECK=true
+
+# =============================================================================
+# BROWSER CONFIGURATION
+# =============================================================================
+HEADLESS_MODE=false  # Set to true for headless mode, false to see browser
+
+# =============================================================================
+# TIMEZONE
+# =============================================================================
+TZ=America/Chicago  # Houston, TX timezone
+
+# =============================================================================
+# TRACKING SYSTEM (OPTIONAL)
+# =============================================================================
+TRACK_SENSOR_STATUS=true
+TRACK_STATUS_CHANGES=true
+
+# =============================================================================
+# EMAIL NOTIFICATIONS (OPTIONAL)
+# =============================================================================
+EMAIL_NOTIFICATIONS_ENABLED=false
+EMAIL_RECIPIENTS=your_email@example.com,another@example.com
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_smtp_username
+SMTP_PASSWORD=your_smtp_app_password
+SMTP_FROM_ADDRESS=your_email@example.com
+
+# Email timing and limits
+DAILY_EMAIL_TIME=19:00
+MAX_EMAILS_PER_DAY=1
+
+# Email notification types
+SENSOR_CHANGE_NOTIFICATIONS=true
+STATUS_CHANGE_NOTIFICATIONS=true
+DAILY_SUMMARY_NOTIFICATIONS=true
+
+# =============================================================================
+# DEVELOPMENT OPTIONS
+# =============================================================================
+# Set to true for more verbose logging during development
+# LOG_LEVEL=DEBUG
+
+# Force specific logging mode for testing
+# LOGGING_MODE=stdout  # Test stdout logging locally
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# 1. Copy this file to .env in your project root
+# 2. Fill in your Hydrawise credentials
+# 3. Adjust collection times as needed
+# 4. For email notifications, use app passwords for Gmail
+# 5. The system will create the SQLite database automatically
+# 6. All times are in Houston, TX timezone (America/Chicago)

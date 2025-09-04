@@ -1,0 +1,107 @@
+# Render.com Environment Variables for Hydrawise
+# Set these in your render.com web service environment settings
+
+# =============================================================================
+# HYDRAWISE CREDENTIALS (REQUIRED - SET SECURELY IN RENDER.COM)
+# =============================================================================
+HYDRAWISE_USERNAME=your_hydrawise_username
+HYDRAWISE_PASSWORD=your_hydrawise_password
+
+# =============================================================================
+# DATABASE CONFIGURATION (AUTOMATIC)
+# =============================================================================
+# These are automatically set when you link a PostgreSQL database in render.com
+DATABASE_TYPE=postgresql
+# DATABASE_URL=postgresql://username:password@hostname:port/database_name (auto-provided)
+
+# =============================================================================
+# LOGGING CONFIGURATION (RENDER.COM OPTIMIZED)
+# =============================================================================
+LOGGING_MODE=stdout
+LOG_LEVEL=INFO
+ENABLE_FILE_LOGGING=false
+ENABLE_CONSOLE_LOGGING=true
+LOG_FORMAT=simple
+
+# =============================================================================
+# BROWSER CONFIGURATION (CLOUD OPTIMIZED)
+# =============================================================================
+HEADLESS_MODE=true  # Must be true for render.com
+
+# =============================================================================
+# TIMEZONE
+# =============================================================================
+TZ=America/Chicago  # Houston, TX timezone
+
+# =============================================================================
+# COLLECTION SCHEDULE (Houston Time - 24-hour format)
+# =============================================================================
+DAILY_COLLECTION_TIME=06:00
+HOURLY_INTERVAL_MINUTES=60
+ACTIVE_START_TIME=06:00
+ACTIVE_END_TIME=20:00
+
+# =============================================================================
+# COLLECTION OPTIONS
+# =============================================================================
+COLLECTION_ENABLED=true
+COLLECT_SCHEDULES=true
+COLLECT_REPORTED_RUNS=true
+COLLECT_YESTERDAY_ON_STARTUP=true
+SMART_STARTUP_CHECK=true
+
+# =============================================================================
+# TRACKING SYSTEM (OPTIONAL)
+# =============================================================================
+TRACK_SENSOR_STATUS=true
+TRACK_STATUS_CHANGES=true
+
+# =============================================================================
+# EMAIL NOTIFICATIONS (OPTIONAL)
+# =============================================================================
+EMAIL_NOTIFICATIONS_ENABLED=false
+# EMAIL_RECIPIENTS=your_email@example.com,another@example.com
+# SMTP_SERVER=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USERNAME=your_smtp_username
+# SMTP_PASSWORD=your_smtp_app_password
+# SMTP_FROM_ADDRESS=your_email@example.com
+
+# Email timing and limits
+# DAILY_EMAIL_TIME=19:00
+# MAX_EMAILS_PER_DAY=1
+
+# Email notification types
+# SENSOR_CHANGE_NOTIFICATIONS=true
+# STATUS_CHANGE_NOTIFICATIONS=true
+# DAILY_SUMMARY_NOTIFICATIONS=true
+
+# =============================================================================
+# RENDER.COM SPECIFIC (AUTOMATIC)
+# =============================================================================
+# These are automatically set by render.com:
+# RENDER=true
+# RENDER_SERVICE_ID=srv-xxxxx
+# PORT=10000 (or assigned port)
+# PYTHON_VERSION=3.11
+
+# =============================================================================
+# INSTRUCTIONS FOR RENDER.COM SETUP
+# =============================================================================
+# 
+# 1. In your render.com web service settings, go to Environment tab
+# 2. Add each variable above (except the automatic ones)
+# 3. For sensitive values like passwords, mark them as "Secret"
+# 4. Link your PostgreSQL database service to auto-populate DATABASE_URL
+# 5. Deploy your service
+# 
+# Required Variables (minimum):
+# - HYDRAWISE_USERNAME
+# - HYDRAWISE_PASSWORD
+# - DATABASE_TYPE=postgresql
+# 
+# The DATABASE_URL will be automatically provided when you link a PostgreSQL
+# database service in render.com.
+# 
+# All other variables are optional and will use sensible defaults for
+# render.com deployment.

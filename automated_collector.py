@@ -17,7 +17,6 @@ import sys
 import time
 import logging
 import threading
-import sqlite3
 from datetime import datetime, date, time as dt_time, timedelta
 from typing import Optional
 from dataclasses import dataclass
@@ -27,8 +26,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reported_runs_manager import ReportedRunsManager
 from utils.timezone_utils import get_houston_now, get_display_timestamp, get_database_timestamp
-from utils.logging_utils import setup_instance_logging, setup_main_logging
+from utils.universal_logging import setup_universal_logging, get_logger_for_module
 from utils.automated_collector_integration import initialize_tracking, add_tracking_to_collection, is_tracking_enabled
+from database.universal_database_manager import get_universal_database_manager
 import subprocess
 
 @dataclass
@@ -67,8 +67,8 @@ class AutomatedCollector:
         # Initialize the reported runs manager with proper headless setting
         self.manager = ReportedRunsManager(headless=self.config.headless_mode)
         
-        # Setup logging with file handler
-        self.logger, self.log_filename = setup_instance_logging(__name__, "automated_collector")
+        # Setup universal logging (works for both local and render.com)
+        self.logger, self.log_filename = setup_universal_logging(__name__, "automated_collector")
         
         # Track collection state
         self.last_daily_date = None
@@ -327,28 +327,24 @@ class AutomatedCollector:
         """Check if we should collect yesterday's data based on completion tracking"""
         try:
             yesterday = now.date() - timedelta(days=1)
-            db_path = 'database/irrigation_data.db'
             
-            # Check if database exists
-            if not os.path.exists(db_path):
-                self.logger.info("   Database doesn't exist, will collect yesterday's data")
-                return True
-            
-            # Check completion status for yesterday
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
+            # Check completion status for yesterday using universal database manager
+            with get_universal_database_manager() as db:
+                # Check if collection_status table exists, create if not
+                if not db.adapter.table_exists('collection_status'):
+                    self._create_collection_status_table(db)
                 
                 # Check if yesterday's collection is marked as complete
-                cursor.execute("""
+                result = db.adapter.execute_query("""
                     SELECT schedules_complete, runs_complete 
                     FROM collection_status 
                     WHERE date = ?
                 """, (yesterday.isoformat(),))
                 
-                result = cursor.fetchone()
-                
                 if result:
-                    schedules_complete, runs_complete = result
+                    record = result[0]
+                    schedules_complete = record['schedules_complete']
+                    runs_complete = record['runs_complete']
                     
                     # Check what types of collection are enabled
                     schedules_needed = self.config.collect_schedules
@@ -375,22 +371,63 @@ class AutomatedCollector:
             self.logger.warning(f"   Error checking yesterday's completion status: {e}, will collect anyway")
             return True
     
+    def _create_collection_status_table(self, db):
+        """Create collection_status table if it doesn't exist"""
+        from database.db_config import is_postgresql
+        if is_postgresql():
+            sql = """
+                CREATE TABLE IF NOT EXISTS collection_status (
+                    date TEXT PRIMARY KEY,
+                    schedules_complete BOOLEAN DEFAULT FALSE,
+                    runs_complete BOOLEAN DEFAULT FALSE,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+        else:
+            sql = """
+                CREATE TABLE IF NOT EXISTS collection_status (
+                    date TEXT PRIMARY KEY,
+                    schedules_complete BOOLEAN DEFAULT 0,
+                    runs_complete BOOLEAN DEFAULT 0,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+        db.adapter.execute_script(sql)
+    
     def _mark_collection_complete(self, collection_date: date, schedules_complete: bool = False, runs_complete: bool = False):
         """Mark a collection as complete in the database"""
         try:
-            db_path = 'database/irrigation_data.db'
-            
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
+            with get_universal_database_manager() as db:
+                # Ensure collection_status table exists
+                if not db.adapter.table_exists('collection_status'):
+                    self._create_collection_status_table(db)
                 
                 # Insert or update the completion status with Houston time
-                cursor.execute("""
-                    INSERT OR REPLACE INTO collection_status 
-                    (date, schedules_complete, runs_complete, last_updated)
-                    VALUES (?, ?, ?, ?)
-                """, (collection_date.isoformat(), schedules_complete, runs_complete, get_database_timestamp()))
+                from database.db_config import is_postgresql
+                if is_postgresql():
+                    query = """
+                        INSERT INTO collection_status 
+                        (date, schedules_complete, runs_complete, last_updated)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (date) DO UPDATE SET
+                            schedules_complete = EXCLUDED.schedules_complete,
+                            runs_complete = EXCLUDED.runs_complete,
+                            last_updated = EXCLUDED.last_updated
+                    """
+                else:
+                    query = """
+                        INSERT OR REPLACE INTO collection_status 
+                        (date, schedules_complete, runs_complete, last_updated)
+                        VALUES (?, ?, ?, ?)
+                    """
                 
-                conn.commit()
+                db.adapter.execute_insert(query, (
+                    collection_date.isoformat(), 
+                    schedules_complete, 
+                    runs_complete, 
+                    get_database_timestamp()
+                ))
+                
                 self.logger.info(f"   Marked {collection_date} collection complete (schedules: {schedules_complete}, runs: {runs_complete})")
                 
         except Exception as e:
