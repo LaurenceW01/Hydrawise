@@ -206,6 +206,9 @@ def main():
     """
     global collector_instance
     
+    # Set Chrome binary path for Selenium (render.com specific)
+    os.environ['CHROME_BIN'] = '/opt/chrome/chrome'
+    
     # Setup render.com environment
     setup_render_environment()
     

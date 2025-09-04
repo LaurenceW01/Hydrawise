@@ -1,45 +1,77 @@
-#!/bin/bash
-# Render.com build script to install Chrome and dependencies
+#!/usr/bin/env bash
+set -e
 
-echo "=== Installing Chrome for Selenium ==="
+echo "=== Render.com Custom Build Script ==="
+echo "Installing Chrome and dependencies for Selenium web scraping..."
 
-# Install Chrome via direct download (more reliable on render.com)
-wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-
-# Update and install Chrome with dependencies
+# Update package lists first
 apt-get update
-apt-get install -y \
-    google-chrome-stable \
-    xvfb \
-    libxi6 \
-    libgconf-2-4 \
-    libnss3 \
-    libxss1 \
-    libasound2 \
-    libxtst6 \
-    libxrandr2 \
-    libasound2 \
-    libpangocairo-1.0-0 \
-    libatk1.0-0 \
-    libcairo-gobject2 \
-    libgtk-3-0 \
-    libgdk-pixbuf2.0-0
 
-# Verify Chrome installation
-if command -v google-chrome >/dev/null 2>&1; then
+# Install essential dependencies
+echo "Installing system dependencies..."
+apt-get install -y \
+    wget \
+    curl \
+    unzip \
+    xvfb \
+    libnss3 \
+    libgconf-2-4 \
+    libxss1 \
+    libappindicator1 \
+    fonts-liberation \
+    libappindicator3-1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libxkbcommon0 \
+    libgtk-3-0
+
+# Download and install Chrome directly
+echo "Downloading Google Chrome..."
+wget -q -O chrome-linux64.zip https://storage.googleapis.com/chrome-for-testing/119.0.6045.105/linux64/chrome-linux64.zip
+unzip -q chrome-linux64.zip
+mv chrome-linux64 /opt/chrome
+chmod +x /opt/chrome/chrome
+
+# Create symlink for standard location
+ln -sf /opt/chrome/chrome /usr/bin/google-chrome
+
+# Download matching ChromeDriver
+echo "Downloading ChromeDriver..."
+wget -q -O chromedriver-linux64.zip https://storage.googleapis.com/chrome-for-testing/119.0.6045.105/linux64/chromedriver-linux64.zip
+unzip -q chromedriver-linux64.zip
+mv chromedriver-linux64/chromedriver /usr/bin/chromedriver
+chmod +x /usr/bin/chromedriver
+
+# Clean up downloaded files
+rm -f chrome-linux64.zip chromedriver-linux64.zip
+rm -rf chromedriver-linux64
+
+# Verify installations
+echo "Verifying Chrome installation..."
+if /opt/chrome/chrome --version; then
     echo "✅ Chrome installed successfully"
-    google-chrome --version
 else
     echo "❌ Chrome installation failed"
     exit 1
 fi
 
-# Set Chrome binary path for Selenium
-export CHROME_BIN=/usr/bin/google-chrome
+echo "Verifying ChromeDriver installation..."
+if chromedriver --version; then
+    echo "✅ ChromeDriver installed successfully"
+else
+    echo "❌ ChromeDriver installation failed"
+    exit 1
+fi
 
 # Install Python dependencies
-echo "=== Installing Python dependencies ==="
+echo "Installing Python dependencies..."
 pip install -r requirements.txt
 
-echo "=== Build completed successfully ==="
+echo "✅ Build completed successfully!"
+echo "Chrome binary location: /opt/chrome/chrome"
+echo "ChromeDriver location: /usr/bin/chromedriver"

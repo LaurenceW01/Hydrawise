@@ -42,20 +42,37 @@ def start_browser(self):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
-    # Set Chrome binary location for render.com
+    # Set Chrome binary location for render.com and local environments
     chrome_binary_paths = [
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable", 
-        "/usr/bin/chromium-browser",
-        "/usr/bin/chromium",
-        os.getenv('CHROME_BIN')
+        "/opt/chrome/chrome",           # Render.com custom installation
+        "/usr/bin/google-chrome",       # Standard Linux location
+        "/usr/bin/google-chrome-stable", # Ubuntu/Debian standard
+        "/usr/bin/chromium-browser",    # Chromium alternative
+        "/usr/bin/chromium",            # Another Chromium location
+        os.getenv('CHROME_BIN')         # Environment variable override
     ]
     
+    chrome_found = False
     for chrome_path in chrome_binary_paths:
         if chrome_path and os.path.exists(chrome_path):
             options.binary_location = chrome_path
             logger.info(f"Using Chrome binary: {chrome_path}")
+            chrome_found = True
             break
+    
+    if not chrome_found:
+        logger.warning("Chrome binary not found in standard locations. Selenium will use system PATH.")
+        # List what we checked for debugging
+        logger.warning(f"Checked paths: {[p for p in chrome_binary_paths if p]}")
+        # Check if any Chrome-like binaries exist
+        import subprocess
+        try:
+            result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info(f"Found Chrome via 'which': {result.stdout.strip()}")
+                options.binary_location = result.stdout.strip()
+        except Exception as e:
+            logger.warning(f"Could not run 'which' command: {e}")
     
     # Conservative GPU disabling - just enough to prevent errors without breaking functionality
     options.add_argument("--disable-gpu")
