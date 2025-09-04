@@ -21,7 +21,7 @@ from pathlib import Path
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parent_dir)
 
-from database.intelligent_data_storage import IntelligentDataStorage
+from database.universal_database_manager import get_universal_database_manager
 from database.cloud_storage_sync import CloudStorageSync
 
 logger = logging.getLogger(__name__)
@@ -43,18 +43,13 @@ class HydrawiseDB:
         Initialize database interface
         
         Args:
-            db_path: Path to local database file (defaults to standard location)
+            db_path: Path to local database file (ignored for universal manager)
             use_cloud_sync: Whether to sync with Google Cloud Storage
         """
-        if db_path is None:
-            # Use standard database location
-            db_path = os.path.join(parent_dir, "database", "irrigation_data.db")
-            
-        self.db_path = db_path
         self.use_cloud_sync = use_cloud_sync
         
-        # Initialize intelligent storage
-        self.storage = IntelligentDataStorage(db_path)
+        # Initialize universal database manager (handles both SQLite and PostgreSQL)
+        self.storage = get_universal_database_manager()
         
         # Initialize cloud sync if enabled
         self.cloud_sync = None
@@ -101,8 +96,8 @@ class HydrawiseDB:
             except Exception as e:
                 logger.warning(f"Cloud sync down failed: {e}")
         
-        # Store the data
-        stored_count = self.storage.store_scheduled_runs_enhanced(scheduled_runs, target_date)
+        # Store the data using universal database manager
+        stored_count = self.storage.insert_scheduled_runs(scheduled_runs, target_date)
         
         # Sync up after writing
         if self.use_cloud_sync and stored_count > 0:
@@ -140,7 +135,7 @@ class HydrawiseDB:
                 logger.warning(f"Cloud sync down failed: {e}")
         
         # Store the data
-        result = self.storage.store_actual_runs_enhanced(actual_runs, target_date)
+        result = self.storage.insert_actual_runs(actual_runs, target_date)
         
         # Handle both old int return and new dict return for backwards compatibility
         if isinstance(result, dict):

@@ -72,8 +72,9 @@ class ReportedRunsManager:
         self.password = password
         self.headless = headless
         
-        # Initialize database interface
-        self.db = HydrawiseDB()
+        # Initialize universal database interface
+        from database.universal_database_manager import get_universal_database_manager
+        self.db = get_universal_database_manager()
         
         # Track last collection times to prevent duplicate work
         self._last_daily_collection = None
@@ -141,7 +142,7 @@ class ReportedRunsManager:
             
             # Store previous day's data
             if previous_runs:
-                stored_prev = self.db.write_actual_runs(previous_runs, previous_date)
+                stored_prev = self.db.insert_actual_runs(previous_runs, previous_date)
                 logger.info(f"   Stored {stored_prev} runs for {previous_date}")
                 result.runs_stored += stored_prev.get('total', 0) if isinstance(stored_prev, dict) else stored_prev
             
@@ -153,7 +154,7 @@ class ReportedRunsManager:
             
             # Store current day's data
             if current_runs:
-                stored_curr = self.db.write_actual_runs(current_runs, collection_date)
+                stored_curr = self.db.insert_actual_runs(current_runs, collection_date)
                 logger.info(f"   Stored {stored_curr} runs for {collection_date}")
                 result.runs_stored += stored_curr.get('total', 0) if isinstance(stored_curr, dict) else stored_curr
             
@@ -239,7 +240,7 @@ class ReportedRunsManager:
             
             # Store current day's data (database will handle duplicates)
             if current_runs:
-                stored_count = self.db.write_actual_runs(current_runs, collection_date)
+                stored_count = self.db.insert_actual_runs(current_runs, collection_date)
                 logger.info(f"   Stored {stored_count} new/updated runs for {collection_date}")
                 result.runs_stored = stored_count
             
@@ -308,7 +309,7 @@ class ReportedRunsManager:
             
             # Store the data
             if collected_runs:
-                storage_result = self.db.write_actual_runs(collected_runs, target_date)
+                storage_result = self.db.insert_actual_runs(collected_runs, target_date)
                 
                 # Handle both old int return and new dict return
                 if isinstance(storage_result, dict):
@@ -441,7 +442,7 @@ class ReportedRunsManager:
                 "completed_today": self._already_collected_today("periodic"),
                 "next_recommended": None
             },
-            "database_info": self.db.get_database_info()
+            "database_type": self.db.config.db_type
         }
         
         # Calculate next periodic recommendation
