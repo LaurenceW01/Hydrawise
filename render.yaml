@@ -7,7 +7,7 @@ services:
     name: hydrawise-collector
     env: python3
     plan: starter  # Can be upgraded to standard/pro as needed
-    buildCommand: pip install -r requirements.txt
+    buildCommand: ./render_build.sh
     startCommand: python render_deployment.py
     
     # Health check configuration

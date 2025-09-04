@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reported_runs_manager import ReportedRunsManager, CollectionMode
-from database.intelligent_data_storage import IntelligentDataStorage
+from database.universal_database_manager import get_universal_database_manager
 
 def print_banner():
     """Print the admin banner"""

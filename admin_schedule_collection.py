@@ -26,7 +26,7 @@ import sqlite3
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hydrawise_web_scraper_refactored import HydrawiseWebScraper
-from database.intelligent_data_storage import IntelligentDataStorage
+from database.universal_database_manager import get_universal_database_manager
 
 def print_banner():
     """Print the admin banner"""
@@ -70,7 +70,7 @@ def cmd_collect(args):
     
     try:
         # Initialize database
-        storage = IntelligentDataStorage("database/irrigation_data.db")
+        storage = get_universal_database_manager()
         
         # Clear existing data if requested
         if args.clear:
@@ -202,7 +202,7 @@ def cmd_status(args):
     print()
     
     try:
-        storage = IntelligentDataStorage("database/irrigation_data.db")
+        storage = get_universal_database_manager()
         
         with sqlite3.connect(storage.db_path) as conn:
             cursor = conn.cursor()
@@ -271,7 +271,7 @@ def cmd_clear(args):
     print()
     
     try:
-        storage = IntelligentDataStorage("database/irrigation_data.db")
+        storage = get_universal_database_manager()
         
         # Check what exists
         with sqlite3.connect(storage.db_path) as conn:
@@ -356,7 +356,7 @@ def cmd_collect_range(args):
     
     try:
         # Initialize database
-        storage = IntelligentDataStorage("database/irrigation_data.db")
+        storage = get_universal_database_manager()
         
         # Clear existing data if requested
         if args.clear:
