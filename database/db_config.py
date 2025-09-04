@@ -222,8 +222,14 @@ def validate_database_config() -> bool:
             # Test PostgreSQL connection
             try:
                 import psycopg2
-            except ImportError:
-                logger.error("psycopg2 not installed. Run: pip install psycopg2-binary")
+            except ImportError as e:
+                logger.error("psycopg2 not installed for PostgreSQL support")
+                logger.error("This is required for render.com PostgreSQL databases")
+                logger.error("Possible solutions:")
+                logger.error("1. Check if psycopg2-binary is in requirements.txt")
+                logger.error("2. Clear render.com build cache and redeploy")
+                logger.error("3. Check build logs for installation errors")
+                logger.error(f"Import error details: {e}")
                 return False
                 
             params = get_connection_params()
