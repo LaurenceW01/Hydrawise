@@ -4,12 +4,13 @@ set -e
 echo "=== Render.com Custom Build Script ==="
 echo "Installing Chrome and dependencies for Selenium web scraping..."
 
-# Update package lists first
-apt-get update
+# Update package lists first (with sudo for render.com)
+echo "Updating package lists..."
+sudo apt-get update
 
 # Install essential dependencies
 echo "Installing system dependencies..."
-apt-get install -y \
+sudo apt-get install -y \
     wget \
     curl \
     unzip \
@@ -34,18 +35,24 @@ apt-get install -y \
 echo "Downloading Google Chrome..."
 wget -q -O chrome-linux64.zip https://storage.googleapis.com/chrome-for-testing/119.0.6045.105/linux64/chrome-linux64.zip
 unzip -q chrome-linux64.zip
-mv chrome-linux64 /opt/chrome
-chmod +x /opt/chrome/chrome
+
+# Install Chrome to system location (with sudo)
+echo "Installing Chrome to system location..."
+sudo mv chrome-linux64 /opt/chrome
+sudo chmod +x /opt/chrome/chrome
 
 # Create symlink for standard location
-ln -sf /opt/chrome/chrome /usr/bin/google-chrome
+sudo ln -sf /opt/chrome/chrome /usr/bin/google-chrome
 
 # Download matching ChromeDriver
 echo "Downloading ChromeDriver..."
 wget -q -O chromedriver-linux64.zip https://storage.googleapis.com/chrome-for-testing/119.0.6045.105/linux64/chromedriver-linux64.zip
 unzip -q chromedriver-linux64.zip
-mv chromedriver-linux64/chromedriver /usr/bin/chromedriver
-chmod +x /usr/bin/chromedriver
+
+# Install ChromeDriver to system location (with sudo)
+echo "Installing ChromeDriver to system location..."
+sudo mv chromedriver-linux64/chromedriver /usr/bin/chromedriver
+sudo chmod +x /usr/bin/chromedriver
 
 # Clean up downloaded files
 rm -f chrome-linux64.zip chromedriver-linux64.zip
