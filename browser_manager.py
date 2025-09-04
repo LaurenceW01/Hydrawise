@@ -42,6 +42,15 @@ def start_browser(self):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
+    # Additional Render.com specific options for stability
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-plugins")
+    options.add_argument("--disable-images")  # Reduce memory usage
+    options.add_argument("--single-process")  # Use single process to reduce memory
+    options.add_argument("--memory-pressure-off")
+    options.add_argument("--max_old_space_size=4096")
+    options.add_argument("--remote-debugging-port=0")  # Disable remote debugging
+    
     # Set Chrome binary location for render.com and local environments
     chrome_binary_paths = [
         "/opt/render/project/.render/chrome/opt/google/chrome/chrome", # Render.com installation
