@@ -333,14 +333,18 @@ class IrrigationTrackingSystem:
     
     def _get_recent_scheduled_runs(self, target_date: date, hours_back: int = 24):
         """
-        Get the most recent scheduled runs for the target date
+        Get the most recent scheduled runs for the target date from the latest scraping session
+        
+        CRITICAL: Only returns runs from the most recent scraped_at timestamp for the date.
+        This prevents processing old aborted runs from earlier in the day that would
+        create backwards status change comparisons.
         
         Args:
             target_date: Date to get runs for
-            hours_back: How many hours back to look (default 24 for full day coverage)
+            hours_back: Unused parameter (kept for compatibility)
             
         Returns:
-            List of ScheduledRun objects for the target date
+            List of ScheduledRun objects from the most recent scraping session for the target date
         """
         try:
             # Import ScheduledRun here to avoid circular imports
@@ -349,8 +353,9 @@ class IrrigationTrackingSystem:
             with sqlite3.connect(self.config.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Get ALL scheduled runs for the target date (no time window restriction)
-                # This gives us the current state of all zones for this date
+                # CRITICAL FIX: Get ONLY the most recent scheduled runs for the target date
+                # This prevents processing old aborted runs from earlier scraping sessions
+                # that would create backwards status change comparisons
                 cursor.execute("""
                     SELECT 
                         zone_id, zone_name, schedule_date, scheduled_start_time,
@@ -360,8 +365,13 @@ class IrrigationTrackingSystem:
                         scraped_at
                     FROM scheduled_runs 
                     WHERE schedule_date = ?
+                    AND scraped_at = (
+                        SELECT MAX(scraped_at) 
+                        FROM scheduled_runs 
+                        WHERE schedule_date = ?
+                    )
                     ORDER BY zone_id, scheduled_start_time
-                """, (target_date.isoformat(),))
+                """, (target_date.isoformat(), target_date.isoformat()))
                 
                 runs = []
                 for row in cursor.fetchall():

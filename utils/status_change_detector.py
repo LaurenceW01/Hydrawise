@@ -164,14 +164,18 @@ class StatusChangeDetector:
     
     def get_most_recent_scheduled_run_for_zone(self, zone_id: int, exclude_current_run: ScheduledRun = None) -> Optional[ScheduledRun]:
         """
-        Get the most recent scheduled run recorded for a specific zone
+        Get the most recent scheduled run recorded for a specific zone BEFORE the current run's date
+        
+        CRITICAL FIX: Now filters by schedule_date < current_run.schedule_date to ensure
+        we only compare against truly PREVIOUS runs, not future runs that happen to have
+        later scraped_at timestamps.
         
         Args:
             zone_id: The zone to look up
-            exclude_current_run: Current run to exclude from search (for change detection)
+            exclude_current_run: Current run to exclude from search (REQUIRED for status change detection)
             
         Returns:
-            Most recent ScheduledRun object or None if no previous runs
+            Most recent PREVIOUS ScheduledRun object or None if no previous runs exist
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -203,11 +207,13 @@ class StatusChangeDetector:
                             scraped_at, created_at
                         FROM scheduled_runs 
                         WHERE zone_id = ?{exclusion_clause}
+                        AND schedule_date < ?
                         ORDER BY scraped_at DESC, scheduled_start_time DESC
                         LIMIT 1
-                    """, exclusion_params)
+                    """, exclusion_params + [exclude_current_run.schedule_date.isoformat()])
                 else:
-                    # Get most recent run (no exclusions)
+                    # Get most recent run (no exclusions) - should not be used for status change detection
+                    # This branch is kept for compatibility but should not be called for status changes
                     cursor.execute("""
                         SELECT 
                             id, zone_id, zone_name, schedule_date, scheduled_start_time,
@@ -376,36 +382,43 @@ class StatusChangeDetector:
     
     def _is_duplicate_change_today(self, current_run: ScheduledRun, previous_run: ScheduledRun, collection_date: date) -> bool:
         """
-        Check if this exact change has already been recorded today
+        Check if this current run has already been processed for status changes
+        
+        FIXED: Now checks if the same current run has been processed, regardless of which
+        previous run it was compared against. This prevents multiple automated collection
+        runs from creating duplicate records for the same current scheduled run.
         
         Args:
             current_run: Current scheduled run
-            previous_run: Previous scheduled run for comparison
+            previous_run: Previous scheduled run for comparison (used for logging only)
             collection_date: Date of current collection
             
         Returns:
-            True if this change was already recorded today
+            True if this current run was already processed for status changes
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Check if we already have this exact change recorded today
+                # FIXED: Check if we already processed this current run for status changes
+                # Focus on the current run being processed, not the previous run comparison
                 cursor.execute("""
                     SELECT COUNT(*) 
                     FROM scheduled_run_status_changes 
                     WHERE zone_id = ? 
-                        AND change_detected_date = ?
-                        AND current_popup_text = ?
-                        AND previous_popup_text = ?
+                        AND current_run_date = ?
+                        AND current_scheduled_start_time = ?
                 """, (
                     current_run.zone_id,
-                    collection_date.isoformat(),
-                    current_run.raw_popup_text or "",
-                    previous_run.raw_popup_text or ""
+                    current_run.schedule_date.isoformat(),
+                    current_run.start_time.isoformat()
                 ))
                 
                 count = cursor.fetchone()[0]
+                
+                if count > 0:
+                    self.logger.debug(f"Current run already processed: {current_run.zone_name} {current_run.schedule_date} {current_run.start_time}")
+                
                 return count > 0
                 
         except Exception as e:
@@ -438,8 +451,8 @@ class StatusChangeDetector:
                             current_status_type, current_popup_text, previous_run_date,
                             previous_scheduled_start_time, previous_status_type, previous_popup_text,
                             change_type, irrigation_prevented, expected_gallons_lost,
-                            time_since_last_record_hours
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            time_since_last_record_hours, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         change.zone_id,
                         change.zone_name,
@@ -457,7 +470,8 @@ class StatusChangeDetector:
                         change.change_type,
                         change.irrigation_prevented,
                         change.expected_gallons_lost,
-                        change.time_since_last_record_hours
+                        change.time_since_last_record_hours,
+                        change.change_detected_at.isoformat()  # Use Houston time for created_at
                     ))
                 
                 conn.commit()
