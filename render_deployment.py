@@ -219,7 +219,7 @@ def main():
     setup_render_environment()
     
     # Setup universal logging for render.com with DEBUG level for troubleshooting
-    logger, log_file = setup_universal_logging('render_deployment', 'render_deployment', level='DEBUG')
+    logger, log_file = setup_universal_logging('render_deployment', 'render_deployment', log_level='DEBUG')
     
     # Log environment information
     logger.info("=== HYDRAWISE AUTOMATED COLLECTOR - RENDER.COM DEPLOYMENT ===")
