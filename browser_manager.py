@@ -43,10 +43,8 @@ def start_browser(self):
     options.add_argument("--disable-dev-shm-usage")
     
     # Set Chrome binary location for render.com and local environments
-    home_dir = os.path.expanduser("~")
     chrome_binary_paths = [
-        f"{home_dir}/chrome/chrome/chrome", # Render.com user installation
-        "/opt/chrome/chrome",           # Render.com system installation (fallback)
+        "/opt/render/project/.render/chrome/opt/google/chrome/chrome", # Render.com installation
         "/usr/bin/google-chrome",       # Standard Linux location
         "/usr/bin/google-chrome-stable", # Ubuntu/Debian standard
         "/usr/bin/chromium-browser",    # Chromium alternative

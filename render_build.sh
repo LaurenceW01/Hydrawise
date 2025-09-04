@@ -4,54 +4,73 @@ set -e
 echo "=== Render.com Custom Build Script ==="
 echo "Installing Chrome and dependencies for Selenium web scraping..."
 
-# Create local directory for Chrome installation (avoid system directories)
-echo "Setting up Chrome installation directory..."
-mkdir -p $HOME/chrome
-cd $HOME/chrome
+# Use render.com writable directory
+STORAGE_DIR=/opt/render/project/.render
+echo "Setting up Chrome installation directory: $STORAGE_DIR"
+mkdir -p $STORAGE_DIR/chrome
+cd $STORAGE_DIR/chrome
 
-# Download and install Chrome directly to user space
-echo "Downloading Google Chrome..."
-wget -q -O chrome-linux64.zip https://storage.googleapis.com/chrome-for-testing/119.0.6045.105/linux64/chrome-linux64.zip
-unzip -q chrome-linux64.zip
+# Download Chrome stable .deb package (more reliable)
+echo "Downloading Google Chrome stable..."
+if ! wget -O google-chrome-stable_current_amd64.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; then
+    echo "❌ Failed to download Chrome .deb package"
+    exit 1
+fi
 
-# Set up Chrome in user directory
-echo "Setting up Chrome..."
-mv chrome-linux64 chrome
-chmod +x chrome/chrome
+# Extract Chrome from .deb package (no installation needed)
+echo "Extracting Chrome from .deb package..."
+if ! dpkg-deb -x google-chrome-stable_current_amd64.deb ./; then
+    echo "❌ Failed to extract Chrome .deb package"
+    exit 1
+fi
 
-# Download matching ChromeDriver
+# Clean up .deb file
+rm google-chrome-stable_current_amd64.deb
+
+# Chrome binary will be at ./opt/google/chrome/chrome
+echo "Chrome extracted to: $STORAGE_DIR/chrome/opt/google/chrome/chrome"
+
+# Download latest stable ChromeDriver
 echo "Downloading ChromeDriver..."
-wget -q -O chromedriver-linux64.zip https://storage.googleapis.com/chrome-for-testing/119.0.6045.105/linux64/chromedriver-linux64.zip
-unzip -q chromedriver-linux64.zip
+CHROME_VERSION=$(./opt/google/chrome/chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+echo "Chrome version: $CHROME_VERSION"
 
-# Set up ChromeDriver
-echo "Setting up ChromeDriver..."
-mv chromedriver-linux64/chromedriver .
+# Get matching ChromeDriver version
+CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%%.*}")
+echo "ChromeDriver version: $CHROMEDRIVER_VERSION"
+
+if ! wget -O chromedriver_linux64.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"; then
+    echo "❌ Failed to download ChromeDriver"
+    exit 1
+fi
+
+echo "Extracting ChromeDriver..."
+if ! unzip -q chromedriver_linux64.zip; then
+    echo "❌ Failed to extract ChromeDriver"
+    exit 1
+fi
+
 chmod +x chromedriver
-
-# Clean up downloaded files
-rm -f chrome-linux64.zip chromedriver-linux64.zip
-rm -rf chromedriver-linux64
+rm chromedriver_linux64.zip
 
 # Add Chrome to PATH for this build
-export PATH="$HOME/chrome:$PATH"
-export PATH="$HOME/chrome/chrome:$PATH"
-export CHROME_BIN="$HOME/chrome/chrome/chrome"
+export PATH="$STORAGE_DIR/chrome:$PATH"
+export CHROME_BIN="$STORAGE_DIR/chrome/opt/google/chrome/chrome"
 
 # Verify installations
 echo "Verifying Chrome installation..."
-if $HOME/chrome/chrome/chrome --version; then
+if $STORAGE_DIR/chrome/opt/google/chrome/chrome --version; then
     echo "✅ Chrome installed successfully"
-    echo "Chrome location: $HOME/chrome/chrome/chrome"
+    echo "Chrome location: $STORAGE_DIR/chrome/opt/google/chrome/chrome"
 else
     echo "❌ Chrome installation failed"
     exit 1
 fi
 
 echo "Verifying ChromeDriver installation..."
-if $HOME/chrome/chromedriver --version; then
+if $STORAGE_DIR/chrome/chromedriver --version; then
     echo "✅ ChromeDriver installed successfully"
-    echo "ChromeDriver location: $HOME/chrome/chromedriver"
+    echo "ChromeDriver location: $STORAGE_DIR/chrome/chromedriver"
 else
     echo "❌ ChromeDriver installation failed"
     exit 1
