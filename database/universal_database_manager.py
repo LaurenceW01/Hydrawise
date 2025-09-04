@@ -206,10 +206,10 @@ class UniversalDatabaseManager:
                 logger.info("Zones already initialized")
                 return
             
-            # Get zones from configuration
-            zones = self.zone_config.get_all_zones()
+            # Get zones from configuration  
+            zones_data = self.zone_config.get_zones_data()
             
-            for zone_id, zone_info in zones.items():
+            for zone_id, name, flow_rate_gpm, priority, plant_type in zones_data:
                 # Insert zone with default values
                 if is_postgresql():
                     query = """
@@ -227,21 +227,24 @@ class UniversalDatabaseManager:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                 
+                # Get average flow rate from configuration
+                average_flow_rate = self.zone_config.get_zone_flow_rate(zone_id)
+                
                 params = (
                     zone_id,
-                    zone_info.get('name', f'Zone_{zone_id}'),
-                    zone_info.get('display_name', zone_info.get('name', f'Zone_{zone_id}')),
-                    zone_info.get('priority', 'MEDIUM'),
-                    zone_info.get('flow_rate_gpm'),
-                    zone_info.get('average_flow_rate'),
-                    zone_info.get('typical_duration_minutes', 3),
-                    zone_info.get('plant_type'),
-                    zone_info.get('notes')
+                    name,
+                    name,  # Use name as display_name
+                    priority,
+                    flow_rate_gpm,
+                    average_flow_rate,
+                    3,  # typical_duration_minutes
+                    plant_type,
+                    f'Auto-initialized zone: {plant_type}'  # notes
                 )
                 
                 self.adapter.execute_insert(query, params)
             
-            logger.info(f"Initialized {len(zones)} zones in database")
+            logger.info(f"Initialized {len(zones_data)} zones in database")
             
         except Exception as e:
             logger.error(f"Failed to initialize zones: {e}")

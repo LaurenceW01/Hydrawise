@@ -55,9 +55,16 @@ def get_database_config() -> DatabaseConfig:
     # Determine database type from environment
     db_type = os.getenv('DATABASE_TYPE', 'sqlite').lower()
     
+    logger.info(f"Database type from environment: '{db_type}'")
+    
     if db_type == 'postgresql':
+        logger.info("Configuring PostgreSQL database")
+        return _get_postgresql_config()
+    elif db_type in ['postgressql', 'postgres']:  # Handle common typos
+        logger.warning(f"Found typo in DATABASE_TYPE: '{db_type}', treating as 'postgresql'")
         return _get_postgresql_config()
     else:
+        logger.info("Configuring SQLite database")
         return _get_sqlite_config()
 
 def _get_sqlite_config() -> DatabaseConfig:
@@ -91,7 +98,9 @@ def _get_postgresql_config() -> DatabaseConfig:
     # Check for DATABASE_URL first (render.com standard)
     database_url = os.getenv('DATABASE_URL')
     
+    logger.info(f"DATABASE_URL present: {bool(database_url)}")
     if database_url:
+        logger.info("Using DATABASE_URL for PostgreSQL connection")
         # Parse the DATABASE_URL
         parsed = urlparse(database_url)
         
@@ -120,6 +129,11 @@ def _get_postgresql_config() -> DatabaseConfig:
     ssl_mode = os.getenv('DB_SSL_MODE', 'require')
     
     if not all([host, database, username, password]):
+        logger.error("PostgreSQL configuration incomplete:")
+        logger.error(f"  DB_HOST: {'SET' if host else 'MISSING'}")
+        logger.error(f"  DB_NAME: {'SET' if database else 'MISSING'}")
+        logger.error(f"  DB_USER: {'SET' if username else 'MISSING'}")
+        logger.error(f"  DB_PASSWORD: {'SET' if password else 'MISSING'}")
         raise ValueError(
             "PostgreSQL configuration incomplete. Either set DATABASE_URL or "
             "provide DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD environment variables."
