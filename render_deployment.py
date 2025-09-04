@@ -208,6 +208,11 @@ def main():
     
     # Set Chrome binary path for Selenium (render.com specific)
     chrome_path = "/opt/render/project/.render/chrome/opt/google/chrome/chrome"
+    chrome_dir = "/opt/render/project/.render/chrome/opt/google/chrome"
+    
+    # Add Chrome to PATH (as recommended by Render.com docs)
+    current_path = os.environ.get('PATH', '')
+    os.environ['PATH'] = f"{chrome_dir}:{current_path}"
     os.environ['CHROME_BIN'] = chrome_path
     
     # Setup render.com environment

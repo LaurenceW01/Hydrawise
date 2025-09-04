@@ -39,54 +39,37 @@ echo "Chrome version: $CHROME_VERSION"
 CHROME_MAJOR_VERSION=${CHROME_VERSION%%.*}
 echo "Chrome major version: $CHROME_MAJOR_VERSION"
 
-# Use the new Chrome for Testing API for newer versions (Chrome 115+)
-if [ "$CHROME_MAJOR_VERSION" -ge 115 ]; then
-    echo "Using Chrome for Testing API for ChromeDriver..."
+# Download ChromeDriver - use webdriver-manager (most reliable)
+echo "Downloading ChromeDriver using webdriver-manager..."
+pip install webdriver-manager
+
+# Create a simple Python script to download ChromeDriver
+cat > download_chromedriver.py << 'EOF'
+import os
+from webdriver_manager.chrome import ChromeDriverManager
+
+try:
+    # Download ChromeDriver (webdriver-manager handles version matching automatically)
+    driver_path = ChromeDriverManager().install()
+    print(f"ChromeDriver downloaded to: {driver_path}")
     
-    # Try to get the exact version first
-    CHROMEDRIVER_URL="https://storage.googleapis.com/chrome-for-testing/131.0.6778.108/linux64/chromedriver-linux64.zip"
-    if ! wget -O chromedriver-linux64.zip "$CHROMEDRIVER_URL"; then
-        echo "❌ Specific version failed, trying latest stable..."
-        
-        # Fallback to a known working version
-        if ! wget -O chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing/130.0.6723.58/linux64/chromedriver-linux64.zip"; then
-            echo "❌ Failed to download ChromeDriver from Chrome for Testing"
-            exit 1
-        fi
-    fi
+    # Copy to current directory
+    import shutil
+    shutil.copy2(driver_path, "./chromedriver")
+    os.chmod("./chromedriver", 0o755)
+    print("✅ ChromeDriver copied and made executable")
     
-    # Extract ChromeDriver
-    if ! unzip -q chromedriver-linux64.zip; then
-        echo "❌ Failed to extract ChromeDriver"
-        exit 1
-    fi
-    
-    # Move ChromeDriver to current directory
-    mv chromedriver-linux64/chromedriver .
-    rm -rf chromedriver-linux64
-    rm chromedriver-linux64.zip
-    
-else
-    # Use legacy API for older Chrome versions
-    echo "Using legacy ChromeDriver API..."
-    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR_VERSION}")
-    echo "ChromeDriver version: $CHROMEDRIVER_VERSION"
-    
-    if ! wget -O chromedriver_linux64.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"; then
-        echo "❌ Failed to download ChromeDriver"
-        exit 1
-    fi
-    
-    # Extract ChromeDriver
-    if ! unzip -q chromedriver_linux64.zip; then
-        echo "❌ Failed to extract ChromeDriver"
-        exit 1
-    fi
-    
-    rm chromedriver_linux64.zip
+except Exception as e:
+    print(f"❌ webdriver-manager failed: {e}")
+    exit(1)
+EOF
+
+if ! python download_chromedriver.py; then
+    echo "❌ Failed to download ChromeDriver"
+    exit 1
 fi
 
-chmod +x chromedriver
+rm download_chromedriver.py
 
 # Add Chrome to PATH for this build
 export PATH="$STORAGE_DIR/chrome:$PATH"
