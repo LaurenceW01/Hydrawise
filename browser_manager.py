@@ -56,23 +56,23 @@ def start_browser(self):
     for chrome_path in chrome_binary_paths:
         if chrome_path and os.path.exists(chrome_path):
             options.binary_location = chrome_path
-            logger.info(f"Using Chrome binary: {chrome_path}")
+            self.logger.info(f"Using Chrome binary: {chrome_path}")
             chrome_found = True
             break
     
     if not chrome_found:
-        logger.warning("Chrome binary not found in standard locations. Selenium will use system PATH.")
+        self.logger.warning("Chrome binary not found in standard locations. Selenium will use system PATH.")
         # List what we checked for debugging
-        logger.warning(f"Checked paths: {[p for p in chrome_binary_paths if p]}")
+        self.logger.warning(f"Checked paths: {[p for p in chrome_binary_paths if p]}")
         # Check if any Chrome-like binaries exist
         import subprocess
         try:
             result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
             if result.returncode == 0:
-                logger.info(f"Found Chrome via 'which': {result.stdout.strip()}")
+                self.logger.info(f"Found Chrome via 'which': {result.stdout.strip()}")
                 options.binary_location = result.stdout.strip()
         except Exception as e:
-            logger.warning(f"Could not run 'which' command: {e}")
+            self.logger.warning(f"Could not run 'which' command: {e}")
     
     # Conservative GPU disabling - just enough to prevent errors without breaking functionality
     options.add_argument("--disable-gpu")
