@@ -42,23 +42,23 @@ def start_browser(self):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
-    # Balanced memory optimization for Render.com Starter plan (512MB limit)
+    # EXTREME memory optimization for 512MB limit (last attempt before upgrade needed)
     options.add_argument("--disable-extensions")
-    options.add_argument("--disable-plugins") 
-    options.add_argument("--disable-images")  # Save memory and bandwidth
-    options.add_argument("--disable-features=TranslateUI")
+    options.add_argument("--disable-plugins")
+    options.add_argument("--disable-images")
+    options.add_argument("--disable-css")  # Disable CSS rendering
+    options.add_argument("--disable-javascript")  # Risk: may break scraping
+    options.add_argument("--single-process")  # Use single process
     options.add_argument("--memory-pressure-off")
-    options.add_argument("--max_old_space_size=300")  # Increase to 300MB for stability
-    options.add_argument("--remote-debugging-port=0")
-    # Essential Render.com options
+    options.add_argument("--max_old_space_size=128")  # Very low limit
+    options.add_argument("--aggressive-cache-discard")
+    options.add_argument("--disable-features=TranslateUI,VizDisplayCompositor,AudioServiceOutOfProcess")
     options.add_argument("--disable-background-networking")
     options.add_argument("--disable-background-timer-throttling")
     options.add_argument("--disable-renderer-backgrounding")
-    options.add_argument("--disable-backgrounding-occluded-windows")
-    # Add stability options
     options.add_argument("--disable-web-security")
-    options.add_argument("--ignore-certificate-errors")
-    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--disable-site-isolation-trials")
+    options.add_argument("--disable-features=site-per-process")
     
     # Set Chrome binary location for render.com and local environments
     chrome_binary_paths = [
