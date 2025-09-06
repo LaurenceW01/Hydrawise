@@ -71,6 +71,7 @@ debug_output/
 
 # Reports
 reports/
+irrigation_alert_report_*.txt
 
 # archived files
 archive/
