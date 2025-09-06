@@ -15,10 +15,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass, field
-from dotenv import load_dotenv
 
-# Import our web scraper
-from hydrawise_web_scraper import HydrawiseWebScraper, ScheduledRun, ActualRun
+# Import database interface instead of web scraper
+from database.db_interface import HydrawiseDB
+from hydrawise_web_scraper_refactored import ScheduledRun, ActualRun  # Keep data classes
 
 # Import failure detection rules
 from config.failure_detection_rules import FAILURE_DETECTION_RULES, ZONE_PRIORITIES
@@ -67,11 +67,9 @@ class SystemStatus:
 class IrrigationFailureDetector:
     """Detects irrigation failures by comparing scheduled vs actual runs"""
     
-    def __init__(self, username: str, password: str):
-        """Initialize failure detector with Hydrawise credentials"""
-        self.username = username
-        self.password = password
-        self.scraper = HydrawiseWebScraper(username, password, headless=True)
+    def __init__(self, db_path: str = None):
+        """Initialize failure detector with database interface"""
+        self.db = HydrawiseDB(db_path)
         self.logger = logging.getLogger(self.__class__.__name__)
         
     def detect_failures(self, target_date: datetime = None) -> SystemStatus:
@@ -88,23 +86,21 @@ class IrrigationFailureDetector:
             target_date = datetime.now()
             
         self.logger.info(f"Starting failure detection for {target_date.strftime('%Y-%m-%d')}")
+        target_date_obj = target_date.date()
         
         try:
-            # Start browser and login
-            self.scraper.start_browser()
-            if not self.scraper.login():
-                raise Exception("Failed to login to Hydrawise portal")
-                
-            self.scraper.navigate_to_reports()
+            # Read scheduled and actual runs from database
+            self.logger.info("Reading scheduled runs from database...")
+            scheduled_data = self.db.read_scheduled_runs(target_date_obj)
+            self.logger.info(f"Found {len(scheduled_data)} scheduled runs")
             
-            # Extract scheduled and actual runs
-            self.logger.info("Extracting scheduled runs...")
-            scheduled_runs = self.scraper.extract_scheduled_runs(target_date)
-            self.logger.info(f"Found {len(scheduled_runs)} scheduled runs")
+            self.logger.info("Reading actual runs from database...")
+            actual_data = self.db.read_actual_runs(target_date_obj)
+            self.logger.info(f"Found {len(actual_data)} actual runs")
             
-            self.logger.info("Extracting actual runs...")
-            actual_runs = self.scraper.extract_actual_runs(target_date)
-            self.logger.info(f"Found {len(actual_runs)} actual runs")
+            # Convert database records to ScheduledRun/ActualRun objects
+            scheduled_runs = self._convert_scheduled_data(scheduled_data)
+            actual_runs = self._convert_actual_data(actual_data)
             
             # Analyze for failures
             system_status = self._analyze_irrigation_performance(scheduled_runs, actual_runs, target_date)
@@ -114,11 +110,58 @@ class IrrigationFailureDetector:
         except Exception as e:
             self.logger.error(f"Failure detection error: {e}")
             raise
-        finally:
+    
+    def _convert_scheduled_data(self, scheduled_data: List[Dict]) -> List[ScheduledRun]:
+        """Convert database scheduled run records to ScheduledRun objects"""
+        scheduled_runs = []
+        for record in scheduled_data:
             try:
-                self.scraper.stop_browser()
-            except:
-                pass
+                # Parse start time from database string format
+                start_time = datetime.fromisoformat(record['scheduled_start_time'])
+                
+                scheduled_run = ScheduledRun(
+                    zone_id=str(record.get('zone_id', '')),
+                    zone_name=record['zone_name'],
+                    start_time=start_time,
+                    duration_minutes=record['scheduled_duration_minutes'],  # Fixed field name
+                    expected_gallons=record.get('expected_gallons'),  # Fixed field name
+                    notes=record.get('notes', '')
+                )
+                scheduled_runs.append(scheduled_run)
+            except Exception as e:
+                self.logger.warning(f"Failed to convert scheduled run record: {e}")
+                continue
+        
+        return scheduled_runs
+    
+    def _convert_actual_data(self, actual_data: List[Dict]) -> List[ActualRun]:
+        """Convert database actual run records to ActualRun objects"""
+        actual_runs = []
+        for record in actual_data:
+            try:
+                # Parse start time from database string format
+                start_time = datetime.fromisoformat(record['actual_start_time'])  # Fixed field name
+                end_time = None
+                if record.get('end_time'):
+                    end_time = datetime.fromisoformat(record['end_time'])
+                
+                actual_run = ActualRun(
+                    zone_id=str(record.get('zone_id', '')),
+                    zone_name=record['zone_name'],
+                    start_time=start_time,
+                    duration_minutes=record['actual_duration_minutes'],  # Fixed field name
+                    actual_gallons=record.get('actual_gallons'),  # Fixed field name
+                    status=record.get('status', 'Normal'),
+                    notes=record.get('notes', ''),
+                    end_time=end_time,
+                    failure_reason=record.get('failure_reason')
+                )
+                actual_runs.append(actual_run)
+            except Exception as e:
+                self.logger.warning(f"Failed to convert actual run record: {e}")
+                continue
+        
+        return actual_runs
                 
     def _analyze_irrigation_performance(self, scheduled: List[ScheduledRun], 
                                       actual: List[ActualRun], 
@@ -440,20 +483,12 @@ class IrrigationFailureDetector:
 def main():
     """Main function for testing the failure detector"""
     
-    # Load environment variables
-    load_dotenv()
-    username = os.getenv('HYDRAWISE_USER')
-    password = os.getenv('HYDRAWISE_PASSWORD')
-    
-    if not username or not password:
-        print("Error: HYDRAWISE_USER and HYDRAWISE_PASSWORD must be set in .env file")
-        return
-        
     print("Hydrawise Irrigation Failure Detection System")
     print("=" * 50)
+    print("Using database for analysis (no web scraping required)")
     
-    # Create detector and run analysis
-    detector = IrrigationFailureDetector(username, password)
+    # Create detector and run analysis (uses default database path)
+    detector = IrrigationFailureDetector()
     
     try:
         # Detect failures for today
