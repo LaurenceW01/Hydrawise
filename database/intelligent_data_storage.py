@@ -32,7 +32,6 @@ class IntelligentDataStorage(DatabaseManager):
         """
         super().__init__(*args, **kwargs)
         self.usage_estimator = WaterUsageEstimator(
-            self.db_path, 
             high_usage_multiplier=high_usage_multiplier, 
             low_usage_multiplier=low_usage_multiplier
         )

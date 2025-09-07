@@ -16,7 +16,6 @@ Author: AI Assistant
 Date: 2025-09-02
 """
 
-import sqlite3
 import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Any, Optional
@@ -26,6 +25,8 @@ from dataclasses import dataclass
 # Add the project root to the Python path for imports
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from database.universal_database_manager import get_universal_database_manager
 
 from utils.timezone_utils import get_houston_now
 from utils.email_notifications import EmailNotificationManager, EmailConfig
@@ -47,9 +48,8 @@ class ZoneStatusSummary:
 class ComprehensiveEmailGenerator:
     """Generate comprehensive email using actual database data and monitoring system"""
     
-    def __init__(self, db_path: str = "database/irrigation_data.db"):
-        """Initialize with database path"""
-        self.db_path = db_path
+    def __init__(self):
+        """Initialize email generator"""
         self.logger = logger
         
     def get_recent_status_changes(self, target_date: date = None) -> List[Dict[str, Any]]:
@@ -58,39 +58,35 @@ class ComprehensiveEmailGenerator:
             target_date = get_houston_now().date()
             
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get all status changes for the target date
-                cursor.execute("""
-                    SELECT 
-                        zone_id, zone_name, change_detected_time,
-                        current_status_type, current_popup_text,
-                        previous_status_type, previous_popup_text,
-                        change_type, expected_gallons_lost,
-                        time_since_last_record_hours
-                    FROM scheduled_run_status_changes 
-                    WHERE change_detected_date = ?
-                    ORDER BY change_detected_time DESC
-                """, (target_date.isoformat(),))
-                
-                changes = []
-                for row in cursor.fetchall():
-                    zone_id, zone_name, detected_time, current_status, current_popup, \
-                    previous_status, previous_popup, change_type, gallons_lost, hours_since = row
-                    
-                    changes.append({
-                        'zone_id': zone_id,
-                        'zone_name': zone_name,
-                        'detected_time': datetime.fromisoformat(detected_time) if detected_time else None,
-                        'current_status_type': current_status,
-                        'current_popup_text': current_popup,
-                        'previous_status_type': previous_status,
-                        'previous_popup_text': previous_popup,
-                        'change_type': change_type,
-                        'expected_gallons_lost': gallons_lost or 0,
-                        'time_since_last_record_hours': hours_since
-                    })
+            db_manager = get_universal_database_manager()
+            
+            # Get all status changes for the target date
+            results = db_manager.adapter.execute_query("""
+                SELECT 
+                    zone_id, zone_name, change_detected_time,
+                    current_status_type, current_popup_text,
+                    previous_status_type, previous_popup_text,
+                    change_type, expected_gallons_lost,
+                    time_since_last_record_hours
+                FROM scheduled_run_status_changes 
+                WHERE change_detected_date = %s
+                ORDER BY change_detected_time DESC
+            """, (target_date.isoformat(),))
+            
+            changes = []
+            for row in results:
+                changes.append({
+                    'zone_id': row['zone_id'],
+                    'zone_name': row['zone_name'],
+                    'detected_time': datetime.fromisoformat(row['change_detected_time']) if row['change_detected_time'] else None,
+                    'current_status_type': row['current_status_type'],
+                    'current_popup_text': row['current_popup_text'],
+                    'previous_status_type': row['previous_status_type'],
+                    'previous_popup_text': row['previous_popup_text'],
+                    'change_type': row['change_type'],
+                    'expected_gallons_lost': row['expected_gallons_lost'] or 0,
+                    'time_since_last_record_hours': row['time_since_last_record_hours']
+                })
                 
                 return changes
                 
@@ -104,51 +100,56 @@ class ComprehensiveEmailGenerator:
             target_date = get_houston_now().date()
             
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            db_manager = get_universal_database_manager()
+            
+            # Get the most recent scheduled runs for each zone for the target date
+            results = db_manager.adapter.execute_query("""
+                SELECT 
+                    sr.zone_id, sr.zone_name, sr.raw_popup_text, 
+                    sr.expected_gallons, sr.scheduled_start_time,
+                    sr.popup_status, sr.is_rain_cancelled
+                FROM scheduled_runs sr
+                WHERE sr.schedule_date = %s
+                AND sr.scraped_at = (
+                    SELECT MAX(scraped_at) 
+                    FROM scheduled_runs sr2 
+                    WHERE sr2.zone_id = sr.zone_id 
+                    AND sr2.schedule_date = sr.schedule_date
+                )
+                ORDER BY sr.zone_name, sr.scheduled_start_time
+            """, (target_date.isoformat(),))
+            
+            zone_summaries = []
+            processed_zones = set()
+            
+            for row in results:
+                zone_id = row['zone_id']
+                zone_name = row['zone_name']
+                popup_text = row['raw_popup_text']
+                expected_gallons = row['expected_gallons']
+                start_time = row['scheduled_start_time']
+                popup_status = row['popup_status']
+                is_rain_cancelled = row['is_rain_cancelled']
                 
-                # Get the most recent scheduled runs for each zone for the target date
-                cursor.execute("""
-                    SELECT 
-                        sr.zone_id, sr.zone_name, sr.raw_popup_text, 
-                        sr.expected_gallons, sr.scheduled_start_time,
-                        sr.popup_status, sr.is_rain_cancelled
-                    FROM scheduled_runs sr
-                    WHERE sr.schedule_date = ?
-                    AND sr.scraped_at = (
-                        SELECT MAX(scraped_at) 
-                        FROM scheduled_runs sr2 
-                        WHERE sr2.zone_id = sr.zone_id 
-                        AND sr2.schedule_date = sr.schedule_date
-                    )
-                    ORDER BY sr.zone_name, sr.scheduled_start_time
-                """, (target_date.isoformat(),))
-                
-                zone_summaries = []
-                processed_zones = set()
-                
-                for row in cursor.fetchall():
-                    zone_id, zone_name, popup_text, expected_gallons, start_time, popup_status, is_rain_cancelled = row
+                # Avoid duplicate zones (take first occurrence for each zone)
+                if zone_id not in processed_zones:
+                    processed_zones.add(zone_id)
                     
-                    # Avoid duplicate zones (take first occurrence for each zone)
-                    if zone_id not in processed_zones:
-                        processed_zones.add(zone_id)
-                        
-                        # Classify current status
-                        current_status = self._classify_zone_status(popup_text)
-                        is_running_normally = current_status == 'normal_cycle'
-                        abort_reason = self._extract_abort_reason(popup_text) if not is_running_normally else None
-                        
-                        zone_summaries.append(ZoneStatusSummary(
-                            zone_name=zone_name,
-                            zone_id=zone_id,
-                            current_status=current_status,
-                            expected_gallons=expected_gallons or 0,
-                            abort_reason=abort_reason,
-                            is_running_normally=is_running_normally
-                        ))
-                
-                return zone_summaries
+                    # Classify current status
+                    current_status = self._classify_zone_status(popup_text)
+                    is_running_normally = current_status == 'normal_cycle'
+                    abort_reason = self._extract_abort_reason(popup_text) if not is_running_normally else None
+                    
+                    zone_summaries.append(ZoneStatusSummary(
+                        zone_name=zone_name,
+                        zone_id=zone_id,
+                        current_status=current_status,
+                        expected_gallons=expected_gallons or 0,
+                        abort_reason=abort_reason,
+                        is_running_normally=is_running_normally
+                    ))
+            
+            return zone_summaries
                 
         except Exception as e:
             self.logger.error(f"Error getting current zone status: {e}")
@@ -415,7 +416,7 @@ def send_comprehensive_email(email_content: Dict[str, str]):
             return False
         
         # Create email manager
-        email_manager = EmailNotificationManager(email_config, "database/irrigation_data.db")
+        email_manager = EmailNotificationManager(email_config)
         
         # Send email in a separate thread (non-daemon to ensure delivery)
         import threading

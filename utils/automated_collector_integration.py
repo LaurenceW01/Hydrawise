@@ -80,7 +80,6 @@ def load_config_from_env() -> Dict[str, Any]:
         "max_emails_per_day": _load_env_int("MAX_EMAILS_PER_DAY", 1),
         
         # Advanced settings
-        "db_path": os.getenv("DB_PATH", "database/irrigation_data.db"),
         "headless_mode": _load_env_bool("HEADLESS_MODE", True),
         
         # Notification types

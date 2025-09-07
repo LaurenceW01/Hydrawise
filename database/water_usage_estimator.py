@@ -12,7 +12,6 @@ Date: 2025-01-27
 """
 
 import logging
-import sqlite3
 import sys
 import os
 from typing import Dict, Optional, Tuple, Any
@@ -22,6 +21,7 @@ from pytz import timezone
 # Add project root to path for config imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.zone_configuration import get_zone_average_flow_rate
+from database.universal_database_manager import get_universal_database_manager
 
 # Houston timezone for consistent timestamps
 HOUSTON_TZ = timezone('America/Chicago')
@@ -44,15 +44,13 @@ class WaterUsageEstimator:
     DEFAULT_HIGH_USAGE_MULTIPLIER = 2.0  # Usage > 2.0x expected is considered too high (double)
     DEFAULT_LOW_USAGE_MULTIPLIER = 0.5   # Usage < 0.5x expected is considered too low (half)
     
-    def __init__(self, db_path: str, high_usage_multiplier: float = None, low_usage_multiplier: float = None):
+    def __init__(self, high_usage_multiplier: float = None, low_usage_multiplier: float = None):
         """Initialize the water usage estimator
         
         Args:
-            db_path: Path to the SQLite database
             high_usage_multiplier: Multiplier for too_high usage flag (defaults to 2.0)
             low_usage_multiplier: Multiplier for too_low usage flag (defaults to 0.5)
         """
-        self.db_path = db_path
         self.high_usage_multiplier = high_usage_multiplier or self.DEFAULT_HIGH_USAGE_MULTIPLIER
         self.low_usage_multiplier = low_usage_multiplier or self.DEFAULT_LOW_USAGE_MULTIPLIER
     
@@ -90,18 +88,17 @@ class WaterUsageEstimator:
                 return flow_rate
             
             # Fallback to database query if not in configuration
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT average_flow_rate 
-                    FROM zones 
-                    WHERE zone_id = ?
-                """, (zone_id,))
-                
-                result = cursor.fetchone()
-                if result and result[0] is not None:
-                    logger.debug(f"Using database flow rate for zone {zone_id}: {result[0]} GPM")
-                    return float(result[0])
+            db_manager = get_universal_database_manager()
+            result = db_manager.adapter.execute_query("""
+                SELECT average_flow_rate 
+                FROM zones 
+                WHERE zone_id = %s
+            """, (zone_id,))
+            
+            if result and result[0]['average_flow_rate'] is not None:
+                flow_rate = float(result[0]['average_flow_rate'])
+                logger.debug(f"Using database flow rate for zone {zone_id}: {flow_rate} GPM")
+                return flow_rate
                     
         except Exception as e:
             logger.error(f"Failed to get average flow rate for zone {zone_id}: {e}")
@@ -211,19 +208,15 @@ class WaterUsageEstimator:
             usage_value = self.calculate_usage_value(usage_type, actual_gallons, expected_gallons)
             
             # Update the database record
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    UPDATE actual_runs 
-                    SET usage_type = ?, usage = ?, usage_flag = ?, updated_at = ?
-                    WHERE id = ?
-                """, (usage_type, usage_value, usage_flag, self._get_houston_timestamp(), run_id))
-                
-                if cursor.rowcount == 0:
-                    logger.warning(f"No rows updated for run_id {run_id}")
-                    
-                conn.commit()
+            db_manager = get_universal_database_manager()
+            rows_updated = db_manager.adapter.execute_update("""
+                UPDATE actual_runs 
+                SET usage_type = %s, usage = %s, usage_flag = %s, updated_at = %s
+                WHERE id = %s
+            """, (usage_type, usage_value, usage_flag, self._get_houston_timestamp(), run_id))
+            
+            if rows_updated == 0:
+                logger.warning(f"No rows updated for run_id {run_id}")
             
             # Return analysis results
             return {
@@ -257,19 +250,16 @@ class WaterUsageEstimator:
             Summary of processing results
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get all runs for the target date that need processing
-                cursor.execute("""
-                    SELECT id, zone_id, zone_name, actual_duration_minutes, actual_gallons
-                    FROM actual_runs 
-                    WHERE run_date = ? 
-                    AND actual_duration_minutes > 0
-                    ORDER BY zone_id, actual_start_time
-                """, (target_date,))
-                
-                runs = cursor.fetchall()
+            db_manager = get_universal_database_manager()
+            
+            # Get all runs for the target date that need processing
+            runs = db_manager.adapter.execute_query("""
+                SELECT id, zone_id, zone_name, actual_duration_minutes, actual_gallons
+                FROM actual_runs 
+                WHERE run_date = %s 
+                AND actual_duration_minutes > 0
+                ORDER BY zone_id, actual_start_time
+            """, (target_date,))
                 
             if not runs:
                 return {
@@ -287,7 +277,12 @@ class WaterUsageEstimator:
             too_low_count = 0
             zero_reported_count = 0
             
-            for run_id, zone_id, zone_name, duration_minutes, actual_gallons in runs:
+            for row in runs:
+                run_id = row['id']
+                zone_id = row['zone_id']
+                zone_name = row['zone_name']
+                duration_minutes = row['actual_duration_minutes']
+                actual_gallons = row['actual_gallons']
                 result = self.update_run_usage_data(run_id, zone_id, duration_minutes, actual_gallons)
                 results.append(result)
                 
@@ -349,55 +344,58 @@ class WaterUsageEstimator:
             end_date = start_date
             
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT 
-                        usage_type,
-                        COUNT(*) as count,
-                        SUM(usage) as total_usage,
-                        AVG(usage) as avg_usage,
-                        SUM(actual_gallons) as total_actual
-                    FROM actual_runs 
-                    WHERE run_date BETWEEN ? AND ?
-                    AND actual_duration_minutes > 0
-                    AND usage_type IS NOT NULL
-                    GROUP BY usage_type
-                    ORDER BY count DESC
-                """, (start_date, end_date))
-                
-                usage_stats = {}
-                for row in cursor.fetchall():
-                    usage_type, count, total_usage, avg_usage, total_actual = row
-                    usage_stats[usage_type] = {
-                        'count': count,
-                        'total_usage': total_usage or 0,
-                        'avg_usage': avg_usage or 0,
-                        'total_actual': total_actual or 0
-                    }
-                
-                # Get overall totals
-                cursor.execute("""
-                    SELECT 
-                        COUNT(*) as total_runs,
-                        SUM(usage) as total_estimated_usage,
-                        SUM(actual_gallons) as total_actual_usage
-                    FROM actual_runs 
-                    WHERE run_date BETWEEN ? AND ?
-                    AND actual_duration_minutes > 0
-                """, (start_date, end_date))
-                
-                totals = cursor.fetchone()
-                
-                return {
-                    'success': True,
-                    'date_range': f"{start_date} to {end_date}",
-                    'total_runs': totals[0] if totals else 0,
-                    'total_estimated_usage': totals[1] if totals else 0,
-                    'total_actual_usage': totals[2] if totals else 0,
-                    'usage_stats': usage_stats
+            db_manager = get_universal_database_manager()
+            
+            usage_results = db_manager.adapter.execute_query("""
+                SELECT 
+                    usage_type,
+                    COUNT(*) as count,
+                    SUM(usage) as total_usage,
+                    AVG(usage) as avg_usage,
+                    SUM(actual_gallons) as total_actual
+                FROM actual_runs 
+                WHERE run_date BETWEEN %s AND %s
+                AND actual_duration_minutes > 0
+                AND usage_type IS NOT NULL
+                GROUP BY usage_type
+                ORDER BY count DESC
+            """, (start_date, end_date))
+            
+            usage_stats = {}
+            for row in usage_results:
+                usage_type = row['usage_type']
+                count = row['count']
+                total_usage = row['total_usage']
+                avg_usage = row['avg_usage']
+                total_actual = row['total_actual']
+                usage_stats[usage_type] = {
+                    'count': count,
+                    'total_usage': total_usage or 0,
+                    'avg_usage': avg_usage or 0,
+                    'total_actual': total_actual or 0
                 }
+            
+            # Get overall totals
+            totals_results = db_manager.adapter.execute_query("""
+                SELECT 
+                    COUNT(*) as total_runs,
+                    SUM(usage) as total_estimated_usage,
+                    SUM(actual_gallons) as total_actual_usage
+                FROM actual_runs 
+                WHERE run_date BETWEEN %s AND %s
+                AND actual_duration_minutes > 0
+            """, (start_date, end_date))
+            
+            totals = totals_results[0] if totals_results else None
+            
+            return {
+                'success': True,
+                'date_range': f"{start_date} to {end_date}",
+                'total_runs': totals['total_runs'] if totals else 0,
+                'total_estimated_usage': totals['total_estimated_usage'] if totals else 0,
+                'total_actual_usage': totals['total_actual_usage'] if totals else 0,
+                'usage_stats': usage_stats
+            }
                 
         except Exception as e:
             logger.error(f"Failed to get usage summary: {e}")
@@ -413,7 +411,7 @@ class WaterUsageEstimator:
 
 def main():
     """Example usage and testing"""
-    estimator = WaterUsageEstimator('database/irrigation_data.db')
+    estimator = WaterUsageEstimator()
     
     # Example: Process runs for a specific date
     from datetime import date, timedelta

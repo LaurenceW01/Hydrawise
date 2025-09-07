@@ -117,7 +117,7 @@ def show_usage_summary(start_date: str, end_date: str = None):
     print("-" * 50)
     
     try:
-        estimator = WaterUsageEstimator('database/irrigation_data.db')
+        estimator = WaterUsageEstimator()
         
         if not end_date:
             end_date = start_date

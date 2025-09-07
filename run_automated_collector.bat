@@ -13,3 +13,4 @@ python automated_collector.py --continuous --headless --log-level INFO
 
 REM If the collector exits, wait 30 seconds before the service manager restarts it
 timeout /t 30 /nobreak > nul
+

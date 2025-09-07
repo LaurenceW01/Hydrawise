@@ -38,11 +38,11 @@ logger = logging.getLogger(__name__)
 class DataCollectionPipeline:
     """Orchestrates complete irrigation data collection and analysis"""
     
-    def __init__(self, username: str, password: str, db_path: str = "database/irrigation_data.db"):
+    def __init__(self, username: str, password: str):
         """Initialize pipeline with credentials and enhanced database storage"""
         self.username = username
         self.password = password
-        self.db = IntelligentDataStorage(db_path)
+        self.db = IntelligentDataStorage()
         self.scraper = HydrawiseWebScraper(username, password, headless=True)
         self.failure_detector = IrrigationFailureDetector(username, password)
         
@@ -224,30 +224,36 @@ class DataCollectionPipeline:
     def _update_system_status(self, target_date: date, results: Dict):
         """Update system status table with latest results"""
         try:
-            with self.db._get_connection() if hasattr(self.db, '_get_connection') else sqlite3.connect(self.db.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Calculate totals from results
-                total_zones = len(set([r.zone_name for r in results.get('scheduled_runs', [])]))
-                failure_analysis = results.get('failure_analysis', {})
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO system_status
-                    (status_date, overall_status, total_zones, zones_with_failures,
-                     critical_alerts, warning_alerts, last_schedule_scrape, last_actual_scrape)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    target_date,
-                    failure_analysis.get('system_status', 'UNKNOWN'),
-                    total_zones,
-                    failure_analysis.get('zones_with_failures', 0),
-                    len([a for a in failure_analysis.get('alerts', []) if a.get('severity') == 'CRITICAL']),
-                    len([a for a in failure_analysis.get('alerts', []) if a.get('severity') == 'WARNING']),
-                    datetime.now(),
-                    datetime.now()
-                ))
-                
-                conn.commit()
+            from database.universal_database_manager import get_universal_database_manager
+            db_manager = get_universal_database_manager()
+            
+            # Calculate totals from results
+            total_zones = len(set([r.zone_name for r in results.get('scheduled_runs', [])]))
+            failure_analysis = results.get('failure_analysis', {})
+            
+            db_manager.adapter.execute_insert("""
+                INSERT INTO system_status
+                (status_date, overall_status, total_zones, zones_with_failures,
+                 critical_alerts, warning_alerts, last_schedule_scrape, last_actual_scrape)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (status_date) DO UPDATE SET
+                    overall_status = EXCLUDED.overall_status,
+                    total_zones = EXCLUDED.total_zones,
+                    zones_with_failures = EXCLUDED.zones_with_failures,
+                    critical_alerts = EXCLUDED.critical_alerts,
+                    warning_alerts = EXCLUDED.warning_alerts,
+                    last_schedule_scrape = EXCLUDED.last_schedule_scrape,
+                    last_actual_scrape = EXCLUDED.last_actual_scrape
+            """, (
+                target_date,
+                failure_analysis.get('system_status', 'UNKNOWN'),
+                total_zones,
+                failure_analysis.get('zones_with_failures', 0),
+                len([a for a in failure_analysis.get('alerts', []) if a.get('severity') == 'CRITICAL']),
+                len([a for a in failure_analysis.get('alerts', []) if a.get('severity') == 'WARNING']),
+                datetime.now(),
+                datetime.now()
+            ))
                 
         except Exception as e:
             logger.error(f"Failed to update system status: {e}")

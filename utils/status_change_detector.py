@@ -15,7 +15,6 @@ Author: AI Assistant
 Date: 2025-08-26
 """
 
-import sqlite3
 import logging
 import json
 from datetime import datetime, date, timedelta
@@ -24,6 +23,7 @@ from dataclasses import dataclass
 
 from utils.timezone_utils import get_houston_now, get_database_timestamp
 from hydrawise_web_scraper_refactored import ScheduledRun
+from database.universal_database_manager import get_universal_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +54,10 @@ class StatusChangeDetector:
     that appears in all popup types (time, duration fields).
     """
     
-    def __init__(self, db_path: str = "database/irrigation_data.db"):
+    def __init__(self):
         """
         Initialize status change detector
-        
-        Args:
-            db_path: Path to SQLite database
         """
-        self.db_path = db_path
         self.logger = logger
     
     def classify_popup_status(self, popup_text: str) -> str:
@@ -178,79 +174,89 @@ class StatusChangeDetector:
             Most recent PREVIOUS ScheduledRun object or None if no previous runs exist
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            db_manager = get_universal_database_manager()
+            
+            # Get most recent scheduled run for this zone
+            # If exclude_current_run is provided, find the most recent run that doesn't match
+            if exclude_current_run:
+                # Build exclusion criteria based on the current run's properties
+                exclusion_criteria = []
+                exclusion_params = [zone_id]
                 
-                # Get most recent scheduled run for this zone
-                # If exclude_current_run is provided, find the most recent run that doesn't match
-                if exclude_current_run:
-                    # Build exclusion criteria based on the current run's properties
-                    exclusion_criteria = []
-                    exclusion_params = [zone_id]
-                    
-                    if hasattr(exclude_current_run, 'schedule_date') and exclude_current_run.schedule_date:
-                        exclusion_criteria.append("schedule_date != ?")
-                        exclusion_params.append(exclude_current_run.schedule_date.isoformat() if hasattr(exclude_current_run.schedule_date, 'isoformat') else str(exclude_current_run.schedule_date))
-                    
-                    if hasattr(exclude_current_run, 'start_time') and exclude_current_run.start_time:
-                        exclusion_criteria.append("scheduled_start_time != ?")
-                        exclusion_params.append(exclude_current_run.start_time)
-                    
-                    exclusion_clause = " AND " + " AND ".join(exclusion_criteria) if exclusion_criteria else ""
-                    
-                    cursor.execute(f"""
-                        SELECT 
-                            id, zone_id, zone_name, schedule_date, scheduled_start_time,
-                            scheduled_duration_minutes, expected_gallons, program_name,
-                            notes, raw_popup_text, popup_lines_json, parsed_summary,
-                            is_rain_cancelled, rain_sensor_status, popup_status,
-                            scraped_at, created_at
-                        FROM scheduled_runs 
-                        WHERE zone_id = ?{exclusion_clause}
-                        AND schedule_date < ?
-                        ORDER BY scraped_at DESC, scheduled_start_time DESC
-                        LIMIT 1
-                    """, exclusion_params + [exclude_current_run.schedule_date.isoformat()])
+                if hasattr(exclude_current_run, 'schedule_date') and exclude_current_run.schedule_date:
+                    exclusion_criteria.append("schedule_date != %s")
+                    exclusion_params.append(exclude_current_run.schedule_date.isoformat() if hasattr(exclude_current_run.schedule_date, 'isoformat') else str(exclude_current_run.schedule_date))
+                
+                if hasattr(exclude_current_run, 'start_time') and exclude_current_run.start_time:
+                    exclusion_criteria.append("scheduled_start_time != %s")
+                    exclusion_params.append(exclude_current_run.start_time)
+                
+                exclusion_clause = " AND " + " AND ".join(exclusion_criteria) if exclusion_criteria else ""
+                
+                results = db_manager.adapter.execute_query(f"""
+                    SELECT 
+                        id, zone_id, zone_name, schedule_date, scheduled_start_time,
+                        scheduled_duration_minutes, expected_gallons, program_name,
+                        notes, raw_popup_text, popup_lines_json, parsed_summary,
+                        is_rain_cancelled, rain_sensor_status, popup_status,
+                        scraped_at, created_at
+                    FROM scheduled_runs 
+                    WHERE zone_id = %s{exclusion_clause}
+                    AND schedule_date < %s
+                    ORDER BY scraped_at DESC, scheduled_start_time DESC
+                    LIMIT 1
+                """, exclusion_params + [exclude_current_run.schedule_date.isoformat()])
+            else:
+                # Get most recent run (no exclusions) - should not be used for status change detection
+                # This branch is kept for compatibility but should not be called for status changes
+                results = db_manager.adapter.execute_query("""
+                    SELECT 
+                        id, zone_id, zone_name, schedule_date, scheduled_start_time,
+                        scheduled_duration_minutes, expected_gallons, program_name,
+                        notes, raw_popup_text, popup_lines_json, parsed_summary,
+                        is_rain_cancelled, rain_sensor_status, popup_status,
+                        scraped_at, created_at
+                    FROM scheduled_runs 
+                    WHERE zone_id = %s
+                    ORDER BY scraped_at DESC, scheduled_start_time DESC
+                    LIMIT 1
+                """, (zone_id,))
+            
+            if results:
+                row = results[0]
+                # Convert row to ScheduledRun object with correct parameters
+                # Handle datetime parsing - could be string or datetime object
+                start_time = row['scheduled_start_time']
+                if isinstance(start_time, str):
+                    start_time = datetime.fromisoformat(start_time)
+                
+                run = ScheduledRun(
+                    zone_id=str(row['zone_id']),
+                    zone_name=row['zone_name'],
+                    start_time=start_time,
+                    duration_minutes=row['scheduled_duration_minutes'],
+                    expected_gallons=row['expected_gallons'],
+                    notes=row['notes'] or ""
+                )
+                
+                # Add additional attributes
+                # Handle schedule_date parsing - could be string or date object
+                schedule_date = row['schedule_date']
+                if isinstance(schedule_date, str):
+                    run.schedule_date = datetime.fromisoformat(schedule_date).date()
                 else:
-                    # Get most recent run (no exclusions) - should not be used for status change detection
-                    # This branch is kept for compatibility but should not be called for status changes
-                    cursor.execute("""
-                        SELECT 
-                            id, zone_id, zone_name, schedule_date, scheduled_start_time,
-                            scheduled_duration_minutes, expected_gallons, program_name,
-                            notes, raw_popup_text, popup_lines_json, parsed_summary,
-                            is_rain_cancelled, rain_sensor_status, popup_status,
-                            scraped_at, created_at
-                        FROM scheduled_runs 
-                        WHERE zone_id = ?
-                        ORDER BY scraped_at DESC, scheduled_start_time DESC
-                        LIMIT 1
-                    """, (zone_id,))
+                    run.schedule_date = schedule_date
+                    
+                run.program_name = row['program_name']
+                run.raw_popup_text = row['raw_popup_text']
+                run.popup_lines_json = row['popup_lines_json']
+                run.parsed_summary = row['parsed_summary']
+                run.is_rain_cancelled = bool(row['is_rain_cancelled']) if row['is_rain_cancelled'] is not None else False
+                run.rain_sensor_status = row['rain_sensor_status']
+                run.popup_status = row['popup_status']
                 
-                row = cursor.fetchone()
-                if row:
-                    # Convert row to ScheduledRun object with correct parameters
-                    run = ScheduledRun(
-                        zone_id=str(row[1]),
-                        zone_name=row[2],
-                        start_time=datetime.fromisoformat(row[4]),
-                        duration_minutes=row[5],
-                        expected_gallons=row[6],
-                        notes=row[8] or ""
-                    )
-                    
-                    # Add additional attributes
-                    run.schedule_date = datetime.fromisoformat(row[3]).date()
-                    run.program_name = row[7]
-                    run.raw_popup_text = row[9]
-                    run.popup_lines_json = row[10]
-                    run.parsed_summary = row[11]
-                    run.is_rain_cancelled = bool(row[12]) if row[12] is not None else False
-                    run.rain_sensor_status = row[13]
-                    run.popup_status = row[14]
-                    
-                    return run
-                return None
+                return run
+            return None
                 
         except Exception as e:
             self.logger.error(f"Error getting most recent run for zone {zone_id}: {e}")
@@ -397,29 +403,28 @@ class StatusChangeDetector:
             True if this current run was already processed for status changes
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # FIXED: Check if we already processed this current run for status changes
-                # Focus on the current run being processed, not the previous run comparison
-                cursor.execute("""
-                    SELECT COUNT(*) 
-                    FROM scheduled_run_status_changes 
-                    WHERE zone_id = ? 
-                        AND current_run_date = ?
-                        AND current_scheduled_start_time = ?
-                """, (
-                    current_run.zone_id,
-                    current_run.schedule_date.isoformat(),
-                    current_run.start_time.isoformat()
-                ))
-                
-                count = cursor.fetchone()[0]
-                
-                if count > 0:
-                    self.logger.debug(f"Current run already processed: {current_run.zone_name} {current_run.schedule_date} {current_run.start_time}")
-                
-                return count > 0
+            db_manager = get_universal_database_manager()
+            
+            # FIXED: Check if we already processed this current run for status changes
+            # Focus on the current run being processed, not the previous run comparison
+            results = db_manager.adapter.execute_query("""
+                SELECT COUNT(*) as count
+                FROM scheduled_run_status_changes 
+                WHERE zone_id = %s 
+                    AND current_run_date = %s
+                    AND current_scheduled_start_time = %s
+            """, (
+                current_run.zone_id,
+                current_run.schedule_date.isoformat(),
+                current_run.start_time.isoformat()
+            ))
+            
+            count = results[0]['count'] if results else 0
+            
+            if count > 0:
+                self.logger.debug(f"Current run already processed: {current_run.zone_name} {current_run.schedule_date} {current_run.start_time}")
+            
+            return count > 0
                 
         except Exception as e:
             self.logger.error(f"Error checking for duplicate change: {e}")
@@ -440,43 +445,41 @@ class StatusChangeDetector:
             return True
         
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                for change in status_changes:
-                    cursor.execute("""
-                        INSERT INTO scheduled_run_status_changes (
-                            zone_id, zone_name, change_detected_date, change_detected_time,
-                            collection_run_id, current_run_date, current_scheduled_start_time,
-                            current_status_type, current_popup_text, previous_run_date,
-                            previous_scheduled_start_time, previous_status_type, previous_popup_text,
-                            change_type, irrigation_prevented, expected_gallons_lost,
-                            time_since_last_record_hours, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        change.zone_id,
-                        change.zone_name,
-                        change.change_detected_at.date().isoformat(),
-                        change.change_detected_at.isoformat(),
-                        collection_run_id,
-                        change.current_run_date.isoformat(),
-                        change.current_scheduled_start_time.isoformat(),
-                        change.current_status_type,
-                        change.current_popup_text,
-                        change.previous_run_date.isoformat(),
-                        change.previous_scheduled_start_time.isoformat(),
-                        change.previous_status_type,
-                        change.previous_popup_text,
-                        change.change_type,
-                        change.irrigation_prevented,
-                        change.expected_gallons_lost,
-                        change.time_since_last_record_hours,
-                        change.change_detected_at.isoformat()  # Use Houston time for created_at
-                    ))
-                
-                conn.commit()
-                self.logger.info(f"Stored {len(status_changes)} status changes in database")
-                return True
+            db_manager = get_universal_database_manager()
+            
+            for change in status_changes:
+                db_manager.adapter.execute_insert("""
+                    INSERT INTO scheduled_run_status_changes (
+                        zone_id, zone_name, change_detected_date, change_detected_time,
+                        collection_run_id, current_run_date, current_scheduled_start_time,
+                        current_status_type, current_popup_text, previous_run_date,
+                        previous_scheduled_start_time, previous_status_type, previous_popup_text,
+                        change_type, irrigation_prevented, expected_gallons_lost,
+                        time_since_last_record_hours, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    change.zone_id,
+                    change.zone_name,
+                    change.change_detected_at.date().isoformat(),
+                    change.change_detected_at.isoformat(),
+                    collection_run_id,
+                    change.current_run_date.isoformat(),
+                    change.current_scheduled_start_time.isoformat(),
+                    change.current_status_type,
+                    change.current_popup_text,
+                    change.previous_run_date.isoformat(),
+                    change.previous_scheduled_start_time.isoformat(),
+                    change.previous_status_type,
+                    change.previous_popup_text,
+                    change.change_type,
+                    change.irrigation_prevented,
+                    change.expected_gallons_lost,
+                    change.time_since_last_record_hours,
+                    change.change_detected_at.isoformat()  # Use Houston time for created_at
+                ))
+            
+            self.logger.info(f"Stored {len(status_changes)} status changes in database")
+            return True
                 
         except Exception as e:
             self.logger.error(f"Error storing status changes: {e}")
@@ -493,42 +496,41 @@ class StatusChangeDetector:
             List of status changes as dictionaries
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT 
-                        zone_id, zone_name, change_detected_time, current_run_date,
-                        current_scheduled_start_time, current_status_type, current_popup_text,
-                        previous_run_date, previous_scheduled_start_time, previous_status_type,
-                        previous_popup_text, change_type, irrigation_prevented,
-                        expected_gallons_lost, time_since_last_record_hours
-                    FROM scheduled_run_status_changes 
-                    WHERE change_detected_date = ?
-                    ORDER BY change_detected_time
-                """, (target_date.isoformat(),))
-                
-                changes = []
-                for row in cursor.fetchall():
-                    changes.append({
-                        'zone_id': row[0],
-                        'zone_name': row[1],
-                        'change_detected_time': datetime.fromisoformat(row[2]) if row[2] else None,
-                        'current_run_date': datetime.fromisoformat(row[3]).date() if row[3] else None,
-                        'current_scheduled_start_time': datetime.fromisoformat(row[4]) if row[4] else None,
-                        'current_status_type': row[5],
-                        'current_popup_text': row[6],
-                        'previous_run_date': datetime.fromisoformat(row[7]).date() if row[7] else None,
-                        'previous_scheduled_start_time': datetime.fromisoformat(row[8]) if row[8] else None,
-                        'previous_status_type': row[9],
-                        'previous_popup_text': row[10],
-                        'change_type': row[11],
-                        'irrigation_prevented': bool(row[12]),
-                        'expected_gallons_lost': row[13] or 0,
-                        'time_since_last_record_hours': row[14]
-                    })
-                
-                return changes
+            db_manager = get_universal_database_manager()
+            
+            results = db_manager.adapter.execute_query("""
+                SELECT 
+                    zone_id, zone_name, change_detected_time, current_run_date,
+                    current_scheduled_start_time, current_status_type, current_popup_text,
+                    previous_run_date, previous_scheduled_start_time, previous_status_type,
+                    previous_popup_text, change_type, irrigation_prevented,
+                    expected_gallons_lost, time_since_last_record_hours
+                FROM scheduled_run_status_changes 
+                WHERE change_detected_date = %s
+                ORDER BY change_detected_time
+            """, (target_date.isoformat(),))
+            
+            changes = []
+            for row in results:
+                changes.append({
+                    'zone_id': row['zone_id'],
+                    'zone_name': row['zone_name'],
+                    'change_detected_time': datetime.fromisoformat(row['change_detected_time']) if row['change_detected_time'] else None,
+                    'current_run_date': datetime.fromisoformat(row['current_run_date']).date() if row['current_run_date'] else None,
+                    'current_scheduled_start_time': datetime.fromisoformat(row['current_scheduled_start_time']) if row['current_scheduled_start_time'] else None,
+                    'current_status_type': row['current_status_type'],
+                    'current_popup_text': row['current_popup_text'],
+                    'previous_run_date': datetime.fromisoformat(row['previous_run_date']).date() if row['previous_run_date'] else None,
+                    'previous_scheduled_start_time': datetime.fromisoformat(row['previous_scheduled_start_time']) if row['previous_scheduled_start_time'] else None,
+                    'previous_status_type': row['previous_status_type'],
+                    'previous_popup_text': row['previous_popup_text'],
+                    'change_type': row['change_type'],
+                    'irrigation_prevented': bool(row['irrigation_prevented']),
+                    'expected_gallons_lost': row['expected_gallons_lost'] or 0,
+                    'time_since_last_record_hours': row['time_since_last_record_hours']
+                })
+            
+            return changes
                 
         except Exception as e:
             self.logger.error(f"Error getting status changes for {target_date}: {e}")

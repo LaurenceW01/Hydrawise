@@ -38,8 +38,23 @@ class DatabaseManager:
     """Manages all database operations for irrigation monitoring"""
     
     def __init__(self, db_path: str = "database/irrigation_data.db"):
-        """Initialize database manager with SQLite database"""
+        """Initialize database manager - DEPRECATED: Use UniversalDatabaseManager instead"""
+        import warnings
+        warnings.warn(
+            "DatabaseManager is deprecated. Use get_universal_database_manager() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
+        # Keep db_path for backwards compatibility, but also provide universal database access
         self.db_path = db_path
+        try:
+            from database.universal_database_manager import get_universal_database_manager
+            self.universal_db = get_universal_database_manager()
+        except Exception as e:
+            logger.warning(f"Could not initialize universal database manager: {e}")
+            self.universal_db = None
+            
         self.zone_config = ZoneConfiguration()
         self.ensure_directory()
         self.init_database()

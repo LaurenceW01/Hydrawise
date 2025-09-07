@@ -12,7 +12,6 @@ Author: AI Assistant
 Date: August 22, 2025
 """
 
-import sqlite3
 import json
 import sys
 import os
@@ -24,6 +23,7 @@ from enum import Enum
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.timezone_utils import get_houston_now, to_houston_time, HOUSTON_TZ
+from database.universal_database_manager import get_universal_database_manager
 
 class MatchType(Enum):
     """Types of matches between scheduled and actual runs"""
@@ -77,74 +77,66 @@ class IrrigationMatcher:
     Intelligent irrigation matching system that compares scheduled vs actual runs
     """
     
-    def __init__(self, db_path: str = "database/irrigation_data.db", time_tolerance_minutes: int = 30):
+    def __init__(self, time_tolerance_minutes: int = 30):
         """
         Initialize the matcher
         
         Args:
-            db_path: Path to SQLite database
             time_tolerance_minutes: Maximum time difference for a valid match
         """
-        self.db_path = db_path
         self.time_tolerance_minutes = time_tolerance_minutes
         
     def load_scheduled_runs(self, target_date: date) -> List[ScheduledRun]:
         """Load scheduled runs for a specific date"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT id, zone_name, scheduled_start_time, scheduled_duration_minutes,
-                       expected_gallons, is_rain_cancelled, rain_sensor_status, popup_status
-                FROM scheduled_runs 
-                WHERE schedule_date = ?
-                ORDER BY scheduled_start_time
-            """, (target_date,))
-            
-            runs = []
-            for row in cursor.fetchall():
-                runs.append(ScheduledRun(
-                    id=row['id'],
-                    zone_name=row['zone_name'],
-                    scheduled_start_time=datetime.fromisoformat(row['scheduled_start_time']),
-                    scheduled_duration_minutes=row['scheduled_duration_minutes'],
-                    expected_gallons=row['expected_gallons'],
-                    is_rain_cancelled=bool(row['is_rain_cancelled']),
-                    rain_sensor_status=row['rain_sensor_status'],
-                    popup_status=row['popup_status']
-                ))
-            
-            return runs
+        db_manager = get_universal_database_manager()
+        results = db_manager.adapter.execute_query("""
+            SELECT id, zone_name, scheduled_start_time, scheduled_duration_minutes,
+                   expected_gallons, is_rain_cancelled, rain_sensor_status, popup_status
+            FROM scheduled_runs 
+            WHERE schedule_date = %s
+            ORDER BY scheduled_start_time
+        """, (target_date,))
+        
+        runs = []
+        for row in results:
+            runs.append(ScheduledRun(
+                id=row['id'],
+                zone_name=row['zone_name'],
+                scheduled_start_time=datetime.fromisoformat(str(row['scheduled_start_time'])),
+                scheduled_duration_minutes=row['scheduled_duration_minutes'],
+                expected_gallons=row['expected_gallons'],
+                is_rain_cancelled=bool(row['is_rain_cancelled']),
+                rain_sensor_status=row['rain_sensor_status'],
+                popup_status=row['popup_status']
+            ))
+        
+        return runs
     
     def load_actual_runs(self, target_date: date) -> List[ActualRun]:
         """Load actual runs for a specific date"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT id, zone_name, actual_start_time, actual_duration_minutes,
-                       actual_gallons, status, failure_reason, water_efficiency
-                FROM actual_runs 
-                WHERE run_date = ?
-                ORDER BY actual_start_time
-            """, (target_date,))
-            
-            runs = []
-            for row in cursor.fetchall():
-                runs.append(ActualRun(
-                    id=row['id'],
-                    zone_name=row['zone_name'],
-                    start_time=datetime.fromisoformat(row['actual_start_time']),
-                    duration_minutes=row['actual_duration_minutes'],
-                    actual_gallons=row['actual_gallons'],
-                    status=row['status'],
-                    failure_reason=row['failure_reason'],
-                    water_efficiency=row['water_efficiency']
-                ))
-            
-            return runs
+        db_manager = get_universal_database_manager()
+        results = db_manager.adapter.execute_query("""
+            SELECT id, zone_name, actual_start_time, actual_duration_minutes,
+                   actual_gallons, status, failure_reason, water_efficiency
+            FROM actual_runs 
+            WHERE run_date = %s
+            ORDER BY actual_start_time
+        """, (target_date,))
+        
+        runs = []
+        for row in results:
+            runs.append(ActualRun(
+                id=row['id'],
+                zone_name=row['zone_name'],
+                start_time=datetime.fromisoformat(str(row['actual_start_time'])),
+                duration_minutes=row['actual_duration_minutes'],
+                actual_gallons=row['actual_gallons'],
+                status=row['status'],
+                failure_reason=row['failure_reason'],
+                water_efficiency=row['water_efficiency']
+            ))
+        
+        return runs
     
     def normalize_zone_name(self, zone_name: str) -> str:
         """Normalize zone name for consistent matching"""

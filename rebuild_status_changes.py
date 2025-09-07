@@ -13,7 +13,6 @@ Author: AI Assistant
 Date: 2025-09-03
 """
 
-import sqlite3
 import sys
 import os
 from datetime import date, datetime
@@ -22,43 +21,44 @@ from datetime import date, datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from irrigation_tracking_system import IrrigationTrackingSystem, create_default_tracking_system
+from database.universal_database_manager import get_universal_database_manager
 
-def get_problematic_dates(db_path: str):
+def get_problematic_dates():
     """Get the dates that have status change records (these are the ones we need to rebuild)"""
     
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT DISTINCT change_detected_date, COUNT(*) as record_count
-            FROM scheduled_run_status_changes 
-            ORDER BY change_detected_date
-        """)
-        
-        dates = []
-        for row in cursor.fetchall():
-            change_date, count = row
-            dates.append((date.fromisoformat(change_date), count))
-        
-        return dates
+    db_manager = get_universal_database_manager()
+    
+    results = db_manager.adapter.execute_query("""
+        SELECT DISTINCT change_detected_date, COUNT(*) as record_count
+        FROM scheduled_run_status_changes 
+        GROUP BY change_detected_date
+        ORDER BY change_detected_date
+    """)
+    
+    dates = []
+    for row in results:
+        change_date = row['change_detected_date']
+        count = row['record_count']
+        # Convert string date to date object if needed
+        if isinstance(change_date, str):
+            change_date = date.fromisoformat(change_date)
+        dates.append((change_date, count))
+    
+    return dates
 
-def delete_status_changes_for_date(db_path: str, target_date: date):
+def delete_status_changes_for_date(target_date: date):
     """Delete all status change records for a specific date"""
     
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            DELETE FROM scheduled_run_status_changes 
-            WHERE change_detected_date = ?
-        """, (target_date.isoformat(),))
-        
-        deleted_count = cursor.rowcount
-        conn.commit()
-        
-        return deleted_count
+    db_manager = get_universal_database_manager()
+    
+    deleted_count = db_manager.adapter.execute_delete("""
+        DELETE FROM scheduled_run_status_changes 
+        WHERE change_detected_date = %s
+    """, (target_date.isoformat(),))
+    
+    return deleted_count
 
-def rebuild_status_changes_for_date(db_path: str, target_date: date):
+def rebuild_status_changes_for_date(target_date: date):
     """Rebuild status changes for a specific date using the fixed logic"""
     
     # Create tracking system with the fixed _get_recent_scheduled_runs method
@@ -74,8 +74,6 @@ def rebuild_status_changes_for_date(db_path: str, target_date: date):
 def main():
     """Main function to rebuild status changes"""
     
-    db_path = "database/irrigation_data.db"
-    
     print("=" * 80)
     print("REBUILD STATUS CHANGES FROM SCHEDULE DATA")
     print("=" * 80)
@@ -83,11 +81,36 @@ def main():
     
     # Get problematic dates
     print("🔍 Analyzing existing status change records...")
-    problematic_dates = get_problematic_dates(db_path)
+    problematic_dates = get_problematic_dates()
     
     if not problematic_dates:
-        print("✅ No status change records found - nothing to rebuild")
-        return
+        print("ℹ️  No existing status change records found")
+        print("🔄 Will analyze all scheduled runs to detect status changes...")
+        
+        # Get all dates that have scheduled runs
+        db_manager = get_universal_database_manager()
+        results = db_manager.adapter.execute_query("""
+            SELECT DISTINCT schedule_date, COUNT(*) as run_count
+            FROM scheduled_runs 
+            GROUP BY schedule_date
+            ORDER BY schedule_date
+        """)
+        
+        dates_with_runs = []
+        for row in results:
+            schedule_date = row['schedule_date']
+            count = row['run_count']
+            # Convert string date to date object if needed
+            if isinstance(schedule_date, str):
+                schedule_date = date.fromisoformat(schedule_date)
+            dates_with_runs.append((schedule_date, count))
+        
+        if not dates_with_runs:
+            print("❌ No scheduled runs found to analyze")
+            return
+            
+        print(f"Found {len(dates_with_runs)} dates with scheduled runs to analyze")
+        problematic_dates = dates_with_runs
     
     print(f"Found status change records for {len(problematic_dates)} dates:")
     total_records = 0
@@ -114,20 +137,21 @@ def main():
     print("🔧 Rebuilding status changes...")
     print()
     
-    total_deleted = 0
+    # Delete ALL existing status change records at once to avoid conflicts
+    print("🗑️  Deleting ALL existing status change records...")
+    db_manager = get_universal_database_manager()
+    total_deleted = db_manager.adapter.execute_delete("DELETE FROM scheduled_run_status_changes")
+    print(f"  Deleted {total_deleted} old records")
+    print()
+    
     total_new_changes = 0
     
     for problem_date, old_count in problematic_dates:
         print(f"Processing {problem_date}...")
         
-        # Delete existing records
-        deleted_count = delete_status_changes_for_date(db_path, problem_date)
-        total_deleted += deleted_count
-        print(f"  Deleted {deleted_count} old records")
-        
-        # Rebuild using fixed logic
+        # Rebuild using fixed logic (no need to delete since we already cleared everything)
         try:
-            runs_processed, changes_detected = rebuild_status_changes_for_date(db_path, problem_date)
+            runs_processed, changes_detected = rebuild_status_changes_for_date(problem_date)
             total_new_changes += changes_detected
             print(f"  Processed {runs_processed} runs, detected {changes_detected} changes")
         except Exception as e:
@@ -151,18 +175,17 @@ def main():
         print("📊 Same number of records - data structure corrected")
     
     # Verify no backwards records remain
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT COUNT(*) FROM scheduled_run_status_changes 
-            WHERE current_run_date < previous_run_date
-        """)
-        backwards_count = cursor.fetchone()[0]
-        
-        if backwards_count == 0:
-            print("🎉 SUCCESS: No backwards date records remain!")
-        else:
-            print(f"⚠️  WARNING: {backwards_count} backwards date records still exist")
+    db_manager = get_universal_database_manager()
+    results = db_manager.adapter.execute_query("""
+        SELECT COUNT(*) as count FROM scheduled_run_status_changes 
+        WHERE current_run_date < previous_run_date
+    """)
+    backwards_count = results[0]['count'] if results else 0
+    
+    if backwards_count == 0:
+        print("🎉 SUCCESS: No backwards date records remain!")
+    else:
+        print(f"⚠️  WARNING: {backwards_count} backwards date records still exist")
 
 if __name__ == "__main__":
     main()

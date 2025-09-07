@@ -13,12 +13,13 @@ import smtplib
 import ssl
 import logging
 import json
-import sqlite3
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Any
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dataclasses import dataclass
+
+from database.universal_database_manager import get_universal_database_manager
 
 from utils.timezone_utils import get_houston_now, get_display_timestamp, get_database_timestamp
 
@@ -54,16 +55,14 @@ class EmailNotificationManager:
     - Email delivery tracking and error handling
     """
     
-    def __init__(self, config: EmailConfig, db_path: str = "database/irrigation_data.db"):
+    def __init__(self, config: EmailConfig):
         """
         Initialize email notification manager
         
         Args:
             config: Email configuration settings
-            db_path: Path to SQLite database
         """
         self.config = config
-        self.db_path = db_path
         self.logger = logger
         
         # Validate configuration
@@ -93,47 +92,45 @@ class EmailNotificationManager:
             return False
             
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Check if email already sent today
-                cursor.execute("""
-                    SELECT email_notification_sent 
-                    FROM daily_status_summary 
-                    WHERE summary_date = ?
-                """, (target_date.isoformat(),))
-                
-                result = cursor.fetchone()
-                if result and result[0]:  # email_notification_sent = True
-                    self.logger.debug(f"Daily email already sent for {target_date}")
-                    return False
-                
-                # CRITICAL FIX: Only check for ACTUAL status changes, not just any records
-                cursor.execute("""
-                    SELECT COUNT(*) 
-                    FROM scheduled_run_status_changes 
-                    WHERE change_detected_date = ?
-                """, (target_date.isoformat(),))
-                
-                changes_count = cursor.fetchone()[0]
-                
-                # CRITICAL FIX: Check if rain sensor status ACTUALLY CHANGED today
-                # Don't just count records - check if status is different from yesterday
-                cursor.execute("""
-                    SELECT COUNT(DISTINCT is_stopping_irrigation) 
-                    FROM rain_sensor_status_history 
-                    WHERE status_date = ?
-                """, (target_date.isoformat(),))
-                
-                sensor_status_variations = cursor.fetchone()[0]
-                sensor_actually_changed = sensor_status_variations > 1  # Changed if we see both True and False
-                
-                # CRITICAL FIX: Disable daily email system entirely
-                # The comprehensive monitoring system handles all emails now
-                self.logger.info(f"[DAILY EMAIL] Disabled - using comprehensive monitoring system instead")
-                self.logger.debug(f"Email eligibility for {target_date}: {changes_count} status changes, sensor_changed: {sensor_actually_changed}, but daily emails disabled")
-                
-                return False  # Always return False - comprehensive system handles emails
+            db_manager = get_universal_database_manager()
+            
+            # Check if email already sent today
+            results = db_manager.adapter.execute_query("""
+                SELECT email_notification_sent 
+                FROM daily_status_summary 
+                WHERE summary_date = %s
+            """, (target_date.isoformat(),))
+            
+            if results and results[0]['email_notification_sent']:
+                self.logger.debug(f"Daily email already sent for {target_date}")
+                return False
+            
+            # CRITICAL FIX: Only check for ACTUAL status changes, not just any records
+            count_results = db_manager.adapter.execute_query("""
+                SELECT COUNT(*) as count
+                FROM scheduled_run_status_changes 
+                WHERE change_detected_date = %s
+            """, (target_date.isoformat(),))
+            
+            changes_count = count_results[0]['count'] if count_results else 0
+            
+            # CRITICAL FIX: Check if rain sensor status ACTUALLY CHANGED today
+            # Don't just count records - check if status is different from yesterday
+            sensor_results = db_manager.adapter.execute_query("""
+                SELECT COUNT(DISTINCT is_stopping_irrigation) as count
+                FROM rain_sensor_status_history 
+                WHERE status_date = %s
+            """, (target_date.isoformat(),))
+            
+            sensor_status_variations = sensor_results[0]['count'] if sensor_results else 0
+            sensor_actually_changed = sensor_status_variations > 1  # Changed if we see both True and False
+            
+            # CRITICAL FIX: Disable daily email system entirely
+            # The comprehensive monitoring system handles all emails now
+            self.logger.info(f"[DAILY EMAIL] Disabled - using comprehensive monitoring system instead")
+            self.logger.debug(f"Email eligibility for {target_date}: {changes_count} status changes, sensor_changed: {sensor_actually_changed}, but daily emails disabled")
+            
+            return False  # Always return False - comprehensive system handles emails
                 
         except Exception as e:
             self.logger.error(f"Error checking daily email eligibility: {e}")
@@ -150,83 +147,88 @@ class EmailNotificationManager:
             Dictionary with categorized status changes
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            db_manager = get_universal_database_manager()
+            
+            # Get all status changes for the date
+            changes = db_manager.adapter.execute_query("""
+                SELECT 
+                    zone_name, change_type, current_scheduled_start_time,
+                    expected_gallons_lost, current_popup_text, previous_popup_text,
+                    change_detected_time
+                FROM scheduled_run_status_changes 
+                WHERE change_detected_date = %s
+                ORDER BY change_detected_time
+            """, (target_date.isoformat(),))
+            
+            # Get rain sensor changes for the date
+            sensor_changes = db_manager.adapter.execute_query("""
+                SELECT 
+                    status_time, sensor_status, is_stopping_irrigation,
+                    irrigation_suspended, sensor_text_raw
+                FROM rain_sensor_status_history 
+                WHERE status_date = %s
+                ORDER BY status_time
+            """, (target_date.isoformat(),))
+            
+            # Categorize status changes
+            categorized = {
+                'rainfall_aborts': [],
+                'sensor_aborts': [],
+                'user_suspensions': [],
+                'normal_restorations': [],
+                'other_changes': [],
+                'sensor_changes': [],
+                'total_gallons_lost': 0,
+                'zones_affected': set(),
+                'detection_count': len(changes)
+            }
+            
+            for change in changes:
+                zone_name = change['zone_name']
+                change_type = change['change_type']
+                start_time = change['current_scheduled_start_time']
+                gallons_lost = change['expected_gallons_lost']
+                current_popup = change['current_popup_text']
+                previous_popup = change['previous_popup_text']
+                detected_time = change['change_detected_time']
                 
-                # Get all status changes for the date
-                cursor.execute("""
-                    SELECT 
-                        zone_name, change_type, current_scheduled_start_time,
-                        expected_gallons_lost, current_popup_text, previous_popup_text,
-                        change_detected_time
-                    FROM scheduled_run_status_changes 
-                    WHERE change_detected_date = ?
-                    ORDER BY change_detected_time
-                """, (target_date.isoformat(),))
-                
-                changes = cursor.fetchall()
-                
-                # Get rain sensor changes for the date
-                cursor.execute("""
-                    SELECT 
-                        status_time, sensor_status, is_stopping_irrigation,
-                        irrigation_suspended, sensor_text_raw
-                    FROM rain_sensor_status_history 
-                    WHERE status_date = ?
-                    ORDER BY status_time
-                """, (target_date.isoformat(),))
-                
-                sensor_changes = cursor.fetchall()
-                
-                # Categorize status changes
-                categorized = {
-                    'rainfall_aborts': [],
-                    'sensor_aborts': [],
-                    'user_suspensions': [],
-                    'normal_restorations': [],
-                    'other_changes': [],
-                    'sensor_changes': [],
-                    'total_gallons_lost': 0,
-                    'zones_affected': set(),
-                    'detection_count': len(changes)
+                change_data = {
+                    'zone_name': zone_name,
+                    'scheduled_start_time': datetime.fromisoformat(start_time) if start_time else None,
+                    'expected_gallons_lost': gallons_lost or 0,
+                    'current_popup': current_popup,
+                    'previous_popup': previous_popup,
+                    'detected_time': datetime.fromisoformat(detected_time) if detected_time else None
                 }
                 
-                for change in changes:
-                    zone_name, change_type, start_time, gallons_lost, current_popup, previous_popup, detected_time = change
-                    
-                    change_data = {
-                        'zone_name': zone_name,
-                        'scheduled_start_time': datetime.fromisoformat(start_time) if start_time else None,
-                        'expected_gallons_lost': gallons_lost or 0,
-                        'current_popup': current_popup,
-                        'previous_popup': previous_popup,
-                        'detected_time': datetime.fromisoformat(detected_time) if detected_time else None
-                    }
-                    
-                    categorized[f'{change_type}s'].append(change_data)
-                    categorized['total_gallons_lost'] += (gallons_lost or 0)
-                    categorized['zones_affected'].add(zone_name)
+                categorized[f'{change_type}s'].append(change_data)
+                categorized['total_gallons_lost'] += (gallons_lost or 0)
+                categorized['zones_affected'].add(zone_name)
+            
+            # Process sensor changes (deduplicate by status to avoid repeating same message)
+            last_sensor_status = None
+            for sensor_change in sensor_changes:
+                status_time = sensor_change['status_time']
+                sensor_status = sensor_change['sensor_status']
+                stopping = sensor_change['is_stopping_irrigation']
+                suspended = sensor_change['irrigation_suspended']
+                raw_text = sensor_change['sensor_text_raw']
                 
-                # Process sensor changes (deduplicate by status to avoid repeating same message)
-                last_sensor_status = None
-                for sensor_change in sensor_changes:
-                    status_time, sensor_status, stopping, suspended, raw_text = sensor_change
-                    
-                    # Only add if different from last status to avoid duplicates
-                    current_stopping = bool(stopping)
-                    if last_sensor_status != current_stopping:
-                        categorized['sensor_changes'].append({
-                            'status_time': datetime.fromisoformat(status_time) if status_time else None,
-                            'sensor_status': sensor_status,
-                            'is_stopping_irrigation': current_stopping,
-                            'irrigation_suspended': bool(suspended),
-                            'raw_text': raw_text
-                        })
-                        last_sensor_status = current_stopping
-                
-                categorized['zones_affected'] = list(categorized['zones_affected'])
-                
-                return categorized
+                # Only add if different from last status to avoid duplicates
+                current_stopping = bool(stopping)
+                if last_sensor_status != current_stopping:
+                    categorized['sensor_changes'].append({
+                        'status_time': datetime.fromisoformat(status_time) if status_time else None,
+                        'sensor_status': sensor_status,
+                        'is_stopping_irrigation': current_stopping,
+                        'irrigation_suspended': bool(suspended),
+                        'raw_text': raw_text
+                    })
+                    last_sensor_status = current_stopping
+            
+            categorized['zones_affected'] = list(categorized['zones_affected'])
+            
+            return categorized
                 
         except Exception as e:
             self.logger.error(f"Error getting daily status changes: {e}")
@@ -446,33 +448,42 @@ Next collection: {(target_date + timedelta(days=1)).strftime('%B %d')} 6:00 AM H
     def _mark_daily_email_sent(self, target_date: date, changes: Dict[str, Any]):
         """Mark daily email as sent in the database"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Insert or update daily status summary
-                cursor.execute("""
-                    INSERT OR REPLACE INTO daily_status_summary (
-                        summary_date, rainfall_aborts_count, sensor_aborts_count,
-                        user_suspensions_count, normal_restorations_count, total_changes_count,
-                        zones_affected_count, total_gallons_lost, email_notification_sent,
-                        email_sent_at, email_recipients, last_updated
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    target_date.isoformat(),
-                    len(changes['rainfall_aborts']),
-                    len(changes['sensor_aborts']),
-                    len(changes['user_suspensions']),
-                    len(changes['normal_restorations']),
-                    changes['detection_count'],
-                    len(changes['zones_affected']),
-                    changes['total_gallons_lost'],
-                    True,  # email_notification_sent
-                    get_database_timestamp(),  # email_sent_at
-                    json.dumps(self.config.recipients),  # email_recipients
-                    get_database_timestamp()  # last_updated
-                ))
-                
-                conn.commit()
+            db_manager = get_universal_database_manager()
+            
+            # Insert or update daily status summary (PostgreSQL uses ON CONFLICT)
+            db_manager.adapter.execute_insert("""
+                INSERT INTO daily_status_summary (
+                    summary_date, rainfall_aborts_count, sensor_aborts_count,
+                    user_suspensions_count, normal_restorations_count, total_changes_count,
+                    zones_affected_count, total_gallons_lost, email_notification_sent,
+                    email_sent_at, email_recipients, last_updated
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (summary_date) DO UPDATE SET
+                    rainfall_aborts_count = EXCLUDED.rainfall_aborts_count,
+                    sensor_aborts_count = EXCLUDED.sensor_aborts_count,
+                    user_suspensions_count = EXCLUDED.user_suspensions_count,
+                    normal_restorations_count = EXCLUDED.normal_restorations_count,
+                    total_changes_count = EXCLUDED.total_changes_count,
+                    zones_affected_count = EXCLUDED.zones_affected_count,
+                    total_gallons_lost = EXCLUDED.total_gallons_lost,
+                    email_notification_sent = EXCLUDED.email_notification_sent,
+                    email_sent_at = EXCLUDED.email_sent_at,
+                    email_recipients = EXCLUDED.email_recipients,
+                    last_updated = EXCLUDED.last_updated
+            """, (
+                target_date.isoformat(),
+                len(changes['rainfall_aborts']),
+                len(changes['sensor_aborts']),
+                len(changes['user_suspensions']),
+                len(changes['normal_restorations']),
+                changes['detection_count'],
+                len(changes['zones_affected']),
+                changes['total_gallons_lost'],
+                True,  # email_notification_sent
+                get_database_timestamp(),  # email_sent_at
+                json.dumps(self.config.recipients),  # email_recipients
+                get_database_timestamp()  # last_updated
+            ))
                 
         except Exception as e:
             self.logger.error(f"Error marking daily email as sent: {e}")
@@ -482,30 +493,27 @@ Next collection: {(target_date + timedelta(days=1)).strftime('%B %d')} 6:00 AM H
                                email_sent: bool, sent_at: datetime = None, error_message: str = None):
         """Log email notification attempt to database"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT INTO email_notifications_log (
-                        notification_date, notification_type, trigger_event, recipients,
-                        subject, body_preview, affected_zones, runs_affected_count,
-                        email_sent, sent_at, error_message
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    notification_date.isoformat(),
-                    notification_type,
-                    f"Status changes detected for {notification_date}",
-                    json.dumps(self.config.recipients),
-                    subject,
-                    body_preview,
-                    json.dumps(affected_zones),
-                    len(affected_zones),
-                    email_sent,
-                    sent_at.isoformat() if sent_at else None,
-                    error_message
-                ))
-                
-                conn.commit()
+            db_manager = get_universal_database_manager()
+            
+            db_manager.adapter.execute_insert("""
+                INSERT INTO email_notifications_log (
+                    notification_date, notification_type, trigger_event, recipients,
+                    subject, body_preview, affected_zones, runs_affected_count,
+                    email_sent, sent_at, error_message
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                notification_date.isoformat(),
+                notification_type,
+                f"Status changes detected for {notification_date}",
+                json.dumps(self.config.recipients),
+                subject,
+                body_preview,
+                json.dumps(affected_zones),
+                len(affected_zones),
+                email_sent,
+                sent_at.isoformat() if sent_at else None,
+                error_message
+            ))
                 
         except Exception as e:
             self.logger.error(f"Error logging email notification: {e}")

@@ -424,121 +424,124 @@ def print_zero_gallon_analysis(analysis_dates: List[date]):
     print("=" * 60)
     
     try:
-        # Import database manager for queries
-        from database.database_manager import DatabaseManager
+        # Import universal database manager for queries
+        from database.universal_database_manager import get_universal_database_manager
         
-        db_manager = DatabaseManager()
+        db_manager = get_universal_database_manager()
         
         # Query zero gallon runs for the specified dates
         date_conditions = " OR ".join([f"run_date = '{d}'" for d in analysis_dates])
         
-        with sqlite3.connect(db_manager.db_path) as conn:
-            cursor = conn.cursor()
+        # Get all zero gallon runs with duration > 0 (actual irrigation attempts)
+        zero_gallon_runs = db_manager.adapter.execute_query(f"""
+            SELECT 
+                run_date,
+                zone_name,
+                actual_duration_minutes,
+                status,
+                failure_reason,
+                abort_reason,
+                raw_popup_text
+            FROM actual_runs 
+            WHERE (actual_gallons = 0 OR actual_gallons IS NULL)
+              AND actual_duration_minutes > 0
+              AND ({date_conditions})
+            ORDER BY run_date DESC, zone_name
+        """)
+        
+        if not zero_gallon_runs:
+            print("[OK] No zones reported 0 gallons during irrigation attempts")
+            return
+        
+        # Organize data for analysis
+        zones_by_date = {}
+        zone_patterns = {}
+        
+        for row in zero_gallon_runs:
+            run_date = row['run_date']
+            zone_name = row['zone_name']
+            duration = row['actual_duration_minutes']
+            status = row['status']
+            failure_reason = row['failure_reason']
+            abort_reason = row['abort_reason']
+            popup_text = row['raw_popup_text']
             
-            # Get all zero gallon runs with duration > 0 (actual irrigation attempts)
-            cursor.execute(f"""
-                SELECT 
-                    run_date,
-                    zone_name,
-                    actual_duration_minutes,
-                    status,
-                    failure_reason,
-                    abort_reason,
-                    raw_popup_text
-                FROM actual_runs 
-                WHERE (actual_gallons = 0 OR actual_gallons IS NULL)
-                  AND actual_duration_minutes > 0
-                  AND ({date_conditions})
-                ORDER BY run_date DESC, zone_name
-            """)
+            if run_date not in zones_by_date:
+                zones_by_date[run_date] = []
+            zones_by_date[run_date].append({
+                'zone_name': zone_name,
+                'duration': duration,
+                'status': status,
+                'failure_reason': failure_reason,
+                'abort_reason': abort_reason,
+                'popup_text': popup_text
+            })
             
-            zero_gallon_runs = cursor.fetchall()
+            # Track patterns per zone
+            if zone_name not in zone_patterns:
+                zone_patterns[zone_name] = {'count': 0, 'dates': [], 'reasons': []}
+            zone_patterns[zone_name]['count'] += 1
+            zone_patterns[zone_name]['dates'].append(run_date)
             
-            if not zero_gallon_runs:
-                print("[OK] No zones reported 0 gallons during irrigation attempts")
-                return
+            # Determine likely reason for zero gallons
+            reason = determine_zero_gallon_reason(status, failure_reason, abort_reason, popup_text)
+            if reason not in zone_patterns[zone_name]['reasons']:
+                zone_patterns[zone_name]['reasons'].append(reason)
+        
+        # Print daily summary
+        total_zones_affected = 0
+        for run_date in sorted(zones_by_date.keys(), reverse=True):
+            zones = zones_by_date[run_date]
+            print(f"[DATE] {run_date}: {len(zones)} zones reported 0 gallons")
+            total_zones_affected += len(zones)
             
-            # Organize data for analysis
-            zones_by_date = {}
-            zone_patterns = {}
-            
-            for run_date, zone_name, duration, status, failure_reason, abort_reason, popup_text in zero_gallon_runs:
-                if run_date not in zones_by_date:
-                    zones_by_date[run_date] = []
-                zones_by_date[run_date].append({
-                    'zone_name': zone_name,
-                    'duration': duration,
-                    'status': status,
-                    'failure_reason': failure_reason,
-                    'abort_reason': abort_reason,
-                    'popup_text': popup_text
-                })
-                
-                # Track patterns per zone
-                if zone_name not in zone_patterns:
-                    zone_patterns[zone_name] = {'count': 0, 'dates': [], 'reasons': []}
-                zone_patterns[zone_name]['count'] += 1
-                zone_patterns[zone_name]['dates'].append(run_date)
-                
-                # Determine likely reason for zero gallons
-                reason = determine_zero_gallon_reason(status, failure_reason, abort_reason, popup_text)
-                if reason not in zone_patterns[zone_name]['reasons']:
-                    zone_patterns[zone_name]['reasons'].append(reason)
-            
-            # Print daily summary
-            total_zones_affected = 0
-            for run_date in sorted(zones_by_date.keys(), reverse=True):
-                zones = zones_by_date[run_date]
-                print(f"[DATE] {run_date}: {len(zones)} zones reported 0 gallons")
-                total_zones_affected += len(zones)
-                
-                for zone in zones:
-                    reason = determine_zero_gallon_reason(
-                        zone['status'], zone['failure_reason'], 
-                        zone['abort_reason'], zone['popup_text']
-                    )
-                    print(f"   - {zone['zone_name']} ({zone['duration']} min) - {reason}")
-            
-            print(f"\n[RESULTS] SUMMARY:")
-            print(f"   Total affected zones: {total_zones_affected}")
-            print(f"   Unique zones: {len(zone_patterns)}")
-            
-            # Pattern analysis
-            print(f"\n[ANALYSIS] PATTERN ANALYSIS:")
-            
-            # Zones with multiple zero-gallon occurrences
-            repeat_offenders = {zone: data for zone, data in zone_patterns.items() if data['count'] > 1}
-            if repeat_offenders:
-                print(f"   [PERIODIC] Zones with repeated issues ({len(repeat_offenders)}):")
-                for zone, data in repeat_offenders.items():
-                    dates_str = ", ".join(data['dates'])
-                    reasons_str = ", ".join(set(data['reasons']))
-                    print(f"      - {zone}: {data['count']} times ({dates_str}) - {reasons_str}")
-            
-            # Common failure reasons
-            all_reasons = []
-            for data in zone_patterns.values():
-                all_reasons.extend(data['reasons'])
-            
-            reason_counts = {}
-            for reason in all_reasons:
-                reason_counts[reason] = reason_counts.get(reason, 0) + 1
-            
-            print(f"   [LOG] Common causes:")
-            for reason, count in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True):
-                print(f"      - {reason}: {count} occurrences")
-            
-            # Recommendations
-            print(f"\n[INFO] RECOMMENDATIONS:")
-            if any('sensor' in reason.lower() for reason in reason_counts.keys()):
-                print("   - Check flow sensors on affected zones")
-            if any('abort' in reason.lower() for reason in reason_counts.keys()):
-                print("   - Investigate causes of irrigation aborts")
-            if any('valve' in reason.lower() for reason in reason_counts.keys()):
-                print("   - Inspect valves on problem zones")
-            if repeat_offenders:
-                print(f"   - Priority inspection needed for: {', '.join(repeat_offenders.keys())}")
-            
+            for zone in zones:
+                reason = determine_zero_gallon_reason(
+                    zone['status'], zone['failure_reason'], 
+                    zone['abort_reason'], zone['popup_text']
+                )
+                print(f"   - {zone['zone_name']} ({zone['duration']} min) - {reason}")
+        
+        print(f"\n[RESULTS] SUMMARY:")
+        print(f"   Total affected zones: {total_zones_affected}")
+        print(f"   Unique zones: {len(zone_patterns)}")
+        
+        # Pattern analysis
+        print(f"\n[ANALYSIS] PATTERN ANALYSIS:")
+        
+        # Zones with multiple zero-gallon occurrences
+        repeat_offenders = {zone: data for zone, data in zone_patterns.items() if data['count'] > 1}
+        if repeat_offenders:
+            print(f"   [PERIODIC] Zones with repeated issues ({len(repeat_offenders)}):")
+            for zone, data in repeat_offenders.items():
+                dates_str = ", ".join(str(d) for d in data['dates'])
+                reasons_str = ", ".join(set(data['reasons']))
+                print(f"      - {zone}: {data['count']} times ({dates_str}) - {reasons_str}")
+        
+        # Common failure reasons
+        all_reasons = []
+        for data in zone_patterns.values():
+            all_reasons.extend(data['reasons'])
+        
+        reason_counts = {}
+        for reason in all_reasons:
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        
+        print(f"   [LOG] Common causes:")
+        for reason, count in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True):
+            print(f"      - {reason}: {count} occurrences")
+        
+        # Recommendations
+        print(f"\n[INFO] RECOMMENDATIONS:")
+        if any('sensor' in reason.lower() for reason in reason_counts.keys()):
+            print("   - Check flow sensors on affected zones")
+        if any('abort' in reason.lower() for reason in reason_counts.keys()):
+            print("   - Investigate causes of irrigation aborts")
+        if any('valve' in reason.lower() for reason in reason_counts.keys()):
+            print("   - Inspect valves on problem zones")
+        if repeat_offenders:
+            print(f"   - Priority inspection needed for: {', '.join(repeat_offenders.keys())}")
+        
     except Exception as e:
         print(f"[ERROR] Zero gallon analysis failed: {e}")
         import traceback

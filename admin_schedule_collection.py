@@ -20,7 +20,6 @@ import sys
 import os
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
-import sqlite3
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -186,45 +185,42 @@ def cmd_status(args):
     try:
         storage = get_universal_database_manager()
         
-        with sqlite3.connect(storage.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get scheduled runs by date
-            cursor.execute("""
-                SELECT schedule_date, COUNT(*) as count
-                FROM scheduled_runs 
-                GROUP BY schedule_date 
-                ORDER BY schedule_date DESC
-                LIMIT 7
-            """)
-            
-            schedule_counts = cursor.fetchall()
-            
-            if schedule_counts:
-                print("[DATE] SCHEDULED RUNS BY DATE:")
-                print("   " + "-" * 30)
-                for schedule_date, count in schedule_counts:
-                    date_obj = datetime.strptime(schedule_date, '%Y-%m-%d').date()
-                    date_str = date_obj.strftime('%a %m/%d')
-                    if date_obj == date.today():
-                        date_str += " (Today)"
-                    elif date_obj == date.today() + timedelta(days=1):
-                        date_str += " (Tomorrow)"
-                    print(f"   {date_str:<15} {count:>3} runs")
-            else:
-                print("[ERROR] No scheduled runs found in database")
-            
-            # Get total counts
-            cursor.execute("SELECT COUNT(*) FROM scheduled_runs")
-            total_scheduled = cursor.fetchone()[0]
-            
-            cursor.execute("SELECT COUNT(*) FROM actual_runs")
-            total_actual = cursor.fetchone()[0]
-            
-            print()
-            print("[RESULTS] TOTAL DATABASE CONTENTS:")
-            print(f"   Scheduled runs: {total_scheduled}")
-            print(f"   Actual runs: {total_actual}")
+        # Get scheduled runs by date
+        schedule_counts = storage.adapter.execute_query("""
+            SELECT schedule_date, COUNT(*) as count
+            FROM scheduled_runs 
+            GROUP BY schedule_date 
+            ORDER BY schedule_date DESC
+            LIMIT 7
+        """)
+        
+        if schedule_counts:
+            print("[DATE] SCHEDULED RUNS BY DATE:")
+            print("   " + "-" * 30)
+            for row in schedule_counts:
+                schedule_date = row['schedule_date']
+                count = row['count']
+                date_obj = datetime.strptime(str(schedule_date), '%Y-%m-%d').date()
+                date_str = date_obj.strftime('%a %m/%d')
+                if date_obj == date.today():
+                    date_str += " (Today)"
+                elif date_obj == date.today() + timedelta(days=1):
+                    date_str += " (Tomorrow)"
+                print(f"   {date_str:<15} {count:>3} runs")
+        else:
+            print("[ERROR] No scheduled runs found in database")
+        
+        # Get total counts
+        total_scheduled_result = storage.adapter.execute_query("SELECT COUNT(*) as count FROM scheduled_runs")
+        total_scheduled = total_scheduled_result[0]['count'] if total_scheduled_result else 0
+        
+        total_actual_result = storage.adapter.execute_query("SELECT COUNT(*) as count FROM actual_runs")
+        total_actual = total_actual_result[0]['count'] if total_actual_result else 0
+        
+        print()
+        print("[RESULTS] TOTAL DATABASE CONTENTS:")
+        print(f"   Scheduled runs: {total_scheduled}")
+        print(f"   Actual runs: {total_actual}")
         
         return 0
         
@@ -256,29 +252,25 @@ def cmd_clear(args):
         storage = get_universal_database_manager()
         
         # Check what exists
-        with sqlite3.connect(storage.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) FROM scheduled_runs WHERE schedule_date = ?', (target_date,))
-            existing_count = cursor.fetchone()[0]
-            
-            if existing_count == 0:
-                print(f"[INFO]  No scheduled runs found for {target_date}")
+        count_result = storage.adapter.execute_query('SELECT COUNT(*) as count FROM scheduled_runs WHERE schedule_date = %s', (target_date,))
+        existing_count = count_result[0]['count'] if count_result else 0
+        
+        if existing_count == 0:
+            print(f"[INFO]  No scheduled runs found for {target_date}")
+            return 0
+        
+        print(f"[RESULTS] Found {existing_count} scheduled runs for {target_date}")
+        
+        if not args.force:
+            response = input("[WARNING]  Are you sure you want to delete these runs? (y/N): ")
+            if response.lower() not in ['y', 'yes']:
+                print("[ERROR] Operation cancelled")
                 return 0
-            
-            print(f"[RESULTS] Found {existing_count} scheduled runs for {target_date}")
-            
-            if not args.force:
-                response = input("[WARNING]  Are you sure you want to delete these runs? (y/N): ")
-                if response.lower() not in ['y', 'yes']:
-                    print("[ERROR] Operation cancelled")
-                    return 0
-            
-            # Delete runs
-            cursor.execute('DELETE FROM scheduled_runs WHERE schedule_date = ?', (target_date,))
-            deleted_count = cursor.rowcount
-            conn.commit()
-            
-            print(f"[OK] Deleted {deleted_count} scheduled runs for {target_date}")
+        
+        # Delete runs
+        deleted_count = storage.adapter.execute_delete('DELETE FROM scheduled_runs WHERE schedule_date = %s', (target_date,))
+        
+        print(f"[OK] Deleted {deleted_count} scheduled runs for {target_date}")
         
         return 0
         
@@ -343,16 +335,13 @@ def cmd_collect_range(args):
         # Clear existing data if requested
         if args.clear:
             print("[DELETE]  Clearing existing scheduled runs for date range...")
-            with sqlite3.connect(storage.db_path) as conn:
-                cursor = conn.cursor()
-                current_date = start_date
-                total_deleted = 0
-                while current_date <= end_date:
-                    cursor.execute('DELETE FROM scheduled_runs WHERE schedule_date = ?', (current_date,))
-                    total_deleted += cursor.rowcount
-                    current_date += timedelta(days=1)
-                conn.commit()
-                print(f"   Cleared {total_deleted} existing records from {date_count} days")
+            current_date = start_date
+            total_deleted = 0
+            while current_date <= end_date:
+                deleted = storage.adapter.execute_delete('DELETE FROM scheduled_runs WHERE schedule_date = %s', (current_date,))
+                total_deleted += deleted
+                current_date += timedelta(days=1)
+            print(f"   Cleared {total_deleted} existing records from {date_count} days")
         
         # Initialize scraper
         print("[WEB] Starting browser and logging in...")

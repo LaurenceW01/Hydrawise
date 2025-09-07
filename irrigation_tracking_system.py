@@ -19,7 +19,6 @@ Date: 2025-08-26
 import os
 import sys
 import logging
-import sqlite3
 import subprocess
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Any, Tuple
@@ -31,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.timezone_utils import get_houston_now, get_display_timestamp, get_database_timestamp
 from utils.email_notifications import EmailNotificationManager, EmailConfig
 from utils.status_change_detector import StatusChangeDetector
+from database.universal_database_manager import get_universal_database_manager
 import sensor_detector
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,6 @@ class TrackingConfig:
     
     # Integration settings
     headless_mode: bool = True                       # Run browser in headless mode
-    db_path: str = "database/irrigation_data.db"     # Database path
 
 class IrrigationTrackingSystem:
     """
@@ -86,7 +85,7 @@ class IrrigationTrackingSystem:
         self.logger = logger
         
         # Initialize tracking components
-        self.status_detector = StatusChangeDetector(self.config.db_path)
+        self.status_detector = StatusChangeDetector()
         
         # Initialize email notifications if enabled
         if self.config.email_notifications_enabled:
@@ -100,7 +99,7 @@ class IrrigationTrackingSystem:
                 from_address=self.config.smtp_from_address or self.config.smtp_username,
                 max_emails_per_day=self.config.max_emails_per_day
             )
-            self.email_manager = EmailNotificationManager(email_config, self.config.db_path)
+            self.email_manager = EmailNotificationManager(email_config)
             self.logger.info(f"   Email notifications: Enabled ({len(self.config.notification_recipients)} recipients)")
         else:
             self.email_manager = None
@@ -197,6 +196,10 @@ class IrrigationTrackingSystem:
             return 0, 0
         
         try:
+            # Create collection run ID for this analysis
+            from utils.timezone_utils import get_houston_now
+            collection_run_id = f"{collection_type}_{target_date.isoformat()}_{int(get_houston_now().timestamp())}"
+            
             self.logger.info(f"[COMPREHENSIVE] Analyzing status for {target_date}")
             
             # Get scheduled runs that were just collected for this date
@@ -210,7 +213,6 @@ class IrrigationTrackingSystem:
             # IMPORTANT: Only collect current sensor if not provided AND analyzing today's data
             # For historical dates, sensor_info should come from database (via _get_historical_sensor_status)
             if sensor_info is None and self.config.track_sensor_status:
-                from utils.timezone_utils import get_houston_now
                 today = get_houston_now().date()
                 if target_date == today:
                     sensor_info = self.collect_sensor_status(collection_run_id)
@@ -227,7 +229,7 @@ class IrrigationTrackingSystem:
             # Run comprehensive analysis
             from utils.comprehensive_status_monitor import integrate_comprehensive_monitoring
             results = integrate_comprehensive_monitoring(
-                self, target_date, collection_type, current_runs, sensor_info
+                self, target_date, collection_type, current_runs, sensor_info, collection_run_id
             )
             
             # Log comprehensive results
@@ -300,30 +302,34 @@ class IrrigationTrackingSystem:
             Dictionary with sensor status information, or None if not found
         """
         try:
-            with sqlite3.connect(self.config.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get the most recent sensor status for the target date
-                cursor.execute("""
-                    SELECT sensor_status, is_stopping_irrigation, irrigation_suspended, 
-                           sensor_text_raw, status_time
-                    FROM rain_sensor_status_history 
-                    WHERE status_date = ?
-                    ORDER BY status_time DESC 
-                    LIMIT 1
-                """, (target_date.isoformat(),))
-                
-                record = cursor.fetchone()
-                if record:
-                    sensor_status, stopping, suspended, raw_text, status_time = record
-                    return {
-                        'sensor_status': sensor_status,
-                        'rain_sensor_active': bool(stopping),
-                        'irrigation_suspended': bool(suspended),
-                        'sensor_text_raw': raw_text,
-                        'status_time': status_time,
-                        'historical': True  # Flag to indicate this is historical data
-                    }
+            from database.universal_database_manager import get_universal_database_manager
+            db_manager = get_universal_database_manager()
+            
+            # Get the most recent sensor status for the target date
+            results = db_manager.adapter.execute_query("""
+                SELECT sensor_status, sensor_enabled, sensor_active, 
+                       raw_status_data, scraped_at
+                FROM rain_sensor_status_history 
+                WHERE status_date = %s
+                ORDER BY scraped_at DESC 
+                LIMIT 1
+            """, (target_date.isoformat(),))
+            
+            if results:
+                record = results[0]
+                sensor_status = record['sensor_status']
+                stopping = record['sensor_enabled']
+                suspended = record['sensor_active'] 
+                raw_text = record['raw_status_data']
+                status_time = record['scraped_at']
+                return {
+                    'sensor_status': sensor_status,
+                    'rain_sensor_active': bool(stopping),
+                    'irrigation_suspended': bool(suspended),
+                    'sensor_text_raw': raw_text,
+                    'status_time': status_time,
+                    'historical': True  # Flag to indicate this is historical data
+                }
                 
                 return None
                 
@@ -349,55 +355,65 @@ class IrrigationTrackingSystem:
         try:
             # Import ScheduledRun here to avoid circular imports
             from hydrawise_web_scraper_refactored import ScheduledRun
+            from database.universal_database_manager import get_universal_database_manager
             
-            with sqlite3.connect(self.config.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # CRITICAL FIX: Get ONLY the most recent scheduled runs for the target date
-                # This prevents processing old aborted runs from earlier scraping sessions
-                # that would create backwards status change comparisons
-                cursor.execute("""
-                    SELECT 
-                        zone_id, zone_name, schedule_date, scheduled_start_time,
-                        scheduled_duration_minutes, expected_gallons, program_name,
-                        notes, raw_popup_text, popup_lines_json, parsed_summary,
-                        is_rain_cancelled, rain_sensor_status, popup_status,
-                        scraped_at
+            db_manager = get_universal_database_manager()
+            
+            # CRITICAL FIX: Get ONLY the most recent scheduled runs for the target date
+            # This prevents processing old aborted runs from earlier scraping sessions
+            # that would create backwards status change comparisons
+            results = db_manager.adapter.execute_query("""
+                SELECT 
+                    zone_id, zone_name, schedule_date, scheduled_start_time,
+                    scheduled_duration_minutes, expected_gallons, program_name,
+                    notes, raw_popup_text, popup_lines_json, parsed_summary,
+                    is_rain_cancelled, rain_sensor_status, popup_status,
+                    scraped_at
+                FROM scheduled_runs 
+                WHERE schedule_date = %s
+                AND scraped_at = (
+                    SELECT MAX(scraped_at) 
                     FROM scheduled_runs 
-                    WHERE schedule_date = ?
-                    AND scraped_at = (
-                        SELECT MAX(scraped_at) 
-                        FROM scheduled_runs 
-                        WHERE schedule_date = ?
-                    )
-                    ORDER BY zone_id, scheduled_start_time
-                """, (target_date.isoformat(), target_date.isoformat()))
+                    WHERE schedule_date = %s
+                )
+                ORDER BY zone_id, scheduled_start_time
+            """, (target_date.isoformat(), target_date.isoformat()))
+            
+            runs = []
+            for row in results:
+                # Create a ScheduledRun with the basic parameters it expects
+                # Handle datetime parsing - could be string or datetime object
+                start_time = row['scheduled_start_time']
+                if isinstance(start_time, str):
+                    start_time = datetime.fromisoformat(start_time)
                 
-                runs = []
-                for row in cursor.fetchall():
-                    # Create a ScheduledRun with the basic parameters it expects
-                    run = ScheduledRun(
-                        zone_id=str(row[0]),
-                        zone_name=row[1],
-                        start_time=datetime.fromisoformat(row[3]),
-                        duration_minutes=row[4],
-                        expected_gallons=row[5],
-                        notes=row[7] or ""
-                    )
-                    
-                    # Add additional attributes that aren't in the constructor
-                    run.schedule_date = datetime.fromisoformat(row[2]).date()
-                    run.program_name = row[6]
-                    run.raw_popup_text = row[8]
-                    run.popup_lines_json = row[9]
-                    run.parsed_summary = row[10]
-                    run.is_rain_cancelled = bool(row[11]) if row[11] is not None else False
-                    run.rain_sensor_status = row[12]
-                    run.popup_status = row[13]
-                    
-                    runs.append(run)
+                run = ScheduledRun(
+                    zone_id=str(row['zone_id']),
+                    zone_name=row['zone_name'],
+                    start_time=start_time,
+                    duration_minutes=row['scheduled_duration_minutes'],
+                    expected_gallons=row['expected_gallons'],
+                    notes=row['notes'] or ""
+                )
                 
-                return runs
+                # Add additional attributes that aren't in the constructor
+                # Handle schedule_date parsing - could be string or date object
+                schedule_date = row['schedule_date']
+                if isinstance(schedule_date, str):
+                    run.schedule_date = datetime.fromisoformat(schedule_date).date()
+                else:
+                    run.schedule_date = schedule_date
+                run.program_name = row['program_name']
+                run.raw_popup_text = row['raw_popup_text']
+                run.popup_lines_json = row['popup_lines_json']
+                run.parsed_summary = row['parsed_summary']
+                run.is_rain_cancelled = bool(row['is_rain_cancelled']) if row['is_rain_cancelled'] is not None else False
+                run.rain_sensor_status = row['rain_sensor_status']
+                run.popup_status = row['popup_status']
+                
+                runs.append(run)
+            
+            return runs
                 
         except Exception as e:
             self.logger.error(f"Error getting recent scheduled runs: {e}")
@@ -407,26 +423,27 @@ class IrrigationTrackingSystem:
         """Store sensor status in database"""
         try:
             now = get_houston_now()
+            db_manager = get_universal_database_manager()
             
-            with sqlite3.connect(self.config.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT OR IGNORE INTO rain_sensor_status_history (
-                        status_date, status_time, sensor_status, is_stopping_irrigation,
-                        irrigation_suspended, sensor_text_raw, collection_run_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    now.date().isoformat(),
-                    now.isoformat(),
-                    sensor_info['sensor_status'],
-                    sensor_info['rain_sensor_active'],
-                    sensor_info['irrigation_suspended'],
-                    sensor_info['sensor_status'],  # Use sensor_status as raw text
-                    collection_run_id
-                ))
-                
-                conn.commit()
+            db_manager.adapter.execute_insert("""
+                INSERT INTO rain_sensor_status_history (
+                    status_date, status_time, sensor_status, is_stopping_irrigation,
+                    irrigation_suspended, sensor_text_raw, collection_run_id,
+                    sensor_enabled, sensor_active, raw_status_data
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (status_date, status_time) DO NOTHING
+            """, (
+                now.date().isoformat(),
+                now.isoformat(),
+                sensor_info['sensor_status'],
+                sensor_info['rain_sensor_active'],
+                sensor_info['irrigation_suspended'],
+                sensor_info['sensor_status'],  # Use sensor_status as raw text
+                collection_run_id,
+                sensor_info.get('rain_sensor_active', False),  # sensor_enabled
+                sensor_info.get('irrigation_suspended', False),  # sensor_active
+                str(sensor_info)  # raw_status_data
+            ))
                 
         except Exception as e:
             self.logger.error(f"Error storing sensor status: {e}")
@@ -443,30 +460,26 @@ class IrrigationTrackingSystem:
         """
         try:
             # Get last sensor status from database
-            with sqlite3.connect(self.config.db_path) as conn:
-                cursor = conn.cursor()
+            db_manager = get_universal_database_manager()
+            results = db_manager.adapter.execute_query("""
+                SELECT is_stopping_irrigation, irrigation_suspended 
+                FROM rain_sensor_status_history 
+                ORDER BY status_time DESC 
+                LIMIT 2
+            """)
+            
+            if len(results) >= 2:
+                # Compare current with previous
+                current_stopping = current_sensor_info['rain_sensor_active']
+                current_suspended = current_sensor_info['irrigation_suspended']
                 
-                cursor.execute("""
-                    SELECT is_stopping_irrigation, irrigation_suspended 
-                    FROM rain_sensor_status_history 
-                    ORDER BY status_time DESC 
-                    LIMIT 2
-                """)
+                prev_stopping = bool(results[1]['is_stopping_irrigation'])
+                prev_suspended = bool(results[1]['irrigation_suspended'])
                 
-                results = cursor.fetchall()
-                
-                if len(results) >= 2:
-                    # Compare current with previous
-                    current_stopping = current_sensor_info['rain_sensor_active']
-                    current_suspended = current_sensor_info['irrigation_suspended']
-                    
-                    prev_stopping = bool(results[1][0])
-                    prev_suspended = bool(results[1][1])
-                    
-                    return (current_stopping != prev_stopping or 
-                           current_suspended != prev_suspended)
-                
-                return False  # No previous status to compare
+                return (current_stopping != prev_stopping or 
+                       current_suspended != prev_suspended)
+            
+            return False  # No previous status to compare
                 
         except Exception as e:
             self.logger.error(f"Error checking sensor status change: {e}")
@@ -556,36 +569,36 @@ class IrrigationTrackingSystem:
             "status_change_tracking": self.config.track_status_changes,
             "email_notifications": self.config.email_notifications_enabled,
             "email_recipients_count": len(self.config.notification_recipients),
-            "database_path": self.config.db_path
+            "database_path": "PostgreSQL Database"
         }
         
         # Get recent activity
         try:
-            with sqlite3.connect(self.config.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get recent sensor status
-                cursor.execute("""
-                    SELECT status_time, sensor_status, is_stopping_irrigation 
-                    FROM rain_sensor_status_history 
-                    ORDER BY status_time DESC 
-                    LIMIT 1
-                """)
-                
-                sensor_result = cursor.fetchone()
-                if sensor_result:
-                    status["last_sensor_check"] = sensor_result[0]
-                    status["current_sensor_status"] = sensor_result[1]
-                    status["sensor_stopping_irrigation"] = bool(sensor_result[2])
-                
-                # Get recent status changes
-                cursor.execute("""
-                    SELECT COUNT(*) 
-                    FROM scheduled_run_status_changes 
-                    WHERE change_detected_date = ?
-                """, (date.today().isoformat(),))
-                
-                status["today_status_changes"] = cursor.fetchone()[0]
+            from database.universal_database_manager import get_universal_database_manager
+            db_manager = get_universal_database_manager()
+            
+            # Get recent sensor status
+            sensor_results = db_manager.adapter.execute_query("""
+                SELECT status_time, sensor_status, is_stopping_irrigation 
+                FROM rain_sensor_status_history 
+                ORDER BY status_time DESC 
+                LIMIT 1
+            """)
+            
+            if sensor_results:
+                sensor_result = sensor_results[0]
+                status["last_sensor_check"] = sensor_result['status_time']
+                status["current_sensor_status"] = sensor_result['sensor_status']
+                status["sensor_stopping_irrigation"] = bool(sensor_result['is_stopping_irrigation'])
+            
+            # Get recent status changes
+            changes_results = db_manager.adapter.execute_query("""
+                SELECT COUNT(*) as count
+                FROM scheduled_run_status_changes 
+                WHERE change_detected_date = %s
+            """, (date.today().isoformat(),))
+            
+            status["today_status_changes"] = changes_results[0]['count'] if changes_results else 0
                 
         except Exception as e:
             self.logger.error(f"Error getting tracking status: {e}")

@@ -14,7 +14,6 @@ Author: AI Assistant
 Date: 2025-08-23
 """
 
-import sqlite3
 import json
 import sys
 import os
@@ -27,6 +26,7 @@ import statistics
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.timezone_utils import get_houston_now, get_display_timestamp
+from database.universal_database_manager import get_universal_database_manager
 
 class AnomalyType(Enum):
     """Types of irrigation anomalies"""
@@ -125,17 +125,14 @@ class IrrigationAnalytics:
     Enhanced with configurable thresholds and smart usage flag analytics
     """
     
-    def __init__(self, db_path: str = "database/irrigation_data.db", 
-                 too_high_multiplier: float = 2.0, 
+    def __init__(self, too_high_multiplier: float = 2.0, 
                  too_low_multiplier: float = 0.5):
         """Initialize analytics system
         
         Args:
-            db_path: Path to SQLite database
             too_high_multiplier: Multiplier for too_high usage flag (default 2.0 = double expected)
             too_low_multiplier: Multiplier for too_low usage flag (default 0.5 = half expected)
         """
-        self.db_path = db_path
         self.ensure_analytics_tables()
         
         # Configurable deviation thresholds for usage flags
@@ -166,67 +163,22 @@ class IrrigationAnalytics:
         
     def ensure_analytics_tables(self):
         """Create analytics tables if they don't exist"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Baseline usage patterns table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS usage_baselines (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    zone_name TEXT NOT NULL,
-                    avg_gallons REAL NOT NULL,
-                    avg_duration_minutes INTEGER NOT NULL,
-                    avg_gpm REAL NOT NULL,
-                    std_dev_gallons REAL NOT NULL,
-                    std_dev_duration REAL NOT NULL,
-                    sample_count INTEGER NOT NULL,
-                    baseline_start_date DATE NOT NULL,
-                    baseline_end_date DATE NOT NULL,
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(zone_name)
-                )
-            """)
-            
-            # Detected anomalies table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS usage_anomalies (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    zone_name TEXT NOT NULL,
-                    run_date DATE NOT NULL,
-                    anomaly_type TEXT NOT NULL,
-                    severity TEXT NOT NULL,
-                    actual_value REAL NOT NULL,
-                    expected_value REAL NOT NULL,
-                    deviation_percent REAL NOT NULL,
-                    description TEXT NOT NULL,
-                    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    acknowledged BOOLEAN DEFAULT FALSE
-                )
-            """)
-            
-            # Usage trends summary table (for faster reporting)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS usage_trends (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    zone_name TEXT NOT NULL,
-                    analysis_date DATE NOT NULL,
-                    period_days INTEGER NOT NULL,
-                    total_runs INTEGER NOT NULL,
-                    total_gallons REAL NOT NULL,
-                    avg_gallons_per_run REAL NOT NULL,
-                    avg_duration_per_run REAL NOT NULL,
-                    avg_gpm REAL NOT NULL,
-                    usage_trend TEXT NOT NULL,
-                    efficiency_trend TEXT NOT NULL,
-                    gap_days INTEGER NOT NULL,
-                    last_run_date DATE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(zone_name, analysis_date, period_days)
-                )
-            """)
-            
-            conn.commit()
+        db_manager = get_universal_database_manager()
+        
+        # Check if tables exist and create them if needed
+        # Note: PostgreSQL schema should already include these tables
+        # This is mainly for compatibility and ensuring tables exist
+        
+        try:
+            # Try to query the tables to see if they exist
+            db_manager.adapter.execute_query("SELECT 1 FROM usage_baselines LIMIT 1")
+            db_manager.adapter.execute_query("SELECT 1 FROM usage_anomalies LIMIT 1") 
+            db_manager.adapter.execute_query("SELECT 1 FROM usage_trends LIMIT 1")
+        except Exception:
+            # Tables don't exist, but they should be created via schema migration
+            # Log a warning but don't fail
+            import logging
+            logging.warning("Analytics tables may not exist - ensure PostgreSQL schema is up to date")
     
     def set_deviation_thresholds(self, too_high_multiplier: float, too_low_multiplier: float):
         """Update configurable deviation thresholds
@@ -255,22 +207,21 @@ class IrrigationAnalytics:
         if start_date is None:
             start_date = end_date - timedelta(days=30)
             
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get all successful runs for this zone in the period
-            cursor.execute("""
-                SELECT actual_gallons, actual_duration_minutes, run_date
-                FROM actual_runs 
-                WHERE zone_name = ? 
-                AND run_date BETWEEN ? AND ?
-                AND actual_gallons IS NOT NULL 
-                AND actual_gallons > 0
-                AND actual_duration_minutes > 0
-                ORDER BY run_date
-            """, (zone_name, start_date, end_date))
-            
-            runs = cursor.fetchall()
+        db_manager = get_universal_database_manager()
+        
+        # Get all successful runs for this zone in the period
+        results = db_manager.adapter.execute_query("""
+            SELECT actual_gallons, actual_duration_minutes, run_date
+            FROM actual_runs 
+            WHERE zone_name = %s 
+            AND run_date BETWEEN %s AND %s
+            AND actual_gallons IS NOT NULL 
+            AND actual_gallons > 0
+            AND actual_duration_minutes > 0
+            ORDER BY run_date
+        """, (zone_name, start_date, end_date))
+        
+        runs = [(row['actual_gallons'], row['actual_duration_minutes'], row['run_date']) for row in results]
             
         if len(runs) < self.min_baseline_samples:
             return None
@@ -310,24 +261,31 @@ class IrrigationAnalytics:
         if not baseline:
             return False
             
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Insert or replace baseline
-            cursor.execute("""
-                INSERT OR REPLACE INTO usage_baselines
-                (zone_name, avg_gallons, avg_duration_minutes, avg_gpm,
-                 std_dev_gallons, std_dev_duration, sample_count,
-                 baseline_start_date, baseline_end_date, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                baseline.zone_name, baseline.avg_gallons, baseline.avg_duration_minutes,
-                baseline.avg_gpm, baseline.std_dev_gallons, baseline.std_dev_duration,
-                baseline.sample_count, baseline.baseline_start_date, 
-                baseline.baseline_end_date, baseline.last_updated.strftime('%Y-%m-%d %H:%M:%S')
-            ))
-            
-            conn.commit()
+        db_manager = get_universal_database_manager()
+        
+        # Insert or replace baseline
+        db_manager.adapter.execute_insert("""
+            INSERT INTO usage_baselines
+            (zone_name, avg_gallons, avg_duration_minutes, avg_gpm,
+             std_dev_gallons, std_dev_duration, sample_count,
+             baseline_start_date, baseline_end_date, last_updated)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (zone_name) DO UPDATE SET
+                avg_gallons = EXCLUDED.avg_gallons,
+                avg_duration_minutes = EXCLUDED.avg_duration_minutes,
+                avg_gpm = EXCLUDED.avg_gpm,
+                std_dev_gallons = EXCLUDED.std_dev_gallons,
+                std_dev_duration = EXCLUDED.std_dev_duration,
+                sample_count = EXCLUDED.sample_count,
+                baseline_start_date = EXCLUDED.baseline_start_date,
+                baseline_end_date = EXCLUDED.baseline_end_date,
+                last_updated = EXCLUDED.last_updated
+        """, (
+            baseline.zone_name, baseline.avg_gallons, baseline.avg_duration_minutes,
+            baseline.avg_gpm, baseline.std_dev_gallons, baseline.std_dev_duration,
+            baseline.sample_count, baseline.baseline_start_date, 
+            baseline.baseline_end_date, baseline.last_updated.strftime('%Y-%m-%d %H:%M:%S')
+        ))
             
         return True
     
@@ -348,47 +306,54 @@ class IrrigationAnalytics:
         start_date = analysis_date - timedelta(days=days_back)
         anomalies = []
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        db_manager = get_universal_database_manager()
+        
+        # Get all zones with baselines
+        zones_results = db_manager.adapter.execute_query("SELECT zone_name FROM usage_baselines")
+        zones = [row['zone_name'] for row in zones_results]
+        
+        for zone_name in zones:
+            # Get baseline for this zone
+            baseline_results = db_manager.adapter.execute_query("""
+                SELECT avg_gallons, avg_duration_minutes, avg_gpm,
+                       std_dev_gallons, std_dev_duration
+                FROM usage_baselines WHERE zone_name = %s
+            """, (zone_name,))
             
-            # Get all zones with baselines
-            cursor.execute("SELECT zone_name FROM usage_baselines")
-            zones = [row[0] for row in cursor.fetchall()]
+            if not baseline_results:
+                continue
+                
+            baseline_row = baseline_results[0]
+            avg_gallons = baseline_row['avg_gallons']
+            avg_duration = baseline_row['avg_duration_minutes']
+            avg_gpm = baseline_row['avg_gpm']
+            std_dev_gallons = baseline_row['std_dev_gallons']
+            std_dev_duration = baseline_row['std_dev_duration']
             
-            for zone_name in zones:
-                # Get baseline for this zone
-                cursor.execute("""
-                    SELECT avg_gallons, avg_duration_minutes, avg_gpm,
-                           std_dev_gallons, std_dev_duration
-                    FROM usage_baselines WHERE zone_name = ?
-                """, (zone_name,))
-                
-                baseline_row = cursor.fetchone()
-                if not baseline_row:
-                    continue
-                    
-                avg_gallons, avg_duration, avg_gpm, std_dev_gallons, std_dev_duration = baseline_row
-                
-                # Get recent runs for this zone
-                cursor.execute("""
-                    SELECT run_date, actual_gallons, actual_duration_minutes
-                    FROM actual_runs 
-                    WHERE zone_name = ? 
-                    AND run_date BETWEEN ? AND ?
-                    ORDER BY run_date DESC
-                """, (zone_name, start_date, analysis_date))
-                
-                recent_runs = cursor.fetchall()
-                
-                for run_date, gallons, duration in recent_runs:
+            # Get recent runs for this zone
+            recent_runs_results = db_manager.adapter.execute_query("""
+                SELECT run_date, actual_gallons, actual_duration_minutes
+                FROM actual_runs 
+                WHERE zone_name = %s 
+                AND run_date BETWEEN %s AND %s
+                ORDER BY run_date DESC
+            """, (zone_name, start_date, analysis_date))
+            
+            recent_runs = [(row['run_date'], row['actual_gallons'], row['actual_duration_minutes']) for row in recent_runs_results]
+            
+            for run_date, gallons, duration in recent_runs:
+                # Handle both string and date objects (PostgreSQL vs SQLite compatibility)
+                if isinstance(run_date, str):
                     run_date = datetime.strptime(run_date, '%Y-%m-%d').date()
-                    
-                    # Check for anomalies
-                    anomalies.extend(self._check_run_anomalies(
-                        zone_name, run_date, gallons, duration,
-                        avg_gallons, avg_duration, avg_gpm,
-                        std_dev_gallons, std_dev_duration
-                    ))
+                elif not isinstance(run_date, date):
+                    run_date = run_date.date() if hasattr(run_date, 'date') else run_date
+                
+                # Check for anomalies
+                anomalies.extend(self._check_run_anomalies(
+                    zone_name, run_date, gallons, duration,
+                    avg_gallons, avg_duration, avg_gpm,
+                    std_dev_gallons, std_dev_duration
+                ))
         
         return anomalies
     
@@ -475,31 +440,28 @@ class IrrigationAnalytics:
             return 0
             
         stored_count = 0
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        db_manager = get_universal_database_manager()
+        
+        for anomaly in anomalies:
+            # Check if this anomaly already exists
+            existing_results = db_manager.adapter.execute_query("""
+                SELECT id FROM usage_anomalies 
+                WHERE zone_name = %s AND run_date = %s AND anomaly_type = %s
+            """, (anomaly.zone_name, anomaly.run_date, anomaly.anomaly_type.value))
             
-            for anomaly in anomalies:
-                # Check if this anomaly already exists
-                cursor.execute("""
-                    SELECT id FROM usage_anomalies 
-                    WHERE zone_name = ? AND run_date = ? AND anomaly_type = ?
-                """, (anomaly.zone_name, anomaly.run_date, anomaly.anomaly_type.value))
-                
-                if not cursor.fetchone():  # Only store if not already detected
-                    cursor.execute("""
-                        INSERT INTO usage_anomalies
-                        (zone_name, run_date, anomaly_type, severity, actual_value,
-                         expected_value, deviation_percent, description, detected_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        anomaly.zone_name, anomaly.run_date, anomaly.anomaly_type.value,
-                        anomaly.severity, anomaly.actual_value, anomaly.expected_value,
-                        anomaly.deviation_percent, anomaly.description,
-                        anomaly.detected_at.strftime('%Y-%m-%d %H:%M:%S')
-                    ))
-                    stored_count += 1
-            
-            conn.commit()
+            if not existing_results:  # Only store if not already detected
+                db_manager.adapter.execute_insert("""
+                    INSERT INTO usage_anomalies
+                    (zone_name, run_date, anomaly_type, severity, actual_value,
+                     expected_value, deviation_percent, description, detected_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    anomaly.zone_name, anomaly.run_date, anomaly.anomaly_type.value,
+                    anomaly.severity, anomaly.actual_value, anomaly.expected_value,
+                    anomaly.deviation_percent, anomaly.description,
+                    anomaly.detected_at.strftime('%Y-%m-%d %H:%M:%S')
+                ))
+                stored_count += 1
             
         return stored_count
     
@@ -520,41 +482,39 @@ class IrrigationAnalytics:
         start_date = analysis_date - timedelta(days=period_days)
         trends = []
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get all zones that have run in the period
-            cursor.execute("""
-                SELECT DISTINCT zone_name FROM actual_runs 
-                WHERE run_date BETWEEN ? AND ?
-            """, (start_date, analysis_date))
-            
-            zones = [row[0] for row in cursor.fetchall()]
-            
-            for zone_name in zones:
-                trend = self._calculate_single_zone_trend(zone_name, start_date, analysis_date, period_days)
-                if trend:
-                    trends.append(trend)
+        db_manager = get_universal_database_manager()
+        
+        # Get all zones that have run in the period
+        zones_results = db_manager.adapter.execute_query("""
+            SELECT DISTINCT zone_name FROM actual_runs 
+            WHERE run_date BETWEEN %s AND %s
+        """, (start_date, analysis_date))
+        
+        zones = [row['zone_name'] for row in zones_results]
+        
+        for zone_name in zones:
+            trend = self._calculate_single_zone_trend(zone_name, start_date, analysis_date, period_days)
+            if trend:
+                trends.append(trend)
         
         return trends
     
     def _calculate_single_zone_trend(self, zone_name: str, start_date: date, 
                                    end_date: date, period_days: int) -> Optional[ZoneUsageTrend]:
         """Calculate trend for a single zone"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get all runs in period
-            cursor.execute("""
-                SELECT run_date, actual_gallons, actual_duration_minutes
-                FROM actual_runs 
-                WHERE zone_name = ? AND run_date BETWEEN ? AND ?
-                AND actual_gallons IS NOT NULL AND actual_duration_minutes IS NOT NULL
-                ORDER BY run_date
-            """, (zone_name, start_date, end_date))
-            
-            runs = cursor.fetchall()
-            
+        db_manager = get_universal_database_manager()
+        
+        # Get all runs in period
+        runs_results = db_manager.adapter.execute_query("""
+            SELECT run_date, actual_gallons, actual_duration_minutes
+            FROM actual_runs 
+            WHERE zone_name = %s AND run_date BETWEEN %s AND %s
+            AND actual_gallons IS NOT NULL AND actual_duration_minutes IS NOT NULL
+            ORDER BY run_date
+        """, (zone_name, start_date, end_date))
+        
+        runs = [(row['run_date'], row['actual_gallons'], row['actual_duration_minutes']) for row in runs_results]
+        
         if not runs:
             return None
             
@@ -609,16 +569,15 @@ class IrrigationAnalytics:
     def _calculate_gap_days(self, zone_name: str, start_date: date, end_date: date) -> int:
         """Calculate days with expected irrigation but zero usage"""
         # This is a simplified version - could be enhanced to check against scheduled runs
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT COUNT(*) FROM actual_runs 
-                WHERE zone_name = ? AND run_date BETWEEN ? AND ?
-                AND actual_gallons = 0 AND actual_duration_minutes > 0
-            """, (zone_name, start_date, end_date))
-            
-            return cursor.fetchone()[0]
+        db_manager = get_universal_database_manager()
+        
+        gap_results = db_manager.adapter.execute_query("""
+            SELECT COUNT(*) as count FROM actual_runs 
+            WHERE zone_name = %s AND run_date BETWEEN %s AND %s
+            AND actual_gallons = 0 AND actual_duration_minutes > 0
+        """, (zone_name, start_date, end_date))
+        
+        return gap_results[0]['count'] if gap_results else 0
     
     def _determine_usage_trend(self, runs: List[Tuple]) -> str:
         """Determine if usage is increasing, decreasing, or stable"""
@@ -869,20 +828,19 @@ class IrrigationAnalytics:
         daily_summaries = []
         zone_totals = {}
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get all runs in the date range
-            cursor.execute("""
-                SELECT run_date, zone_name, actual_gallons, actual_duration_minutes
-                FROM actual_runs 
-                WHERE run_date BETWEEN ? AND ?
-                AND actual_gallons IS NOT NULL 
-                AND actual_gallons > 0
-                ORDER BY run_date, zone_name
-            """, (start_date, end_date))
-            
-            runs = cursor.fetchall()
+        db_manager = get_universal_database_manager()
+        
+        # Get all runs in the date range
+        runs_results = db_manager.adapter.execute_query("""
+            SELECT run_date, zone_name, actual_gallons, actual_duration_minutes
+            FROM actual_runs 
+            WHERE run_date BETWEEN %s AND %s
+            AND actual_gallons IS NOT NULL 
+            AND actual_gallons > 0
+            ORDER BY run_date, zone_name
+        """, (start_date, end_date))
+        
+        runs = [(row['run_date'], row['zone_name'], row['actual_gallons'], row['actual_duration_minutes']) for row in runs_results]
         
         # Group runs by date and zone
         date_zone_runs = {}
@@ -970,18 +928,18 @@ class IrrigationAnalytics:
             return self.generate_daily_cost_report(start_date, reference_date)
         elif period == 'overall':
             # All available data
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT MIN(run_date), MAX(run_date) FROM actual_runs WHERE actual_gallons > 0")
-                result = cursor.fetchone()
-                
-                if result[0] and result[1]:
-                    start_date = datetime.strptime(result[0], '%Y-%m-%d').date()
-                    end_date = datetime.strptime(result[1], '%Y-%m-%d').date()
-                    return self.generate_daily_cost_report(start_date, end_date)
-                else:
-                    # No data available
-                    return self.generate_daily_cost_report(reference_date, reference_date)
+            db_manager = get_universal_database_manager()
+            date_results = db_manager.adapter.execute_query("SELECT MIN(run_date) as min_date, MAX(run_date) as max_date FROM actual_runs WHERE actual_gallons > 0")
+            
+            if date_results and date_results[0]['min_date'] and date_results[0]['max_date']:
+                min_date_str = date_results[0]['min_date']
+                max_date_str = date_results[0]['max_date']
+                start_date = datetime.strptime(str(min_date_str), '%Y-%m-%d').date()
+                end_date = datetime.strptime(str(max_date_str), '%Y-%m-%d').date()
+                return self.generate_daily_cost_report(start_date, end_date)
+            else:
+                # No data available
+                return self.generate_daily_cost_report(reference_date, reference_date)
         else:
             raise ValueError(f"Unknown period: {period}")
     
@@ -1078,193 +1036,194 @@ class IrrigationAnalytics:
         lines.append(f"[RESULTS] Generated: {get_display_timestamp()}")
         lines.append("")
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        db_manager = get_universal_database_manager()
+        
+        # Get all zero gallon runs with duration > 0 (actual irrigation attempts)
+        zero_gallon_results = db_manager.adapter.execute_query("""
+            SELECT 
+                run_date,
+                zone_name,
+                actual_duration_minutes,
+                status,
+                failure_reason,
+                abort_reason,
+                raw_popup_text,
+                current_ma
+            FROM actual_runs 
+            WHERE (actual_gallons = 0 OR actual_gallons IS NULL)
+              AND actual_duration_minutes > 0
+              AND run_date BETWEEN %s AND %s
+            ORDER BY run_date DESC, zone_name
+        """, (start_date, end_date))
+        
+        zero_gallon_runs = [(row['run_date'], row['zone_name'], row['actual_duration_minutes'], 
+                           row['status'], row['failure_reason'], row['abort_reason'], 
+                           row['raw_popup_text'], row['current_ma']) for row in zero_gallon_results]
+        
+        if not zero_gallon_runs:
+            lines.append("[OK] NO ZERO GALLON ISSUES DETECTED")
+            lines.append("   All irrigation runs that attempted watering successfully used water.")
+            lines.append("   This indicates healthy system operation during the analysis period.")
+            lines.append("")
+            lines.append("=" * 80)
+            return "\n".join(lines)
+        
+        # Organize data for analysis
+        zones_by_date = {}
+        zone_patterns = {}
+        failure_reasons = {}
+        
+        for run_date, zone_name, duration, status, failure_reason, abort_reason, popup_text, current_ma in zero_gallon_runs:
+            # Track by date
+            if run_date not in zones_by_date:
+                zones_by_date[run_date] = []
+            zones_by_date[run_date].append({
+                'zone_name': zone_name,
+                'duration': duration,
+                'status': status,
+                'failure_reason': failure_reason,
+                'abort_reason': abort_reason,
+                'popup_text': popup_text,
+                'current_ma': current_ma
+            })
             
-            # Get all zero gallon runs with duration > 0 (actual irrigation attempts)
-            cursor.execute("""
-                SELECT 
-                    run_date,
-                    zone_name,
-                    actual_duration_minutes,
-                    status,
-                    failure_reason,
-                    abort_reason,
-                    raw_popup_text,
-                    current_ma
-                FROM actual_runs 
-                WHERE (actual_gallons = 0 OR actual_gallons IS NULL)
-                  AND actual_duration_minutes > 0
-                  AND run_date BETWEEN ? AND ?
-                ORDER BY run_date DESC, zone_name
-            """, (start_date, end_date))
+            # Track patterns per zone
+            if zone_name not in zone_patterns:
+                zone_patterns[zone_name] = {
+                    'count': 0, 
+                    'dates': [], 
+                    'total_duration': 0,
+                    'reasons': []
+                }
+            zone_patterns[zone_name]['count'] += 1
+            zone_patterns[zone_name]['dates'].append(run_date)
+            zone_patterns[zone_name]['total_duration'] += duration
             
-            zero_gallon_runs = cursor.fetchall()
+            # Determine and count failure reasons
+            reason = self._determine_zero_gallon_reason(
+                status, failure_reason, abort_reason, popup_text, current_ma
+            )
+            if reason not in zone_patterns[zone_name]['reasons']:
+                zone_patterns[zone_name]['reasons'].append(reason)
             
-            if not zero_gallon_runs:
-                lines.append("[OK] NO ZERO GALLON ISSUES DETECTED")
-                lines.append("   All irrigation runs that attempted watering successfully used water.")
-                lines.append("   This indicates healthy system operation during the analysis period.")
-                lines.append("")
-                lines.append("=" * 80)
-                return "\n".join(lines)
+            failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+        
+        # Summary Statistics
+        total_affected_runs = len(zero_gallon_runs)
+        unique_zones = len(zone_patterns)
+        total_wasted_duration = sum(run[2] for run in zero_gallon_runs)
+        
+        lines.append("[RESULTS] SUMMARY STATISTICS:")
+        lines.append(f"   [ALERT] Total zero-gallon runs: {total_affected_runs}")
+        lines.append(f"   [SYMBOL] Unique zones affected: {unique_zones}")
+        lines.append(f"   [SYMBOL][SYMBOL]  Total wasted runtime: {total_wasted_duration} minutes ({total_wasted_duration/60:.1f} hours)")
+        lines.append(f"   [SYMBOL] Average per affected zone: {total_affected_runs/unique_zones:.1f} incidents")
+        lines.append("")
+        
+        # Daily Breakdown
+        lines.append("[DATE] DAILY BREAKDOWN:")
+        lines.append("-" * 60)
+        
+        for run_date in sorted(zones_by_date.keys(), reverse=True):
+            zones = zones_by_date[run_date]
+            daily_duration = sum(zone['duration'] for zone in zones)
+            lines.append(f"[DATE] {run_date}: {len(zones)} zones affected ({daily_duration} min wasted)")
             
-            # Organize data for analysis
-            zones_by_date = {}
-            zone_patterns = {}
-            failure_reasons = {}
-            
-            for run_date, zone_name, duration, status, failure_reason, abort_reason, popup_text, current_ma in zero_gallon_runs:
-                # Track by date
-                if run_date not in zones_by_date:
-                    zones_by_date[run_date] = []
-                zones_by_date[run_date].append({
-                    'zone_name': zone_name,
-                    'duration': duration,
-                    'status': status,
-                    'failure_reason': failure_reason,
-                    'abort_reason': abort_reason,
-                    'popup_text': popup_text,
-                    'current_ma': current_ma
-                })
-                
-                # Track patterns per zone
-                if zone_name not in zone_patterns:
-                    zone_patterns[zone_name] = {
-                        'count': 0, 
-                        'dates': [], 
-                        'total_duration': 0,
-                        'reasons': []
-                    }
-                zone_patterns[zone_name]['count'] += 1
-                zone_patterns[zone_name]['dates'].append(run_date)
-                zone_patterns[zone_name]['total_duration'] += duration
-                
-                # Determine and count failure reasons
+            for zone in sorted(zones, key=lambda x: x['zone_name']):
                 reason = self._determine_zero_gallon_reason(
-                    status, failure_reason, abort_reason, popup_text, current_ma
+                    zone['status'], zone['failure_reason'], 
+                    zone['abort_reason'], zone['popup_text'], zone['current_ma']
                 )
-                if reason not in zone_patterns[zone_name]['reasons']:
-                    zone_patterns[zone_name]['reasons'].append(reason)
-                
-                failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
-            
-            # Summary Statistics
-            total_affected_runs = len(zero_gallon_runs)
-            unique_zones = len(zone_patterns)
-            total_wasted_duration = sum(run[2] for run in zero_gallon_runs)
-            
-            lines.append("[RESULTS] SUMMARY STATISTICS:")
-            lines.append(f"   [ALERT] Total zero-gallon runs: {total_affected_runs}")
-            lines.append(f"   [SYMBOL] Unique zones affected: {unique_zones}")
-            lines.append(f"   [SYMBOL][SYMBOL]  Total wasted runtime: {total_wasted_duration} minutes ({total_wasted_duration/60:.1f} hours)")
-            lines.append(f"   [SYMBOL] Average per affected zone: {total_affected_runs/unique_zones:.1f} incidents")
+                current_info = f" ({zone['current_ma']}mA)" if zone['current_ma'] else ""
+                lines.append(f"   - {zone['zone_name']} - {zone['duration']} min - {reason}{current_info}")
             lines.append("")
+        
+        # Zone Pattern Analysis
+        lines.append("[ANALYSIS] ZONE PATTERN ANALYSIS:")
+        lines.append("-" * 60)
+        
+        # Sort zones by incident count
+        sorted_zones = sorted(zone_patterns.items(), key=lambda x: x[1]['count'], reverse=True)
+        
+        for zone_name, data in sorted_zones:
+            avg_duration = data['total_duration'] / data['count']
+            date_range = f"{min(data['dates'])} to {max(data['dates'])}" if len(data['dates']) > 1 else str(data['dates'][0])
+            reasons_str = ", ".join(set(data['reasons']))
             
-            # Daily Breakdown
-            lines.append("[DATE] DAILY BREAKDOWN:")
-            lines.append("-" * 60)
+            severity_icon = "[SYMBOL]" if data['count'] >= 3 else "[WARNING]" if data['count'] >= 2 else "[INFO]"
             
-            for run_date in sorted(zones_by_date.keys(), reverse=True):
-                zones = zones_by_date[run_date]
-                daily_duration = sum(zone['duration'] for zone in zones)
-                lines.append(f"[DATE] {run_date}: {len(zones)} zones affected ({daily_duration} min wasted)")
-                
-                for zone in sorted(zones, key=lambda x: x['zone_name']):
-                    reason = self._determine_zero_gallon_reason(
-                        zone['status'], zone['failure_reason'], 
-                        zone['abort_reason'], zone['popup_text'], zone['current_ma']
-                    )
-                    current_info = f" ({zone['current_ma']}mA)" if zone['current_ma'] else ""
-                    lines.append(f"   - {zone['zone_name']} - {zone['duration']} min - {reason}{current_info}")
-                lines.append("")
-            
-            # Zone Pattern Analysis
-            lines.append("[ANALYSIS] ZONE PATTERN ANALYSIS:")
-            lines.append("-" * 60)
-            
-            # Sort zones by incident count
-            sorted_zones = sorted(zone_patterns.items(), key=lambda x: x[1]['count'], reverse=True)
-            
-            for zone_name, data in sorted_zones:
-                avg_duration = data['total_duration'] / data['count']
-                date_range = f"{min(data['dates'])} to {max(data['dates'])}" if len(data['dates']) > 1 else str(data['dates'][0])
-                reasons_str = ", ".join(set(data['reasons']))
-                
-                severity_icon = "[SYMBOL]" if data['count'] >= 3 else "[WARNING]" if data['count'] >= 2 else "[INFO]"
-                
-                lines.append(f"{severity_icon} {zone_name}:")
-                lines.append(f"   [RESULTS] Incidents: {data['count']} ({date_range})")
-                lines.append(f"   [SYMBOL][SYMBOL]  Avg duration: {avg_duration:.1f} min")
-                lines.append(f"   [ANALYSIS] Causes: {reasons_str}")
-                lines.append("")
-            
-            # Failure Reason Analysis
-            lines.append("[LOG] FAILURE CAUSE ANALYSIS:")
-            lines.append("-" * 60)
-            
-            sorted_reasons = sorted(failure_reasons.items(), key=lambda x: x[1], reverse=True)
-            
-            for reason, count in sorted_reasons:
-                percentage = (count / total_affected_runs) * 100
-                lines.append(f"- {reason}: {count} occurrences ({percentage:.1f}%)")
-            
+            lines.append(f"{severity_icon} {zone_name}:")
+            lines.append(f"   [RESULTS] Incidents: {data['count']} ({date_range})")
+            lines.append(f"   [SYMBOL][SYMBOL]  Avg duration: {avg_duration:.1f} min")
+            lines.append(f"   [ANALYSIS] Causes: {reasons_str}")
             lines.append("")
-            
-            # Priority Issues (zones with 3+ incidents)
-            high_priority = {zone: data for zone, data in zone_patterns.items() if data['count'] >= 3}
-            if high_priority:
-                lines.append("[SYMBOL] HIGH PRIORITY ZONES (3+ incidents):")
-                lines.append("-" * 60)
-                for zone, data in high_priority.items():
-                    total_wasted = data['total_duration']
-                    lines.append(f"[ALERT] {zone}: {data['count']} incidents, {total_wasted} min wasted")
-                    lines.append(f"   [DATE] Dates: {', '.join(data['dates'])}")
-                    lines.append(f"   [ANALYSIS] Issues: {', '.join(set(data['reasons']))}")
-                lines.append("")
-            
-            # Recommendations
-            lines.append("[INFO] RECOMMENDATIONS:")
+        
+        # Failure Reason Analysis
+        lines.append("[LOG] FAILURE CAUSE ANALYSIS:")
+        lines.append("-" * 60)
+        
+        sorted_reasons = sorted(failure_reasons.items(), key=lambda x: x[1], reverse=True)
+        
+        for reason, count in sorted_reasons:
+            percentage = (count / total_affected_runs) * 100
+            lines.append(f"- {reason}: {count} occurrences ({percentage:.1f}%)")
+        
+        lines.append("")
+        
+        # Priority Issues (zones with 3+ incidents)
+        high_priority = {zone: data for zone, data in zone_patterns.items() if data['count'] >= 3}
+        if high_priority:
+            lines.append("[SYMBOL] HIGH PRIORITY ZONES (3+ incidents):")
             lines.append("-" * 60)
-            
-            if any('sensor' in reason.lower() for reason in failure_reasons.keys()):
-                sensor_count = sum(count for reason, count in failure_reasons.items() if 'sensor' in reason.lower())
-                lines.append(f"[SYMBOL] SENSOR ISSUES ({sensor_count} incidents):")
-                lines.append("   - Inspect flow sensors on affected zones")
-                lines.append("   - Verify sensor calibration and connections")
-                lines.append("   - Check for debris or mineral buildup")
-                lines.append("")
-            
-            if any('abort' in reason.lower() for reason in failure_reasons.keys()):
-                abort_count = sum(count for reason, count in failure_reasons.items() if 'abort' in reason.lower())
-                lines.append(f"[WARNING] SYSTEM ABORTS ({abort_count} incidents):")
-                lines.append("   - Review system logs for abort triggers")
-                lines.append("   - Check rain sensor functionality")
-                lines.append("   - Verify pressure and flow thresholds")
-                lines.append("")
-            
-            if any('valve' in reason.lower() for reason in failure_reasons.keys()):
-                valve_count = sum(count for reason, count in failure_reasons.items() if 'valve' in reason.lower())
-                lines.append(f"[SYMBOL] VALVE ISSUES ({valve_count} incidents):")
-                lines.append("   - Inspect valve operation and sealing")
-                lines.append("   - Check for clogs or debris")
-                lines.append("   - Verify electrical connections")
-                lines.append("")
-            
-            if high_priority:
-                lines.append(f"[SYMBOL] IMMEDIATE ACTION NEEDED:")
-                lines.append(f"   - Priority inspection: {', '.join(high_priority.keys())}")
-                lines.append(f"   - These zones have consistent problems requiring urgent attention")
-                lines.append("")
-            
-            # Efficiency Impact
-            lines.append("[SYMBOL] EFFICIENCY IMPACT:")
-            lines.append("-" * 60)
-            lines.append(f"[SYMBOL][SYMBOL]  Total wasted irrigation time: {total_wasted_duration} minutes")
-            lines.append(f"[WATER] Estimated water loss: 0 gallons (no actual water waste)")
-            lines.append(f"[SYMBOL] Energy waste: {total_wasted_duration * 0.1:.1f} kWh (estimated)")
-            lines.append(f"[PERIODIC] System efficiency: {((total_affected_runs) / (total_affected_runs + 100)) * 100:.1f}% failed runs (estimated)")
-            
+            for zone, data in high_priority.items():
+                total_wasted = data['total_duration']
+                lines.append(f"[ALERT] {zone}: {data['count']} incidents, {total_wasted} min wasted")
+                lines.append(f"   [DATE] Dates: {', '.join(str(date) for date in data['dates'])}")
+                lines.append(f"   [ANALYSIS] Issues: {', '.join(set(data['reasons']))}")
+            lines.append("")
+        
+        # Recommendations
+        lines.append("[INFO] RECOMMENDATIONS:")
+        lines.append("-" * 60)
+        
+        if any('sensor' in reason.lower() for reason in failure_reasons.keys()):
+            sensor_count = sum(count for reason, count in failure_reasons.items() if 'sensor' in reason.lower())
+            lines.append(f"[SYMBOL] SENSOR ISSUES ({sensor_count} incidents):")
+            lines.append("   - Inspect flow sensors on affected zones")
+            lines.append("   - Verify sensor calibration and connections")
+            lines.append("   - Check for debris or mineral buildup")
+            lines.append("")
+        
+        if any('abort' in reason.lower() for reason in failure_reasons.keys()):
+            abort_count = sum(count for reason, count in failure_reasons.items() if 'abort' in reason.lower())
+            lines.append(f"[WARNING] SYSTEM ABORTS ({abort_count} incidents):")
+            lines.append("   - Review system logs for abort triggers")
+            lines.append("   - Check rain sensor functionality")
+            lines.append("   - Verify pressure and flow thresholds")
+            lines.append("")
+        
+        if any('valve' in reason.lower() for reason in failure_reasons.keys()):
+            valve_count = sum(count for reason, count in failure_reasons.items() if 'valve' in reason.lower())
+            lines.append(f"[SYMBOL] VALVE ISSUES ({valve_count} incidents):")
+            lines.append("   - Inspect valve operation and sealing")
+            lines.append("   - Check for clogs or debris")
+            lines.append("   - Verify electrical connections")
+            lines.append("")
+        
+        if high_priority:
+            lines.append(f"[SYMBOL] IMMEDIATE ACTION NEEDED:")
+            lines.append(f"   - Priority inspection: {', '.join(high_priority.keys())}")
+            lines.append(f"   - These zones have consistent problems requiring urgent attention")
+            lines.append("")
+        
+        # Efficiency Impact
+        lines.append("[SYMBOL] EFFICIENCY IMPACT:")
+        lines.append("-" * 60)
+        lines.append(f"[SYMBOL][SYMBOL]  Total wasted irrigation time: {total_wasted_duration} minutes")
+        lines.append(f"[WATER] Estimated water loss: 0 gallons (no actual water waste)")
+        lines.append(f"[SYMBOL] Energy waste: {total_wasted_duration * 0.1:.1f} kWh (estimated)")
+        lines.append(f"[PERIODIC] System efficiency: {((total_affected_runs) / (total_affected_runs + 100)) * 100:.1f}% failed runs (estimated)")
+        
         lines.append("")
         lines.append("=" * 80)
         return "\n".join(lines)
@@ -1341,10 +1300,9 @@ def main():
     print("[RESULTS] Calculating baselines...")
     
     # Get all unique zones
-    with sqlite3.connect(analytics.db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT zone_name FROM actual_runs")
-        zones = [row[0] for row in cursor.fetchall()]
+    db_manager = get_universal_database_manager()
+    zones_results = db_manager.adapter.execute_query("SELECT DISTINCT zone_name FROM actual_runs")
+    zones = [row['zone_name'] for row in zones_results]
     
     for zone in zones:
         if analytics.update_baseline(zone):

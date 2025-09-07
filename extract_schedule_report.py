@@ -9,7 +9,7 @@ in a readable format for analysis.
 import os
 import sys
 import json
-import sqlite3
+from database.universal_database_manager import get_universal_database_manager
 from datetime import datetime, date
 from typing import List, Dict, Any
 
@@ -24,38 +24,34 @@ def extract_schedule_report():
     print("[RESULTS] HYDRAWISE SCHEDULED RUNS REPORT")
     print("=" * 80)
     print(f"[DATE] Date: {date.today().strftime('%A, %B %d, %Y')}")
-    print("[ANALYSIS] Data Source: Local SQLite Database")
+    print("[ANALYSIS] Data Source: PostgreSQL Database")
     print("=" * 80)
     
     try:
         # Connect to database
-        storage = IntelligentDataStorage("database/irrigation_data.db")
+        storage = IntelligentDataStorage()
         
         # Query today's scheduled runs
-        with sqlite3.connect(storage.db_path) as conn:
-            conn.row_factory = sqlite3.Row  # Enable column access by name
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT 
-                    id,
-                    zone_name,
-                    scheduled_start_time,
-                    scheduled_duration_minutes,
-                    expected_gallons,
-                    is_rain_cancelled,
-                    rain_sensor_status,
-                    popup_status,
-                    raw_popup_text,
-                    popup_lines_json,
-                    parsed_summary,
-                    created_at
-                FROM scheduled_runs 
-                WHERE schedule_date = ?
-                ORDER BY scheduled_start_time, id
-            """, (date.today(),))
-            
-            runs = cursor.fetchall()
+        db_manager = get_universal_database_manager()
+        
+        runs = db_manager.adapter.execute_query("""
+            SELECT 
+                id,
+                zone_name,
+                scheduled_start_time,
+                scheduled_duration_minutes,
+                expected_gallons,
+                is_rain_cancelled,
+                rain_sensor_status,
+                popup_status,
+                raw_popup_text,
+                popup_lines_json,
+                parsed_summary,
+                created_at
+            FROM scheduled_runs 
+            WHERE schedule_date = %s
+            ORDER BY scheduled_start_time, id
+        """, (date.today(),))
             
         if not runs:
             print("[ERROR] No scheduled runs found for today")

@@ -12,12 +12,12 @@ Date: 2025-08-31
 """
 
 import logging
-import sqlite3
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 
 from utils.timezone_utils import get_houston_now, get_database_timestamp
+from database.universal_database_manager import get_universal_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +50,12 @@ class ComprehensiveStatusMonitor:
     - Intelligent alerting that combines both perspectives
     """
     
-    def __init__(self, db_path: str = "database/irrigation_data.db"):
-        self.db_path = db_path
+    def __init__(self):
         self.logger = logger
     
     def analyze_comprehensive_status(self, target_date: date, 
                                    current_runs: List = None,
-                                   sensor_info: Dict = None) -> Tuple[ChangeDetectionResult, List[CurrentStatusAlert]]:
+                                   sensor_info: Dict = None, collection_run_id: str = None) -> Tuple[ChangeDetectionResult, List[CurrentStatusAlert]]:
         """
         Perform comprehensive status analysis
         
@@ -69,7 +68,7 @@ class ComprehensiveStatusMonitor:
             Tuple of (change_detection_results, current_status_alerts)
         """
         # 1. Run change detection analysis
-        change_results = self._analyze_status_changes(target_date, current_runs, collection_run_id=None)
+        change_results = self._analyze_status_changes(target_date, current_runs, collection_run_id=collection_run_id)
         
         # 2. Analyze current critical status
         current_alerts = self._analyze_current_status(target_date, current_runs, sensor_info)
@@ -90,7 +89,7 @@ class ComprehensiveStatusMonitor:
             
             # Use existing change detection logic
             from utils.status_change_detector import StatusChangeDetector
-            detector = StatusChangeDetector(self.db_path)
+            detector = StatusChangeDetector()
             
             status_changes = detector.detect_changes_for_collection(current_runs, target_date)
             
@@ -275,17 +274,17 @@ class ComprehensiveStatusMonitor:
     def _calculate_total_daily_gallons(self, target_date: date) -> float:
         """Calculate total expected gallons for the day"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT SUM(expected_gallons) 
-                    FROM scheduled_runs 
-                    WHERE schedule_date = ? AND expected_gallons IS NOT NULL
-                """, (target_date.isoformat(),))
-                
-                result = cursor.fetchone()[0]
-                return result or 0
+            db_manager = get_universal_database_manager()
+            
+            results = db_manager.adapter.execute_query("""
+                SELECT SUM(expected_gallons) as total_gallons
+                FROM scheduled_runs 
+                WHERE schedule_date = %s AND expected_gallons IS NOT NULL
+            """, (target_date.isoformat(),))
+            
+            if results and results[0]['total_gallons']:
+                return float(results[0]['total_gallons'])
+            return 0
                 
         except Exception as e:
             self.logger.error(f"Error calculating daily gallons: {e}")
@@ -453,18 +452,18 @@ URGENCY: {urgency}
 
 def integrate_comprehensive_monitoring(tracking_system, target_date: date, 
                                      collection_type: str, current_runs: List = None,
-                                     sensor_info: Dict = None) -> Dict[str, Any]:
+                                     sensor_info: Dict = None, collection_run_id: str = None) -> Dict[str, Any]:
     """
     Integrate comprehensive monitoring with existing tracking system
     
     Returns enhanced results with both change detection and current status
     """
     try:
-        monitor = ComprehensiveStatusMonitor(tracking_system.config.db_path)
+        monitor = ComprehensiveStatusMonitor()
         
         # Run comprehensive analysis
         change_results, current_alerts = monitor.analyze_comprehensive_status(
-            target_date, current_runs, sensor_info
+            target_date, current_runs, sensor_info, collection_run_id
         )
         
         # Check if sensor status actually changed

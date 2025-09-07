@@ -12,7 +12,7 @@ Author: AI Assistant
 Date: 2025-01-26
 """
 
-import sqlite3
+from database.universal_database_manager import get_universal_database_manager
 import json
 import logging
 from datetime import datetime, date, timedelta
@@ -29,10 +29,8 @@ logger = logging.getLogger(__name__)
 class WaterCostCalculator:
     """Calculates water costs based on Houston tiered rate structure"""
     
-    def __init__(self, db_path: str = "database/irrigation_data.db", 
-                 rates_config_path: str = "config/houston_water_rates.json"):
+    def __init__(self, rates_config_path: str = "config/houston_water_rates.json"):
         """Initialize cost calculator with database and rate configuration"""
-        self.db_path = db_path
         self.rates_config_path = rates_config_path
         self.rate_config = self._load_rate_config()
         
@@ -93,20 +91,18 @@ class WaterCostCalculator:
             Total irrigation usage in gallons
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT COALESCE(SUM(actual_gallons), 0) as total_gallons
-                    FROM actual_runs 
-                    WHERE run_date BETWEEN ? AND ?
-                    AND actual_gallons IS NOT NULL
-                """, (billing_start.strftime('%Y-%m-%d'), billing_end.strftime('%Y-%m-%d')))
-                
-                result = cursor.fetchone()
-                irrigation_usage = result[0] if result else 0.0
-                
-                logger.debug(f"Irrigation usage from {billing_start} to {billing_end}: {irrigation_usage:.1f} gallons")
-                return irrigation_usage
+            db_manager = get_universal_database_manager()
+            result = db_manager.adapter.execute_query("""
+                SELECT COALESCE(SUM(actual_gallons), 0) as total_gallons
+                FROM actual_runs 
+                WHERE run_date BETWEEN %s AND %s
+                AND actual_gallons IS NOT NULL
+            """, (billing_start.strftime('%Y-%m-%d'), billing_end.strftime('%Y-%m-%d')))
+            
+            irrigation_usage = result[0]['total_gallons'] if result else 0.0
+            
+            logger.debug(f"Irrigation usage from {billing_start} to {billing_end}: {irrigation_usage:.1f} gallons")
+            return irrigation_usage
                 
         except Exception as e:
             logger.error(f"Failed to get irrigation usage: {e}")

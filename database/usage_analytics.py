@@ -14,7 +14,7 @@ Author: AI Assistant
 Date: 2025-08-27
 """
 
-import sqlite3
+from database.universal_database_manager import get_universal_database_manager
 import sys
 import os
 from datetime import datetime, date, timedelta
@@ -67,8 +67,7 @@ class UsageAnalytics:
     - Daily usage variance reporting and trend analysis
     """
     
-    def __init__(self, db_path: str = "database/irrigation_data.db", 
-                 too_high_multiplier: float = 2.0, 
+    def __init__(self, too_high_multiplier: float = 2.0, 
                  too_low_multiplier: float = 0.5):
         """Initialize usage analytics system
         
@@ -77,7 +76,6 @@ class UsageAnalytics:
             too_high_multiplier: Multiplier for too_high usage flag analysis
             too_low_multiplier: Multiplier for too_low usage flag analysis
         """
-        self.db_path = db_path
         self.too_high_multiplier = too_high_multiplier
         self.too_low_multiplier = too_low_multiplier
     
@@ -106,21 +104,20 @@ class UsageAnalytics:
         if start_date is None:
             start_date = end_date - timedelta(days=30)
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get all runs with usage flag data
-            cursor.execute("""
-                SELECT actual_runs.zone_name, usage_flag, usage_type, usage, actual_gallons, 
-                       actual_duration_minutes, run_date,
-                       zones.flow_rate_gpm, zones.average_flow_rate
-                FROM actual_runs 
-                LEFT JOIN zones ON actual_runs.zone_id = zones.zone_id
-                WHERE run_date BETWEEN ? AND ?
-                ORDER BY actual_runs.zone_name, run_date
-            """, (start_date, end_date))
-            
-            runs = cursor.fetchall()
+        db_manager = get_universal_database_manager()
+        
+        # Get all runs with usage flag data
+        runs_result = db_manager.adapter.execute_query("""
+            SELECT actual_runs.zone_name, usage_flag, usage_type, usage, actual_gallons, 
+                   actual_duration_minutes, run_date,
+                   zones.flow_rate_gpm, zones.average_flow_rate
+            FROM actual_runs 
+            LEFT JOIN zones ON actual_runs.zone_id = zones.zone_id
+            WHERE run_date BETWEEN %s AND %s
+            ORDER BY actual_runs.zone_name, run_date
+        """, (start_date, end_date))
+        
+        runs = runs_result if runs_result else []
         
         # Initialize analysis results
         analysis_data = {
@@ -136,7 +133,15 @@ class UsageAnalytics:
         
         # Process each run
         for run in runs:
-            zone_name, usage_flag, usage_type, usage, actual_gallons, duration, run_date, flow_rate, avg_flow_rate = run
+            zone_name = run['zone_name']
+            usage_flag = run['usage_flag'] 
+            usage_type = run['usage_type']
+            usage = run['usage']
+            actual_gallons = run['actual_gallons']
+            duration = run['actual_duration_minutes']
+            run_date = run['run_date']
+            flow_rate = run['flow_rate_gpm']
+            avg_flow_rate = run['average_flow_rate']
             
             # Count flags
             analysis_data['flag_counts'][usage_flag] += 1
@@ -264,21 +269,20 @@ class UsageAnalytics:
         if target_date is None:
             target_date = date.today() - timedelta(days=1)  # Default to yesterday
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            
-            # Get all runs for the target date with zone flow rates
-            cursor.execute("""
-                SELECT ar.zone_name, ar.usage, ar.usage_type, ar.usage_flag,
-                       ar.actual_duration_minutes, ar.actual_gallons,
-                       z.flow_rate_gpm, z.average_flow_rate
-                FROM actual_runs ar
-                LEFT JOIN zones z ON ar.zone_id = z.zone_id
-                WHERE ar.run_date = ?
-                ORDER BY ar.zone_name, ar.actual_start_time
-            """, (target_date,))
-            
-            runs = cursor.fetchall()
+        db_manager = get_universal_database_manager()
+        
+        # Get all runs for the target date with zone flow rates
+        runs = db_manager.adapter.execute_query("""
+            SELECT ar.zone_name, ar.usage, ar.usage_type, ar.usage_flag,
+                   ar.actual_duration_minutes, ar.actual_gallons,
+                   z.flow_rate_gpm, z.average_flow_rate
+            FROM actual_runs ar
+            LEFT JOIN zones z ON ar.zone_id = z.zone_id
+            WHERE ar.run_date = %s
+            ORDER BY ar.zone_name, ar.actual_start_time
+        """, (target_date,))
+        
+        runs = runs if runs else []
         
         if not runs:
             return DailyUsageComparison(
@@ -296,7 +300,14 @@ class UsageAnalytics:
         
         # Process runs by zone
         for run in runs:
-            zone_name, usage, usage_type, usage_flag, duration, actual_gallons, flow_rate, avg_flow_rate = run
+            zone_name = run['zone_name']
+            usage = run['usage']
+            usage_type = run['usage_type']
+            usage_flag = run['usage_flag']
+            duration = run['actual_duration_minutes']
+            actual_gallons = run['actual_gallons']
+            flow_rate = run['flow_rate_gpm']
+            avg_flow_rate = run['average_flow_rate']
             total_runs += 1
             
             if zone_name not in zone_comparisons:

@@ -82,6 +82,20 @@ CREATE TABLE IF NOT EXISTS actual_runs (
 -- ANALYSIS TABLES: Variance and Pattern Detection
 -- =====================================================
 
+-- Usage baselines: Statistical baselines for anomaly detection
+CREATE TABLE IF NOT EXISTS usage_baselines (
+    zone_name TEXT PRIMARY KEY,
+    avg_gallons REAL NOT NULL,
+    avg_duration_minutes INTEGER NOT NULL,
+    avg_gpm REAL NOT NULL,
+    std_dev_gallons REAL NOT NULL,
+    std_dev_duration REAL NOT NULL,
+    sample_count INTEGER NOT NULL,
+    baseline_start_date DATE NOT NULL,
+    baseline_end_date DATE NOT NULL,
+    last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Daily variance analysis: Scheduled vs Actual comparison
 CREATE TABLE IF NOT EXISTS daily_variance (
     id SERIAL PRIMARY KEY,
@@ -392,13 +406,18 @@ CREATE TABLE IF NOT EXISTS historical_notes (
 CREATE TABLE IF NOT EXISTS rain_sensor_status_history (
     id SERIAL PRIMARY KEY,
     status_date DATE NOT NULL,
+    status_time TIMESTAMP NOT NULL,
+    sensor_status TEXT NOT NULL,
+    is_stopping_irrigation BOOLEAN NOT NULL,
+    irrigation_suspended BOOLEAN NOT NULL,
+    sensor_text_raw TEXT,
+    collection_run_id TEXT,
     sensor_enabled BOOLEAN NOT NULL,
     sensor_active BOOLEAN NOT NULL,
-    status_text TEXT,
     raw_status_data TEXT,
     scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    UNIQUE(status_date, scraped_at)
+    UNIQUE(status_date, status_time)
 );
 
 -- Status changes: Track irrigation status changes and notifications
@@ -433,6 +452,80 @@ CREATE TABLE IF NOT EXISTS status_changes (
     FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
 );
 
+-- Scheduled run status changes: Track popup status changes for irrigation runs
+CREATE TABLE IF NOT EXISTS scheduled_run_status_changes (
+    id SERIAL PRIMARY KEY,
+    zone_id INTEGER NOT NULL,
+    zone_name TEXT NOT NULL,
+    
+    -- Detection timing
+    change_detected_date DATE NOT NULL,
+    change_detected_time TIMESTAMP NOT NULL,
+    collection_run_id TEXT,
+    
+    -- Current run (from web scraping)
+    current_run_date DATE NOT NULL,
+    current_scheduled_start_time TIMESTAMP NOT NULL,
+    current_status_type TEXT NOT NULL,
+    current_popup_text TEXT,
+    
+    -- Previous run (from database comparison)
+    previous_run_date DATE NOT NULL,
+    previous_scheduled_start_time TIMESTAMP NOT NULL,
+    previous_status_type TEXT NOT NULL,
+    previous_popup_text TEXT,
+    
+    -- Change analysis
+    change_type TEXT NOT NULL CHECK (change_type IN (
+        'rainfall_abort', 'sensor_abort', 'user_suspended', 
+        'normal_restored', 'irrigation_prevented', 'other_change'
+    )),
+    irrigation_prevented BOOLEAN DEFAULT TRUE,
+    expected_gallons_lost REAL DEFAULT 0,
+    time_since_last_record_hours REAL,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+);
+
+-- Daily status summary: Aggregate daily status change information
+CREATE TABLE IF NOT EXISTS daily_status_summary (
+    id SERIAL PRIMARY KEY,
+    summary_date DATE NOT NULL UNIQUE,
+    
+    -- Change counts by type
+    rainfall_aborts_count INTEGER DEFAULT 0,
+    sensor_aborts_count INTEGER DEFAULT 0,
+    user_suspensions_count INTEGER DEFAULT 0,
+    normal_restorations_count INTEGER DEFAULT 0,
+    total_changes_count INTEGER DEFAULT 0,
+    
+    -- Impact summary
+    zones_affected_count INTEGER DEFAULT 0,
+    total_gallons_lost REAL DEFAULT 0,
+    irrigation_runs_prevented INTEGER DEFAULT 0,
+    
+    -- Rain sensor context
+    sensor_stopping_periods INTEGER DEFAULT 0,
+    sensor_active_duration_minutes INTEGER DEFAULT 0,
+    
+    -- Notification tracking
+    email_notification_sent BOOLEAN DEFAULT FALSE,
+    email_sent_at TIMESTAMP,
+    email_recipients TEXT,
+    
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Collection status: Track completion of daily data collection
+CREATE TABLE IF NOT EXISTS collection_status (
+    date DATE PRIMARY KEY,
+    schedules_complete BOOLEAN DEFAULT FALSE,
+    runs_complete BOOLEAN DEFAULT FALSE,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- =====================================================
 -- INDEXES: Optimize query performance
 -- =====================================================
@@ -465,6 +558,13 @@ CREATE INDEX IF NOT EXISTS idx_cost_analysis_events_period ON cost_analysis_even
 CREATE INDEX IF NOT EXISTS idx_rain_sensor_status_date ON rain_sensor_status_history(status_date);
 CREATE INDEX IF NOT EXISTS idx_status_changes_date_type ON status_changes(change_date, change_type);
 CREATE INDEX IF NOT EXISTS idx_status_changes_zone ON status_changes(zone_id, change_date);
+
+-- Status change tracking indexes
+CREATE INDEX IF NOT EXISTS idx_scheduled_run_status_changes_date_zone ON scheduled_run_status_changes(change_detected_date, zone_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_run_status_changes_type ON scheduled_run_status_changes(change_type, change_detected_date);
+CREATE INDEX IF NOT EXISTS idx_scheduled_run_status_changes_current_date ON scheduled_run_status_changes(current_run_date, zone_id);
+CREATE INDEX IF NOT EXISTS idx_daily_status_summary_date ON daily_status_summary(summary_date);
+CREATE INDEX IF NOT EXISTS idx_collection_status_date ON collection_status(date);
 
 -- =====================================================
 -- VIEWS: Simplified data access for analysis
