@@ -133,34 +133,17 @@ def cmd_collect(args):
         
         # Store in database
         print("[SAVED] Storing runs in database...")
-        storage_result = storage.store_scheduled_runs_enhanced(scheduled_runs, target_date)
+        storage_result = storage.insert_scheduled_runs(scheduled_runs, target_date)
         
-        # Display detailed storage results
-        if isinstance(storage_result, dict):
-            new_runs = storage_result['new']
-            updated_runs = storage_result['updated'] 
-            unchanged_runs = storage_result['unchanged']
-            total_processed = storage_result['total']
-            
-            print(f"[OK] Successfully processed {total_processed} scheduled runs:")
-            print(f"   [NEW] {new_runs} new runs added to database")
-            print(f"   [PERIODIC] {updated_runs} existing runs updated")
-            print(f"   [OK]  {unchanged_runs} runs unchanged (already current)")
-            print(f"   [SAVED] Total database changes: {new_runs + updated_runs}")
-        else:
-            # Fallback for old format
-            print(f"[OK] Stored {storage_result} runs successfully")
+        # Display storage results
+        print(f"[OK] Stored {storage_result} runs successfully")
         
         # Display summary
         print()
         print("[RESULTS] COLLECTION SUMMARY:")
         print(f"   Date: {target_date}")
         print(f"   Runs collected: {len(scheduled_runs)}")
-        if isinstance(storage_result, dict):
-            print(f"   New runs stored: {storage_result['new']}")
-            print(f"   Runs unchanged: {storage_result['unchanged']}")
-        else:
-            print(f"   Runs stored: {storage_result}")
+        print(f"   Runs stored: {storage_result}")
         if args.limit:
             print(f"   Zone limit: {args.limit}")
         else:
@@ -424,13 +407,8 @@ def cmd_collect_range(args):
                 collected_dates.append(current_date)
                 
                 # Store runs for this date
-                storage_result = storage.store_scheduled_runs_enhanced(scheduled_runs, current_date)
-                if isinstance(storage_result, dict):
-                    new_runs = storage_result['new']
-                    unchanged_runs = storage_result['unchanged']
-                    print(f"[SAVED] Stored {new_runs} new runs, {unchanged_runs} unchanged for {current_date}")
-                else:
-                    print(f"[SAVED] Stored {storage_result} runs for {current_date}")
+                storage_result = storage.insert_scheduled_runs(scheduled_runs, current_date)
+                print(f"[SAVED] Stored {storage_result} runs for {current_date}")
             else:
                 print(f"[WARNING]  No scheduled runs found for {current_date}")
             

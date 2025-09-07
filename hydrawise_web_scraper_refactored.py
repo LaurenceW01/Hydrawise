@@ -51,7 +51,7 @@ class ActualRun:
     zone_name: str
     start_time: datetime
     duration_minutes: int
-    actual_gallons: Optional[float]
+    actual_gallons: Optional[float]  # Water usage from reported data
     status: str  # "Normal", "Aborted due to sensor input", etc.
     notes: str
     end_time: Optional[datetime] = None  # Calculate from start + duration if needed

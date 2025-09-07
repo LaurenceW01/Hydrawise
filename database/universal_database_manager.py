@@ -297,8 +297,15 @@ class UniversalDatabaseManager:
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                 
+                # Convert zone_id to integer if it's a string like "zone_1"
+                zone_id = run.zone_id
+                if isinstance(zone_id, str) and zone_id.startswith('zone_'):
+                    zone_id = int(zone_id.replace('zone_', ''))
+                elif isinstance(zone_id, str) and zone_id.isdigit():
+                    zone_id = int(zone_id)
+                
                 params = (
-                    run.zone_id,
+                    zone_id,
                     run.zone_name,
                     target_date or run.start_time.date(),
                     run.start_time,
@@ -378,13 +385,20 @@ class UniversalDatabaseManager:
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                 
+                # Convert zone_id to integer if it's a string like "zone_1"
+                zone_id = run.zone_id
+                if isinstance(zone_id, str) and zone_id.startswith('zone_'):
+                    zone_id = int(zone_id.replace('zone_', ''))
+                elif isinstance(zone_id, str) and zone_id.isdigit():
+                    zone_id = int(zone_id)
+                
                 params = (
-                    run.zone_id,
+                    zone_id,
                     run.zone_name,
                     target_date or run.start_time.date(),
                     run.start_time,
                     run.duration_minutes,
-                    run.gallons_used,
+                    run.actual_gallons,  # Fixed: use actual_gallons instead of gallons_used
                     run.status,
                     getattr(run, 'failure_reason', None),
                     getattr(run, 'current_ma', None),
@@ -395,7 +409,7 @@ class UniversalDatabaseManager:
                     getattr(run, 'parsed_summary', None),
                     getattr(run, 'abort_reason', None),
                     getattr(run, 'usage_type', 'actual'),
-                    run.gallons_used,  # usage field
+                    run.actual_gallons,  # Fixed: use actual_gallons for usage field
                     getattr(run, 'usage_flag', 'normal')
                 )
                 

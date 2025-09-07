@@ -10,13 +10,21 @@ HYDRAWISE_PASSWORD=your_hydrawise_password
 # =============================================================================
 # DATABASE CONFIGURATION
 # =============================================================================
-# Use SQLite for local development
-DATABASE_TYPE=sqlite
-DB_PATH=database/irrigation_data.db
+# Use PostgreSQL for local development (recommended)
+DATABASE_TYPE=postgresql
+DATABASE_URL=postgresql://hydrawise:password@localhost:5432/hydrawise_db
 
-# Alternative: Use local PostgreSQL for testing
-# DATABASE_TYPE=postgresql
-# DATABASE_URL=postgresql://hydrawise:password@localhost:5432/hydrawise_db
+# Alternative: Use SQLite for simpler setup (legacy)
+# DATABASE_TYPE=sqlite
+# DB_PATH=database/irrigation_data.db
+
+# Individual PostgreSQL connection parameters (alternative to DATABASE_URL)
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_NAME=hydrawise_db
+# DB_USER=hydrawise
+# DB_PASSWORD=password
+# DB_SSL_MODE=prefer
 
 # =============================================================================
 # LOGGING CONFIGURATION

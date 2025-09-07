@@ -376,11 +376,18 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                     elif 'manual' in notes.lower():
                         failure_reason = "Manual intervention"
                     
+                    # Map zone name to proper zone ID using database lookup
+                    from schedule_collector import _get_zone_id_from_name
+                    zone_id = _get_zone_id_from_name(zone_name)
+                    if zone_id is None:
+                        self.logger.warning(f"Unknown zone name: '{zone_name}', skipping...")
+                        continue
+                    
                     # Create ActualRun object with enhanced popup data
                     enhanced_notes = f"Current: {current_ma}mA, {notes}" if current_ma else notes
                     
                     actual_run = ActualRun(
-                        zone_id=f'zone_{len(actual_runs) + 1}',
+                        zone_id=str(zone_id),  # Use proper zone ID from database lookup
                         zone_name=zone_name,
                         start_time=start_time,
                         duration_minutes=duration_minutes,

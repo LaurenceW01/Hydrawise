@@ -24,6 +24,14 @@ from typing import Dict, Any, Optional
 from urllib.parse import urlparse
 from dataclasses import dataclass
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, continue without it
+    pass
+
 logger = logging.getLogger(__name__)
 
 @dataclass

@@ -164,10 +164,27 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                 elif 'manual' in notes.lower():
                     failure_reason = "Manual intervention"
                 
+                # Map zone name to proper zone ID using database lookup
+                from schedule_collector import _get_zone_id_from_name
+                zone_id = _get_zone_id_from_name(clean_zone_name)
+                if zone_id is None:
+                    self.logger.warning(f"Unknown zone name: '{clean_zone_name}', skipping...")
+                    # Debug: Let's see what zone names we have in the database
+                    try:
+                        from database.universal_database_manager import get_universal_database_manager
+                        db = get_universal_database_manager()
+                        zones = db.get_zones()
+                        zone_names = [zone['zone_name'] for zone in zones]
+                        self.logger.warning(f"Available zone names in database: {zone_names}")
+                        db.close()
+                    except Exception as e:
+                        self.logger.error(f"Failed to get zone names for debugging: {e}")
+                    continue
+                
                 # Create ActualRun object
                 from hydrawise_web_scraper_refactored import ActualRun  # Import here to avoid circular imports
                 actual_run = ActualRun(
-                    zone_id=popup_data.get('zone_id', f'zone_{len(actual_runs)}'),
+                    zone_id=str(zone_id),  # Convert to string to match class definition
                     zone_name=clean_zone_name,
                     start_time=start_datetime,
                     end_time=None,  # Calculate from start + duration if needed

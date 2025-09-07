@@ -270,8 +270,8 @@ class AutomatedCollector:
                 'PYTHONOPTIMIZE': '1'      # Enable basic optimizations
             }
             
-            # Build command with visible flag if needed
-            cmd = ["python", script]
+            # Build command with visible flag if needed - use same Python interpreter
+            cmd = [sys.executable, script]
             if not self.config.headless_mode:
                 cmd.append("--visible")
             cmd.extend(list(args))
@@ -335,11 +335,20 @@ class AutomatedCollector:
                     self._create_collection_status_table(db)
                 
                 # Check if yesterday's collection is marked as complete
-                result = db.adapter.execute_query("""
-                    SELECT schedules_complete, runs_complete 
-                    FROM collection_status 
-                    WHERE date = ?
-                """, (yesterday.isoformat(),))
+                from database.db_config import is_postgresql
+                if is_postgresql():
+                    query = """
+                        SELECT schedules_complete, runs_complete 
+                        FROM collection_status 
+                        WHERE date = %s
+                    """
+                else:
+                    query = """
+                        SELECT schedules_complete, runs_complete 
+                        FROM collection_status 
+                        WHERE date = ?
+                    """
+                result = db.adapter.execute_query(query, (yesterday.isoformat(),))
                 
                 if result:
                     record = result[0]
@@ -787,7 +796,7 @@ def main():
     )
     
     # Setup logging
-    setup_main_logging(log_level=args.log_level)
+    logger, _ = setup_universal_logging(__name__, "automated_collector_main", log_level=args.log_level)
     
     print("Hydrawise Automated Data Collector")
     print("=" * 50)

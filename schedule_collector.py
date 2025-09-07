@@ -12,11 +12,33 @@ Date: 2025
 import time
 import re
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Optional
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+
+# Zone name to ID mapping cache
+_zone_cache = {}
+
+def _get_zone_id_from_name(zone_name: str) -> Optional[int]:
+    """Get zone ID from zone name using database lookup"""
+    global _zone_cache
+    
+    # Initialize cache if empty
+    if not _zone_cache:
+        try:
+            from database.universal_database_manager import get_universal_database_manager
+            db = get_universal_database_manager()
+            zones = db.get_zones()
+            for zone in zones:
+                _zone_cache[zone['zone_name']] = zone['zone_id']
+            db.close()
+        except Exception as e:
+            print(f"Error loading zone cache: {e}")
+            return None
+    
+    return _zone_cache.get(zone_name)
 
 def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None, skip_schedule_click: bool = False, skip_day_click: bool = False) -> List:
     """
@@ -340,10 +362,16 @@ def extract_scheduled_runs(self, target_date: datetime, limit_zones: int = None,
                 seen_runs.add(run_id)
                 self.logger.info(f"[OK] PROCESSING ZONE {len(scheduled_runs)+1}: {zone_name} at {start_datetime.strftime('%I:%M %p')}")
                 
+                # Map zone name to proper zone ID using database lookup
+                zone_id = _get_zone_id_from_name(zone_name)
+                if zone_id is None:
+                    self.logger.warning(f"Unknown zone name: {zone_name}, skipping...")
+                    continue
+                
                 # Create ScheduledRun object
                 from hydrawise_web_scraper_refactored import ScheduledRun  # Import here to avoid circular imports
                 scheduled_run = ScheduledRun(
-                    zone_id=f"zone_{i+1}",  # Generate ID since not available
+                    zone_id=zone_id,  # Use proper zone ID from database
                     zone_name=zone_name,
                     start_time=start_datetime,
                     duration_minutes=duration_minutes,
