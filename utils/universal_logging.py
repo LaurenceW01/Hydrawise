@@ -19,6 +19,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Union
 import json
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,7 +42,13 @@ def get_logging_config() -> dict:
         'enable_file_logging': os.getenv('ENABLE_FILE_LOGGING', 'false' if is_render else 'true').lower() == 'true',
         'enable_console_logging': os.getenv('ENABLE_CONSOLE_LOGGING', 'true').lower() == 'true',
         'is_render': is_render,
-        'log_directory': os.getenv('LOG_DIRECTORY', 'logs')
+        'log_directory': os.getenv('LOG_DIRECTORY', 'logs'),
+        # Log rotation settings
+        'use_rotating_logs': os.getenv('USE_ROTATING_LOGS', 'true').lower() == 'true',
+        'rotation_type': os.getenv('LOG_ROTATION_TYPE', 'size'),  # 'size' or 'time'
+        'max_log_size_mb': int(os.getenv('MAX_LOG_SIZE_MB', '10')),  # 10MB per file
+        'backup_count': int(os.getenv('LOG_BACKUP_COUNT', '5')),  # Keep 5 backup files
+        'rotation_interval': os.getenv('LOG_ROTATION_INTERVAL', 'midnight'),  # For time-based rotation
     }
     
     return config
@@ -156,12 +163,43 @@ def setup_universal_logging(
             # Create logs directory if it doesn't exist
             os.makedirs(config['log_directory'], exist_ok=True)
             
-            # Generate timestamped filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            log_filename = os.path.join(config['log_directory'], f'{base_filename}_{timestamp}.log')
+            if config['use_rotating_logs'] and not config['is_render']:
+                # Use rotating file handler for local development
+                log_filename = os.path.join(config['log_directory'], f'{base_filename}.log')
+                
+                if config['rotation_type'] == 'size':
+                    # Size-based rotation (recommended for services)
+                    max_bytes = config['max_log_size_mb'] * 1024 * 1024  # Convert MB to bytes
+                    file_handler = RotatingFileHandler(
+                        log_filename,
+                        maxBytes=max_bytes,
+                        backupCount=config['backup_count'],
+                        encoding='utf-8'
+                    )
+                    logger.info(f"Rotating file logging enabled: {log_filename} (max {config['max_log_size_mb']}MB, {config['backup_count']} backups)")
+                    
+                elif config['rotation_type'] == 'time':
+                    # Time-based rotation
+                    file_handler = TimedRotatingFileHandler(
+                        log_filename,
+                        when=config['rotation_interval'],
+                        backupCount=config['backup_count'],
+                        encoding='utf-8'
+                    )
+                    logger.info(f"Time-rotating file logging enabled: {log_filename} (rotate at {config['rotation_interval']}, {config['backup_count']} backups)")
+                
+            else:
+                # Use regular file handler (for render.com or when rotation is disabled)
+                if config['is_render']:
+                    log_filename = os.path.join(config['log_directory'], f'{base_filename}.log')
+                else:
+                    # Generate timestamped filename for non-rotating local logs
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    log_filename = os.path.join(config['log_directory'], f'{base_filename}_{timestamp}.log')
+                
+                file_handler = logging.FileHandler(log_filename, encoding='utf-8')
+                logger.info(f"File logging enabled: {log_filename}")
             
-            # Create file handler with UTF-8 encoding
-            file_handler = logging.FileHandler(log_filename, encoding='utf-8')
             file_handler.setLevel(logger.level)
             
             # Use detailed formatter for files
@@ -172,8 +210,6 @@ def setup_universal_logging(
             
             logger.addHandler(file_handler)
             handlers_added += 1
-            
-            logger.info(f"File logging enabled: {log_filename}")
             
         except Exception as e:
             # If file logging fails (e.g., read-only filesystem), continue with stdout only

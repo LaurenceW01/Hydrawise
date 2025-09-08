@@ -82,6 +82,14 @@ SMTP_FROM_ADDRESS=your_email@example.com
 
 # Email timing and limits
 DAILY_EMAIL_TIME=19:00
+
+# Logging Configuration (for rotating logs)
+USE_ROTATING_LOGS=true
+LOG_ROTATION_TYPE=size
+MAX_LOG_SIZE_MB=10
+LOG_BACKUP_COUNT=5
+LOG_LEVEL=INFO
+LOG_DIRECTORY=logs
 MAX_EMAILS_PER_DAY=1
 
 # Email notification types
