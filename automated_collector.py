@@ -251,7 +251,9 @@ class AutomatedCollector:
             self.startup_completed = True
             self.last_daily_date = now.date()
             self.last_interval_time = now  # Set last interval time to prevent immediate interval run
+            next_interval_time = now + timedelta(minutes=self.config.hourly_interval_minutes)
             self.logger.info("[STARTUP] Startup collection completed successfully")
+            self.logger.info(f"[SCHEDULE] Next interval collection scheduled for: {get_display_timestamp(next_interval_time)}")
             
         except Exception as e:
             self.logger.error(f"[ERROR] Startup collection failed: {e}")
@@ -555,7 +557,9 @@ class AutomatedCollector:
                                 self.logger.error(f"[INTERVAL] Tracking analysis failed: {e}")
                         
                         self.last_interval_time = now
-                        self.logger.info("[INTERVAL] Interval collection completed")
+                        next_interval_time = now + timedelta(minutes=self.config.hourly_interval_minutes)
+                        self.logger.info(f"[INTERVAL] Interval collection completed")
+                        self.logger.info(f"[SCHEDULE] Next interval collection scheduled for: {get_display_timestamp(next_interval_time)}")
                     except Exception as e:
                         self.logger.error(f"[ERROR] Interval collection error: {e}")
                 elif not self.startup_completed:
@@ -566,7 +570,17 @@ class AutomatedCollector:
                     minutes_since_last = time_since_last.total_seconds() / 60
                     minutes_remaining = self.config.hourly_interval_minutes - minutes_since_last
                     if minutes_remaining > 0:
-                        self.logger.debug(f"[INTERVAL] Next interval collection in {minutes_remaining:.1f} minutes")
+                        next_interval_time = self.last_interval_time + timedelta(minutes=self.config.hourly_interval_minutes)
+                        self.logger.info(f"[SCHEDULE] Next interval collection: {get_display_timestamp(next_interval_time)} (in {minutes_remaining:.1f} minutes)")
+                
+                # Log status every 15 minutes (every 3rd loop iteration)
+                if hasattr(self, '_loop_count'):
+                    self._loop_count += 1
+                else:
+                    self._loop_count = 1
+                
+                if self._loop_count % 3 == 0:  # Every 15 minutes
+                    self._log_status_update(now)
                 
                 # Sleep for 5 minutes before checking again
                 self.stop_event.wait(300)
@@ -574,6 +588,20 @@ class AutomatedCollector:
             except Exception as e:
                 self.logger.error(f"[ERROR] Error in collection loop: {e}")
                 self.stop_event.wait(300)  # Wait 5 minutes before retrying
+    
+    def _log_status_update(self, now: datetime):
+        """Log a periodic status update showing next scheduled collections"""
+        try:
+            status = self.get_status()
+            self.logger.info(f"[STATUS] Current time: {get_display_timestamp(now)}")
+            self.logger.info(f"[STATUS] Next daily collection: {status['next_daily_collection']}")
+            self.logger.info(f"[STATUS] Next interval collection: {status['next_interval_collection']}")
+            if self.startup_completed:
+                self.logger.info("[STATUS] Service operational - waiting for next scheduled collection")
+            else:
+                self.logger.info("[STATUS] Service starting up - collections will begin after startup completes")
+        except Exception as e:
+            self.logger.error(f"[ERROR] Failed to log status update: {e}")
     
     def _should_run_daily_collection(self, current_time: dt_time, current_date, last_daily_date) -> bool:
         """

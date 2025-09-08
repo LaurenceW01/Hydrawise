@@ -461,21 +461,21 @@ class StatusChangeDetector:
                     change.zone_id,
                     change.zone_name,
                     change.change_detected_at.date().isoformat(),
-                    change.change_detected_at.isoformat(),
+                    change.change_detected_at.strftime('%Y-%m-%d %H:%M:%S'),  # PostgreSQL-friendly timestamp
                     collection_run_id,
                     change.current_run_date.isoformat(),
-                    change.current_scheduled_start_time.isoformat(),
+                    change.current_scheduled_start_time.strftime('%Y-%m-%d %H:%M:%S'),  # PostgreSQL-friendly timestamp
                     change.current_status_type,
                     change.current_popup_text,
                     change.previous_run_date.isoformat(),
-                    change.previous_scheduled_start_time.isoformat(),
+                    change.previous_scheduled_start_time.strftime('%Y-%m-%d %H:%M:%S'),  # PostgreSQL-friendly timestamp
                     change.previous_status_type,
                     change.previous_popup_text,
                     change.change_type,
                     change.irrigation_prevented,
                     change.expected_gallons_lost,
                     change.time_since_last_record_hours,
-                    change.change_detected_at.isoformat()  # Use Houston time for created_at
+                    change.change_detected_at.strftime('%Y-%m-%d %H:%M:%S')  # PostgreSQL-friendly timestamp
                 ))
             
             self.logger.info(f"Stored {len(status_changes)} status changes in database")

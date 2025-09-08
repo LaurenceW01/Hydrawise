@@ -434,7 +434,7 @@ class IrrigationTrackingSystem:
                 ON CONFLICT (status_date, status_time) DO NOTHING
             """, (
                 now.date().isoformat(),
-                now.isoformat(),
+                now.strftime('%Y-%m-%d %H:%M:%S'),  # PostgreSQL-friendly timestamp format
                 sensor_info['sensor_status'],
                 sensor_info['rain_sensor_active'],
                 sensor_info['irrigation_suspended'],

@@ -96,6 +96,48 @@ CREATE TABLE IF NOT EXISTS usage_baselines (
     last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Usage anomalies: Detected irrigation anomalies and unusual patterns
+CREATE TABLE IF NOT EXISTS usage_anomalies (
+    id SERIAL PRIMARY KEY,
+    zone_name TEXT NOT NULL,
+    run_date DATE NOT NULL,
+    anomaly_type TEXT NOT NULL CHECK (anomaly_type IN ('USAGE_HIGH', 'USAGE_LOW', 'DURATION_HIGH', 'DURATION_LOW', 'EFFICIENCY_LOW', 'PATTERN_BREAK')),
+    severity TEXT NOT NULL CHECK (severity IN ('HIGH', 'MEDIUM', 'LOW')) DEFAULT 'MEDIUM',
+    actual_value REAL NOT NULL,
+    expected_value REAL NOT NULL,
+    deviation_percent REAL NOT NULL,
+    description TEXT NOT NULL,
+    detected_at TIMESTAMP NOT NULL,
+    acknowledged BOOLEAN DEFAULT FALSE,
+    acknowledged_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(zone_name, run_date, anomaly_type)  -- Prevent duplicate anomaly detection for same zone/date/type
+);
+
+-- Usage trends: Zone usage trends and patterns over time
+CREATE TABLE IF NOT EXISTS usage_trends (
+    id SERIAL PRIMARY KEY,
+    zone_name TEXT NOT NULL,
+    analysis_period_start DATE NOT NULL,
+    analysis_period_end DATE NOT NULL,
+    period_days INTEGER NOT NULL,
+    total_runs INTEGER NOT NULL,
+    total_gallons REAL NOT NULL,
+    avg_gallons_per_run REAL NOT NULL,
+    avg_duration_per_run REAL NOT NULL,
+    avg_gpm REAL NOT NULL,
+    usage_trend TEXT NOT NULL CHECK (usage_trend IN ('INCREASING', 'DECREASING', 'STABLE')) DEFAULT 'STABLE',
+    efficiency_trend TEXT NOT NULL CHECK (efficiency_trend IN ('IMPROVING', 'DECLINING', 'STABLE')) DEFAULT 'STABLE',
+    gap_days INTEGER DEFAULT 0,  -- Days with zero usage
+    last_run_date DATE,
+    total_cost REAL DEFAULT 0.0,  -- Total water cost for period
+    avg_cost_per_run REAL DEFAULT 0.0,  -- Average cost per run
+    analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(zone_name, analysis_period_start, analysis_period_end)  -- Prevent duplicate trend analysis
+);
+
 -- Daily variance analysis: Scheduled vs Actual comparison
 CREATE TABLE IF NOT EXISTS daily_variance (
     id SERIAL PRIMARY KEY,
@@ -544,6 +586,22 @@ CREATE INDEX IF NOT EXISTS idx_failure_events_detected_at ON failure_events(dete
 -- Status and monitoring indexes
 CREATE INDEX IF NOT EXISTS idx_collection_log_date_status ON collection_log(collection_date, status);
 CREATE INDEX IF NOT EXISTS idx_system_status_date ON system_status(status_date);
+
+-- Rain sensor and tracking indexes
+CREATE INDEX IF NOT EXISTS idx_rain_sensor_status_date ON rain_sensor_status_history(status_date);
+CREATE INDEX IF NOT EXISTS idx_rain_sensor_status_time ON rain_sensor_status_history(status_time);
+CREATE INDEX IF NOT EXISTS idx_status_changes_date_type ON status_changes(change_date, change_type);
+CREATE INDEX IF NOT EXISTS idx_status_changes_zone ON status_changes(zone_id, change_date);
+CREATE INDEX IF NOT EXISTS idx_scheduled_run_status_changes_zone_date ON scheduled_run_status_changes(zone_id, change_detected_date);
+CREATE INDEX IF NOT EXISTS idx_daily_status_summary_date ON daily_status_summary(summary_date);
+CREATE INDEX IF NOT EXISTS idx_collection_status_date ON collection_status(date);
+
+-- Analytics indexes
+CREATE INDEX IF NOT EXISTS idx_usage_baselines_zone ON usage_baselines(zone_name);
+CREATE INDEX IF NOT EXISTS idx_usage_anomalies_zone_date ON usage_anomalies(zone_name, run_date);
+CREATE INDEX IF NOT EXISTS idx_usage_anomalies_severity ON usage_anomalies(severity, detected_at);
+CREATE INDEX IF NOT EXISTS idx_usage_trends_zone_period ON usage_trends(zone_name, analysis_period_start, analysis_period_end);
+CREATE INDEX IF NOT EXISTS idx_usage_trends_analyzed_at ON usage_trends(analyzed_at);
 
 -- Cost tracking indexes
 CREATE INDEX IF NOT EXISTS idx_water_rate_configs_effective_date ON water_rate_configs(effective_date);

@@ -79,11 +79,78 @@ class UniversalDatabaseManager:
     def _migrate_schema(self):
         """Apply schema migrations if needed"""
         try:
+            # Fix rain sensor status history table schema if needed
+            self._fix_rain_sensor_table_schema()
             # Check for missing columns and add them
             self._add_missing_columns()
             logger.info("Schema migration completed")
         except Exception as e:
             logger.warning(f"Schema migration failed: {e}")
+    
+    def _fix_rain_sensor_table_schema(self):
+        """Fix rain_sensor_status_history table schema if it has the wrong structure"""
+        if self.adapter.table_exists('rain_sensor_status_history'):
+            try:
+                # Check if the table has the required columns by trying to query them
+                test_query = "SELECT status_time, sensor_status, sensor_text_raw FROM rain_sensor_status_history LIMIT 1"
+                self.adapter.execute_query(test_query)
+                logger.debug("rain_sensor_status_history table schema is correct")
+            except Exception as e:
+                if "does not exist" in str(e) or "no such column" in str(e):
+                    logger.info("Fixing rain_sensor_status_history table schema - missing required columns")
+                    # Drop and recreate the table with correct schema
+                    try:
+                        self.adapter.execute_query("DROP TABLE rain_sensor_status_history")
+                        logger.info("Dropped old rain_sensor_status_history table")
+                        
+                        # Create with correct schema
+                        if is_postgresql():
+                            sql = """
+                            CREATE TABLE rain_sensor_status_history (
+                                id SERIAL PRIMARY KEY,
+                                status_date DATE NOT NULL,
+                                status_time TIMESTAMP NOT NULL,
+                                sensor_status TEXT NOT NULL,
+                                is_stopping_irrigation BOOLEAN NOT NULL,
+                                irrigation_suspended BOOLEAN NOT NULL,
+                                sensor_text_raw TEXT,
+                                collection_run_id TEXT,
+                                sensor_enabled BOOLEAN NOT NULL,
+                                sensor_active BOOLEAN NOT NULL,
+                                raw_status_data TEXT,
+                                scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                
+                                UNIQUE(status_date, status_time)
+                            );
+                            CREATE INDEX idx_rain_sensor_status_date ON rain_sensor_status_history(status_date);
+                            """
+                        else:
+                            sql = """
+                            CREATE TABLE rain_sensor_status_history (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                status_date DATE NOT NULL,
+                                status_time TIMESTAMP NOT NULL,
+                                sensor_status TEXT NOT NULL,
+                                is_stopping_irrigation BOOLEAN NOT NULL,
+                                irrigation_suspended BOOLEAN NOT NULL,
+                                sensor_text_raw TEXT,
+                                collection_run_id TEXT,
+                                sensor_enabled BOOLEAN NOT NULL,
+                                sensor_active BOOLEAN NOT NULL,
+                                raw_status_data TEXT,
+                                scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                
+                                UNIQUE(status_date, status_time)
+                            );
+                            CREATE INDEX idx_rain_sensor_status_date ON rain_sensor_status_history(status_date);
+                            """
+                        
+                        self.adapter.execute_script(sql)
+                        logger.info("Recreated rain_sensor_status_history table with correct schema")
+                    except Exception as create_error:
+                        logger.error(f"Failed to recreate rain_sensor_status_history table: {create_error}")
+                else:
+                    logger.debug(f"rain_sensor_status_history schema check failed for other reason: {e}")
     
     def _add_missing_columns(self):
         """Add any missing columns to existing tables"""
@@ -98,13 +165,18 @@ class UniversalDatabaseManager:
                 CREATE TABLE rain_sensor_status_history (
                     id SERIAL PRIMARY KEY,
                     status_date DATE NOT NULL,
+                    status_time TIMESTAMP NOT NULL,
+                    sensor_status TEXT NOT NULL,
+                    is_stopping_irrigation BOOLEAN NOT NULL,
+                    irrigation_suspended BOOLEAN NOT NULL,
+                    sensor_text_raw TEXT,
+                    collection_run_id TEXT,
                     sensor_enabled BOOLEAN NOT NULL,
                     sensor_active BOOLEAN NOT NULL,
-                    status_text TEXT,
                     raw_status_data TEXT,
                     scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     
-                    UNIQUE(status_date, scraped_at)
+                    UNIQUE(status_date, status_time)
                 );
                 CREATE INDEX idx_rain_sensor_status_date ON rain_sensor_status_history(status_date);
                 """
@@ -113,13 +185,18 @@ class UniversalDatabaseManager:
                 CREATE TABLE rain_sensor_status_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     status_date DATE NOT NULL,
+                    status_time TIMESTAMP NOT NULL,
+                    sensor_status TEXT NOT NULL,
+                    is_stopping_irrigation BOOLEAN NOT NULL,
+                    irrigation_suspended BOOLEAN NOT NULL,
+                    sensor_text_raw TEXT,
+                    collection_run_id TEXT,
                     sensor_enabled BOOLEAN NOT NULL,
                     sensor_active BOOLEAN NOT NULL,
-                    status_text TEXT,
                     raw_status_data TEXT,
                     scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     
-                    UNIQUE(status_date, scraped_at)
+                    UNIQUE(status_date, status_time)
                 );
                 CREATE INDEX idx_rain_sensor_status_date ON rain_sensor_status_history(status_date);
                 """
