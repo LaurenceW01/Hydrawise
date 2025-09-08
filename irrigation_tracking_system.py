@@ -429,9 +429,9 @@ class IrrigationTrackingSystem:
                 INSERT INTO rain_sensor_status_history (
                     status_date, status_time, sensor_status, is_stopping_irrigation,
                     irrigation_suspended, sensor_text_raw, collection_run_id,
-                    sensor_enabled, sensor_active, raw_status_data
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (status_date, status_time) DO NOTHING
+                    sensor_enabled, sensor_active, raw_status_data, scraped_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (status_date, scraped_at) DO NOTHING
             """, (
                 now.date().isoformat(),
                 now.strftime('%Y-%m-%d %H:%M:%S'),  # PostgreSQL-friendly timestamp format
@@ -442,7 +442,8 @@ class IrrigationTrackingSystem:
                 collection_run_id,
                 sensor_info.get('rain_sensor_active', False),  # sensor_enabled
                 sensor_info.get('irrigation_suspended', False),  # sensor_active
-                str(sensor_info)  # raw_status_data
+                str(sensor_info),  # raw_status_data
+                now.strftime('%Y-%m-%d %H:%M:%S')  # scraped_at timestamp
             ))
                 
         except Exception as e:
