@@ -420,11 +420,19 @@ class IrrigationTrackingSystem:
             return []
     
     def _store_sensor_status(self, sensor_info: Dict[str, Any], collection_run_id: str = None):
-        """Store sensor status in database"""
+        """Store sensor status in database with proper data mapping and validation"""
         try:
+            # Input validation - ensure required keys exist
+            required_keys = ['sensor_status', 'rain_sensor_active', 'irrigation_suspended']
+            for key in required_keys:
+                if key not in sensor_info:
+                    self.logger.error(f"Missing required key '{key}' in sensor_info: {sensor_info}")
+                    return
+            
             now = get_houston_now()
             db_manager = get_universal_database_manager()
             
+            # Proper data mapping based on actual database schema and sensor_info structure
             db_manager.adapter.execute_insert("""
                 INSERT INTO rain_sensor_status_history (
                     status_date, status_time, sensor_status, is_stopping_irrigation,
@@ -433,21 +441,24 @@ class IrrigationTrackingSystem:
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (status_date, scraped_at) DO NOTHING
             """, (
-                now.date().isoformat(),
-                now.strftime('%Y-%m-%d %H:%M:%S'),  # PostgreSQL-friendly timestamp format
-                sensor_info['sensor_status'],
-                sensor_info['rain_sensor_active'],
-                sensor_info['irrigation_suspended'],
-                sensor_info['sensor_status'],  # Use sensor_status as raw text
-                collection_run_id,
-                sensor_info.get('rain_sensor_active', False),  # sensor_enabled
-                sensor_info.get('irrigation_suspended', False),  # sensor_active
-                str(sensor_info),  # raw_status_data
-                now.strftime('%Y-%m-%d %H:%M:%S')  # scraped_at timestamp
+                now.date().isoformat(),                           # status_date: DATE type
+                now.strftime('%H:%M:%S'),                         # status_time: TIME type (not timestamp!)
+                sensor_info['sensor_status'],                     # sensor_status: VARCHAR - the actual status text
+                sensor_info['irrigation_suspended'],              # is_stopping_irrigation: BOOLEAN - whether irrigation is being stopped
+                sensor_info['irrigation_suspended'],              # irrigation_suspended: BOOLEAN - same as above for consistency
+                sensor_info['sensor_status'],                     # sensor_text_raw: TEXT - raw sensor text for analysis
+                collection_run_id,                                # collection_run_id: VARCHAR - optional tracking ID
+                sensor_info.get('rain_sensor_active', False),    # sensor_enabled: BOOLEAN - whether sensor is active/enabled
+                sensor_info.get('rain_sensor_active', False),    # sensor_active: BOOLEAN - whether sensor is currently active
+                str(sensor_info),                                 # raw_status_data: TEXT - full sensor_info dict as JSON string
+                now.strftime('%Y-%m-%d %H:%M:%S')                # scraped_at: TIMESTAMP - when this data was collected
             ))
+            
+            self.logger.debug(f"Successfully stored sensor status: {sensor_info['sensor_status']}")
                 
         except Exception as e:
             self.logger.error(f"Error storing sensor status: {e}")
+            self.logger.error(f"sensor_info was: {sensor_info}")  # Include sensor_info for debugging
     
     def _check_sensor_status_change(self, current_sensor_info: Dict[str, Any]) -> bool:
         """
