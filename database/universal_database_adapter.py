@@ -70,7 +70,15 @@ class UniversalDatabaseAdapter:
             return conn
         else:  # postgresql
             from database.db_config import get_connection_params
-            return self.db_module.connect(**get_connection_params())
+            conn = self.db_module.connect(**get_connection_params())
+            
+            # Set timezone to Houston time for all operations on this connection
+            with conn.cursor() as cur:
+                cur.execute("SET timezone = 'America/Chicago'")
+                conn.commit()
+                logger.info("Set PostgreSQL connection timezone to America/Chicago (Houston time)")
+            
+            return conn
     
     @contextmanager
     def get_cursor(self, dict_cursor: bool = True):

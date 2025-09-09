@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from hydrawise_web_scraper_refactored import HydrawiseWebScraper
-from database.intelligent_data_storage import IntelligentDataStorage
+from database.universal_database_manager import get_universal_database_manager
 
 def collect_reported_data():
     """Collect and store the first 10 reported runs from previous day"""
@@ -40,25 +40,20 @@ def collect_reported_data():
         
     try:
         # Initialize database
-        storage = IntelligentDataStorage("database/irrigation_data.db")
+        storage = get_universal_database_manager()
         print("[OK] Database connection established")
         
         # Check if we already have data for this date
-        import sqlite3
-        with sqlite3.connect(storage.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) FROM actual_runs WHERE run_date = ?', (previous_day,))
-            existing_count = cursor.fetchone()[0]
+        existing_runs = storage.get_actual_runs(previous_day)
+        existing_count = len(existing_runs)
             
         if existing_count > 0:
             print(f"[WARNING]  Found {existing_count} existing reported runs for {previous_day}")
             response = input("   Clear existing data and re-collect? (y/N): ").strip().lower()
             if response in ['y', 'yes']:
-                with sqlite3.connect(storage.db_path) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('DELETE FROM actual_runs WHERE run_date = ?', (previous_day,))
-                    conn.commit()
-                    print(f"[DELETE]  Cleared {existing_count} existing runs")
+                # Delete existing runs for this date
+                storage.delete_actual_runs_for_date(previous_day)
+                print(f"[DELETE]  Cleared {existing_count} existing runs")
             else:
                 print("[RESULTS] Keeping existing data, cancelling collection")
                 return True
@@ -116,7 +111,7 @@ def collect_reported_data():
         # Note: extract_previous_day_reported_runs collects the previous day relative to reference_date
         actual_collection_date = (reference_date - timedelta(days=1)).date()
         print(f"\n[SAVED] Storing runs in database for {actual_collection_date}...")
-        stored_count = storage.store_actual_runs_enhanced(actual_runs, actual_collection_date)
+        stored_count = storage.insert_actual_runs(actual_runs, actual_collection_date)
         
         print(f"[OK] Successfully stored {stored_count}/{len(actual_runs)} reported runs")
         print(f"[DATE] Data stored for: {actual_collection_date}")

@@ -195,6 +195,13 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                     notes=notes
                 )
                 
+                # Add enhanced popup data as attributes (matching reported_run_collector.py)
+                if popup_data:
+                    actual_run.raw_popup_text = popup_data.get('raw_popup_text', '')
+                    actual_run.popup_lines = popup_data.get('popup_lines', [])
+                    actual_run.parsed_summary = popup_data.get('parsed_summary', '')
+                    actual_run.parsed_data = popup_data.get('parsed_data', {})
+                
                 actual_runs.append(actual_run)
                 self.logger.info(f"Extracted actual run {len(actual_runs)}: '{actual_run.zone_name}' at {start_time_str} for {actual_run.duration_minutes} minutes - {actual_run.status}")
                 

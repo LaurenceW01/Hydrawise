@@ -224,10 +224,10 @@ def navigate_to_reports(self):
     try:
         self.logger.info("[SYMBOL] Step 2: Navigating to reports page...")
         
-        # Step 2: Navigate to reports URL with 2 second delay (as specified)
+        # Step 2: Navigate to reports URL with longer delay for slow loading
         self.driver.get(self.reports_url)
-        self.logger.info("[SYMBOL] Waiting 2 seconds after reports page load...")
-        time.sleep(2)
+        self.logger.info("[SYMBOL] Waiting 5 seconds after reports page load...")
+        time.sleep(5)  # Increased from 2 to 5 seconds
         
         # Log current URL for debugging
         current_url = self.driver.current_url
@@ -249,7 +249,7 @@ def navigate_to_reports(self):
             element_found = False
             for indicator in indicators:
                 try:
-                    element = WebDriverWait(self.driver, 3).until(
+                    element = WebDriverWait(self.driver, 10).until(  # Increased from 3 to 10 seconds
                         EC.presence_of_element_located((By.XPATH, indicator))
                     )
                     if element:

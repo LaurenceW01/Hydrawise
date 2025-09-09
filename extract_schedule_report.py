@@ -16,7 +16,7 @@ from typing import List, Dict, Any
 # Add current directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database.intelligent_data_storage import IntelligentDataStorage
+from database.universal_database_manager import get_universal_database_manager
 
 def extract_schedule_report():
     """Extract and display today's scheduled runs with popup details"""
@@ -29,9 +29,6 @@ def extract_schedule_report():
     
     try:
         # Connect to database
-        storage = IntelligentDataStorage()
-        
-        # Query today's scheduled runs
         db_manager = get_universal_database_manager()
         
         runs = db_manager.adapter.execute_query("""

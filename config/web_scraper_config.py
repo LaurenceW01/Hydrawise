@@ -181,6 +181,18 @@ RETRY_CONFIG = {
     'popup_extract_retries': 2
 }
 
+# Navigation timing settings for robust page interaction
+TIMING_CONFIG = {
+    'page_load_timeout': 60,        # Max time for page to load completely
+    'element_ready_timeout': 30,    # Max time for elements to be clickable  
+    'navigation_retries': 3,        # Number of retry attempts for navigation
+    'stabilization_wait': 2,        # Wait after successful navigation for DOM to settle
+    'exponential_backoff_base': 2,  # Backoff multiplier (1s, 2s, 4s, 8s...)
+    'network_idle_timeout': 10,     # Max time to wait for network requests to finish
+    'dom_ready_timeout': 30,        # Max time to wait for DOM ready state
+    'critical_elements_timeout': 20 # Max time to wait for critical navigation elements
+}
+
 def get_zone_priority(zone_name: str) -> str:
     """
     Determine zone priority based on name.

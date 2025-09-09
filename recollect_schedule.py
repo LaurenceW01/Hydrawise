@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from hydrawise_web_scraper_refactored import HydrawiseWebScraper
-from database.intelligent_data_storage import IntelligentDataStorage
+from database.universal_database_manager import get_universal_database_manager
 
 def recollect_schedule(limit_zones: int = None):
     """Re-collect and store scheduled runs
@@ -39,14 +39,9 @@ def recollect_schedule(limit_zones: int = None):
         
     try:
         # Clear today's data first
-        storage = IntelligentDataStorage("database/irrigation_data.db")
-        import sqlite3
-        
-        with sqlite3.connect(storage.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM scheduled_runs WHERE schedule_date = ?', (date.today(),))
-            conn.commit()
-            print("Cleared existing data for today")
+        storage = get_universal_database_manager()
+        deleted_count = storage.delete_scheduled_runs_for_date(date.today())
+        print(f"Cleared {deleted_count} existing scheduled runs for today")
         
         # Re-collect data
         scraper = HydrawiseWebScraper(username, password, headless=True)
@@ -63,8 +58,8 @@ def recollect_schedule(limit_zones: int = None):
         
         print(f"Collected {len(scheduled_runs)} runs")
         
-        # Store with enhanced method
-        stored_count = storage.store_scheduled_runs_enhanced(scheduled_runs, date.today())
+        # Store with universal database manager
+        stored_count = storage.insert_scheduled_runs(scheduled_runs, date.today())
         print(f"Stored {stored_count} runs successfully")
         
         return True

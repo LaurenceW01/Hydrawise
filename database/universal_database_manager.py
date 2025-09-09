@@ -351,18 +351,21 @@ class UniversalDatabaseManager:
                         INSERT INTO scheduled_runs (
                             zone_id, zone_name, schedule_date, scheduled_start_time,
                             scheduled_duration_minutes, expected_gallons, program_name,
-                            source, raw_popup_text, popup_lines_json, parsed_summary,
+                            source, notes, raw_popup_text, popup_lines_json, parsed_summary,
                             is_rain_cancelled, rain_sensor_status, popup_status
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (zone_id, scheduled_start_time) DO UPDATE SET
                             scheduled_duration_minutes = EXCLUDED.scheduled_duration_minutes,
                             expected_gallons = EXCLUDED.expected_gallons,
+                            program_name = EXCLUDED.program_name,
+                            notes = EXCLUDED.notes,
                             raw_popup_text = EXCLUDED.raw_popup_text,
                             popup_lines_json = EXCLUDED.popup_lines_json,
                             parsed_summary = EXCLUDED.parsed_summary,
                             is_rain_cancelled = EXCLUDED.is_rain_cancelled,
                             rain_sensor_status = EXCLUDED.rain_sensor_status,
-                            popup_status = EXCLUDED.popup_status
+                            popup_status = EXCLUDED.popup_status,
+                            scraped_at = CURRENT_TIMESTAMP
                     """
                 else:
                     query = """
@@ -381,6 +384,19 @@ class UniversalDatabaseManager:
                 elif isinstance(zone_id, str) and zone_id.isdigit():
                     zone_id = int(zone_id)
                 
+                # Process popup data - convert popup_lines to JSON if present
+                raw_popup_text = getattr(run, 'raw_popup_text', None)
+                popup_lines_json = None
+                parsed_summary = getattr(run, 'parsed_summary', None)
+                
+                # Handle popup_lines conversion to JSON
+                if hasattr(run, 'popup_lines') and run.popup_lines:
+                    import json
+                    popup_lines_json = json.dumps(run.popup_lines)
+                elif hasattr(run, 'popup_lines_json'):
+                    # If already converted to JSON, use as-is
+                    popup_lines_json = getattr(run, 'popup_lines_json', None)
+                
                 params = (
                     zone_id,
                     run.zone_name,
@@ -390,9 +406,10 @@ class UniversalDatabaseManager:
                     run.expected_gallons,
                     getattr(run, 'program_name', None),
                     'web_scraper',
-                    getattr(run, 'raw_popup_text', None),
-                    getattr(run, 'popup_lines_json', None),
-                    getattr(run, 'parsed_summary', None),
+                    getattr(run, 'notes', None),
+                    raw_popup_text,
+                    popup_lines_json,
+                    parsed_summary,
                     getattr(run, 'is_rain_cancelled', False),
                     getattr(run, 'rain_sensor_status', None),
                     getattr(run, 'popup_status', None)
@@ -434,9 +451,9 @@ class UniversalDatabaseManager:
                         INSERT INTO actual_runs (
                             zone_id, zone_name, run_date, actual_start_time,
                             actual_duration_minutes, actual_gallons, status, failure_reason,
-                            current_ma, end_time, source, raw_popup_text, popup_lines_json,
-                            parsed_summary, abort_reason, usage_type, usage, usage_flag
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            current_ma, end_time, source, notes, raw_popup_text, popup_lines_json,
+                            parsed_summary, water_efficiency, abort_reason, usage_type, usage, usage_flag
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (zone_id, actual_start_time) DO UPDATE SET
                             actual_duration_minutes = EXCLUDED.actual_duration_minutes,
                             actual_gallons = EXCLUDED.actual_gallons,
@@ -444,13 +461,16 @@ class UniversalDatabaseManager:
                             failure_reason = EXCLUDED.failure_reason,
                             current_ma = EXCLUDED.current_ma,
                             end_time = EXCLUDED.end_time,
+                            notes = EXCLUDED.notes,
                             raw_popup_text = EXCLUDED.raw_popup_text,
                             popup_lines_json = EXCLUDED.popup_lines_json,
                             parsed_summary = EXCLUDED.parsed_summary,
+                            water_efficiency = EXCLUDED.water_efficiency,
                             abort_reason = EXCLUDED.abort_reason,
                             usage_type = EXCLUDED.usage_type,
                             usage = EXCLUDED.usage,
-                            usage_flag = EXCLUDED.usage_flag
+                            usage_flag = EXCLUDED.usage_flag,
+                            scraped_at = CURRENT_TIMESTAMP
                     """
                 else:
                     query = """
@@ -469,6 +489,19 @@ class UniversalDatabaseManager:
                 elif isinstance(zone_id, str) and zone_id.isdigit():
                     zone_id = int(zone_id)
                 
+                # Process popup data - convert popup_lines to JSON if present
+                raw_popup_text = getattr(run, 'raw_popup_text', None)
+                popup_lines_json = None
+                parsed_summary = getattr(run, 'parsed_summary', None)
+                
+                # Handle popup_lines conversion to JSON
+                if hasattr(run, 'popup_lines') and run.popup_lines:
+                    import json
+                    popup_lines_json = json.dumps(run.popup_lines)
+                elif hasattr(run, 'popup_lines_json'):
+                    # If already converted to JSON, use as-is
+                    popup_lines_json = getattr(run, 'popup_lines_json', None)
+                
                 params = (
                     zone_id,
                     run.zone_name,
@@ -481,9 +514,11 @@ class UniversalDatabaseManager:
                     getattr(run, 'current_ma', None),
                     end_time,
                     'web_scraper',
-                    getattr(run, 'raw_popup_text', None),
-                    getattr(run, 'popup_lines_json', None),
-                    getattr(run, 'parsed_summary', None),
+                    getattr(run, 'notes', None),
+                    raw_popup_text,
+                    popup_lines_json,
+                    parsed_summary,
+                    getattr(run, 'water_efficiency', None),
                     getattr(run, 'abort_reason', None),
                     getattr(run, 'usage_type', 'actual'),
                     run.actual_gallons,  # Fixed: use actual_gallons for usage field
@@ -539,6 +574,52 @@ class UniversalDatabaseManager:
     def get_zones(self) -> List[Dict[str, Any]]:
         """Get all zones from database"""
         return self.adapter.execute_query("SELECT * FROM zones ORDER BY zone_id")
+    
+    def delete_actual_runs_for_date(self, target_date: date) -> int:
+        """Delete all actual runs for a specific date
+        
+        Args:
+            target_date: Date to delete runs for
+            
+        Returns:
+            Number of runs deleted
+        """
+        try:
+            if is_postgresql():
+                query = "DELETE FROM actual_runs WHERE run_date = %s"
+            else:
+                query = "DELETE FROM actual_runs WHERE run_date = ?"
+            
+            rows_affected = self.adapter.execute_delete(query, (target_date,))
+            logger.info(f"Deleted {rows_affected} actual runs for {target_date}")
+            return rows_affected
+            
+        except Exception as e:
+            logger.error(f"Failed to delete actual runs for {target_date}: {e}")
+            raise
+    
+    def delete_scheduled_runs_for_date(self, target_date: date) -> int:
+        """Delete all scheduled runs for a specific date
+        
+        Args:
+            target_date: Date to delete runs for
+            
+        Returns:
+            Number of runs deleted
+        """
+        try:
+            if is_postgresql():
+                query = "DELETE FROM scheduled_runs WHERE schedule_date = %s"
+            else:
+                query = "DELETE FROM scheduled_runs WHERE schedule_date = ?"
+            
+            rows_affected = self.adapter.execute_delete(query, (target_date,))
+            logger.info(f"Deleted {rows_affected} scheduled runs for {target_date}")
+            return rows_affected
+            
+        except Exception as e:
+            logger.error(f"Failed to delete scheduled runs for {target_date}: {e}")
+            raise
     
     def close(self):
         """Close database connection"""

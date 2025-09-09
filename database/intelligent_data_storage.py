@@ -12,6 +12,7 @@ Date: 2025
 import json
 import logging
 import sqlite3
+import warnings
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Tuple, Any
 from database.database_manager import DatabaseManager
@@ -21,9 +22,19 @@ from utils.timezone_utils import get_database_timestamp, to_houston_time
 logger = logging.getLogger(__name__)
 
 class IntelligentDataStorage(DatabaseManager):
-    """Enhanced database manager with intelligent data storage capabilities"""
+    """Enhanced database manager with intelligent data storage capabilities
+    
+    DEPRECATED: This class is deprecated. Use UniversalDatabaseManager instead.
+    UniversalDatabaseManager provides the same functionality with better cross-database
+    support and improved popup data handling.
+    """
     
     def __init__(self, *args, high_usage_multiplier: float = None, low_usage_multiplier: float = None, **kwargs):
+        warnings.warn(
+            "IntelligentDataStorage is deprecated. Use UniversalDatabaseManager instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         """Initialize with water usage estimator and zone lookup cache
         
         Args:

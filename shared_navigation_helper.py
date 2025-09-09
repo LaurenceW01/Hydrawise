@@ -110,8 +110,8 @@ class HydrawiseNavigationHelper:
         
         for selector in schedule_selectors:
             try:
-                # Use shorter wait for each selector to reduce total delay
-                schedule_element = WebDriverWait(self.driver, 2).until(
+                # Use longer wait for each selector for slow-loading pages
+                schedule_element = WebDriverWait(self.driver, 10).until(  # Increased from 2 to 10
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 schedule_element.click()
@@ -148,8 +148,8 @@ class HydrawiseNavigationHelper:
         
         for selector in reported_selectors:
             try:
-                # Use shorter wait for each selector to reduce total delay
-                reported_element = WebDriverWait(self.driver, 2).until(
+                # Use longer wait for each selector for slow-loading pages
+                reported_element = WebDriverWait(self.driver, 10).until(  # Increased from 2 to 10
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 reported_element.click()
@@ -180,9 +180,9 @@ class HydrawiseNavigationHelper:
         # Wait for UI to be ready - longer wait in headless mode
         if self._is_headless_mode():
             self.logger.debug("[HEADLESS] Adding extra wait for DOM rendering...")
-            self._headless_safe_wait(2.0)
+            self._headless_safe_wait(3.0)  # Increased from 2.0 to 3.0
         else:
-            time.sleep(2)
+            time.sleep(4)  # Increased from 2 to 4 seconds
         
         # Enhanced selector strategies with more aggressive headless mode detection
         if self._is_headless_mode():
@@ -517,7 +517,7 @@ class HydrawiseNavigationHelper:
         
         for selector in comprehensive_selectors:
             try:
-                previous_button = WebDriverWait(self.driver, 2).until(
+                previous_button = WebDriverWait(self.driver, 15).until(  # Increased from 2 to 15
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 return self._robust_click(previous_button, "Previous", f"{selector} (comprehensive)", wait_seconds)
@@ -584,7 +584,7 @@ class HydrawiseNavigationHelper:
         
         for selector in comprehensive_selectors:
             try:
-                next_button = WebDriverWait(self.driver, 2).until(
+                next_button = WebDriverWait(self.driver, 15).until(  # Increased from 2 to 15
                     EC.element_to_be_clickable((By.XPATH, selector))
                 )
                 return self._robust_click(next_button, "Next", f"{selector} (comprehensive)", wait_seconds)
