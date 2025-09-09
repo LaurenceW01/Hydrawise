@@ -144,16 +144,21 @@ def signal_handler(signum, frame):
 
 def health_check_server():
     """
-    Simple health check server for render.com monitoring
-    Runs in a separate thread to provide health status
+    Optimized health check server for render.com monitoring
+    Reduces database connection noise by caching health status
     """
     import socket
     import json
     import logging
-    from datetime import datetime
+    from datetime import datetime, timedelta
     
     logger = logging.getLogger('health_check')
     port = int(os.getenv('PORT', 8080))  # render.com provides PORT env var
+    
+    # Cache health status to avoid constant database connections
+    last_db_check = None
+    db_check_interval = timedelta(minutes=5)  # Only check DB every 5 minutes
+    cached_db_status = True
     
     try:
         # Create simple HTTP server for health checks
@@ -163,18 +168,36 @@ def health_check_server():
         server_socket.listen(1)
         server_socket.settimeout(1.0)  # Non-blocking with timeout
         
-        logger.info(f"Health check server listening on port {port}")
+        logger.info(f"Health check server listening on port {port} (DB check every {db_check_interval.total_seconds()/60:.0f} min)")
         
         while not shutdown_event.is_set():
             try:
                 client_socket, address = server_socket.accept()
                 
-                # Simple HTTP response with health status
+                # Only check database connectivity every 5 minutes (not every health check!)
+                now = datetime.now()
+                if last_db_check is None or (now - last_db_check) > db_check_interval:
+                    try:
+                        # Quick database connectivity test
+                        from database.universal_database_manager import get_universal_database_manager
+                        with get_universal_database_manager() as db:
+                            db.adapter.execute_query("SELECT 1")  # Minimal query
+                        cached_db_status = True
+                        last_db_check = now
+                        logger.debug("Database connectivity verified (cached for 5 min)")
+                    except Exception as e:
+                        cached_db_status = False
+                        last_db_check = now
+                        logger.warning(f"Database connectivity failed: {e}")
+                
+                # Return health status (mostly cached, minimal DB load)
                 health_status = {
-                    'status': 'healthy',
+                    'status': 'healthy' if cached_db_status else 'unhealthy',
                     'timestamp': datetime.now().isoformat(),
                     'collector_running': collector_instance.running if collector_instance else False,
-                    'database_type': os.getenv('DATABASE_TYPE', 'unknown')
+                    'database_type': os.getenv('DATABASE_TYPE', 'unknown'),
+                    'database_status': 'connected' if cached_db_status else 'disconnected',
+                    'last_db_check': last_db_check.isoformat() if last_db_check else None
                 }
                 
                 response_body = json.dumps(health_status)
@@ -235,11 +258,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     
     try:
-        # Test database connection
-        logger.info("Testing database connection...")
-        with get_universal_database_manager() as db:
-            zones = db.get_zones()
-            logger.info(f"Database connection successful - {len(zones)} zones configured")
+        # Database connection will be tested by health check server
+        logger.info("Skipping startup database test - health check server will monitor connectivity")
         
         # Create schedule configuration
         schedule_config = create_render_schedule_config()
