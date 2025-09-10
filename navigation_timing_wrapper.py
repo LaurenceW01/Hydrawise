@@ -524,3 +524,4 @@ if __name__ == "__main__":
     print("Configuration:")
     for key, value in TIMING_CONFIG.items():
         print(f"  {key}: {value}")
+
