@@ -425,9 +425,36 @@ class UniversalDatabaseManager:
             logger.error(f"Failed to insert scheduled runs: {e}")
             raise
     
+    def get_zone_average_flow_rate(self, zone_id: int) -> Optional[float]:
+        """Get the average flow rate for a specific zone from database
+        
+        Args:
+            zone_id: The zone ID to look up
+            
+        Returns:
+            Average flow rate in GPM, or None if not found
+        """
+        try:
+            if is_postgresql():
+                query = "SELECT average_flow_rate FROM zones WHERE zone_id = %s"
+            else:
+                query = "SELECT average_flow_rate FROM zones WHERE zone_id = ?"
+            
+            result = self.adapter.execute_query(query, (zone_id,))
+            
+            if result and result[0]['average_flow_rate'] is not None:
+                flow_rate = float(result[0]['average_flow_rate'])
+                logger.debug(f"Found average flow rate for zone {zone_id}: {flow_rate} GPM")
+                return flow_rate
+                    
+        except Exception as e:
+            logger.debug(f"Could not get average flow rate for zone {zone_id}: {e}")
+            
+        return None
+
     def insert_actual_runs(self, actual_runs: List[ActualRun], target_date: date = None) -> int:
         """
-        Insert actual runs into database
+        Insert actual runs into database with usage calculation when actual_gallons is 0
         
         Args:
             actual_runs: List of ActualRun objects
@@ -502,13 +529,73 @@ class UniversalDatabaseManager:
                     # If already converted to JSON, use as-is
                     popup_lines_json = getattr(run, 'popup_lines_json', None)
                 
+                # Calculate usage value and determine usage flags based on actual_gallons
+                # When actual_gallons is 0 or None, estimate from zone average flow rate * duration
+                # When actual_gallons has value, check if it's too_high or too_low compared to expected
+                actual_gallons = run.actual_gallons
+                usage_value = actual_gallons
+                usage_type = getattr(run, 'usage_type', 'actual')
+                usage_flag = getattr(run, 'usage_flag', 'normal')
+                
+                # Get zone flow rate for calculations
+                flow_rate = self.get_zone_average_flow_rate(zone_id)
+                expected_gallons = None
+                
+                # Calculate expected gallons if we have flow rate data
+                if flow_rate is not None and run.duration_minutes > 0:
+                    expected_gallons = flow_rate * run.duration_minutes
+                
+                # Usage flag determination logic (matching SQLite WaterUsageEstimator logic)
+                if actual_gallons is None or actual_gallons == 0:
+                    # Zero or missing actual usage - estimate instead
+                    if expected_gallons is not None:
+                        usage_value = expected_gallons
+                        usage_type = 'estimated'
+                        usage_flag = 'zero_reported'
+                        logger.debug(f"Zone {zone_id} ({run.zone_name}): Estimated usage {expected_gallons:.2f}g from {flow_rate} GPM * {run.duration_minutes} min (zero reported)")
+                    else:
+                        # No flow rate available for estimation
+                        logger.warning(f"Zone {zone_id} ({run.zone_name}): No flow rate available for usage estimation")
+                        usage_value = actual_gallons  # Will be 0 or None
+                        usage_type = 'actual'
+                        usage_flag = 'zero_reported'
+                else:
+                    # Actual gallons reported - check if within expected range
+                    usage_value = actual_gallons
+                    usage_type = 'actual'
+                    
+                    if expected_gallons is not None and expected_gallons > 0:
+                        # Calculate usage ratio for comparison
+                        usage_ratio = actual_gallons / expected_gallons
+                        
+                        # Default thresholds from WaterUsageEstimator
+                        HIGH_USAGE_MULTIPLIER = 2.0  # Usage > 2.0x expected is too high
+                        LOW_USAGE_MULTIPLIER = 0.5   # Usage < 0.5x expected is too low
+                        
+                        # Check if usage is too high (> 2.0x expected)
+                        if usage_ratio > HIGH_USAGE_MULTIPLIER:
+                            usage_flag = 'too_high'
+                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (too high: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected)")
+                        # Check if usage is too low (< 0.5x expected)  
+                        elif usage_ratio < LOW_USAGE_MULTIPLIER:
+                            usage_flag = 'too_low'
+                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (too low: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected)")
+                        else:
+                            # Usage is within normal range
+                            usage_flag = 'normal'
+                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (normal: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected)")
+                    else:
+                        # No expected usage for comparison, use actual value as normal
+                        usage_flag = 'normal'
+                        logger.debug(f"Zone {zone_id} ({run.zone_name}): Using actual value {actual_gallons:.1f}g (no flow rate reference)")
+                
                 params = (
                     zone_id,
                     run.zone_name,
                     target_date or run.start_time.date(),
                     run.start_time,
                     run.duration_minutes,
-                    run.actual_gallons,  # Fixed: use actual_gallons instead of gallons_used
+                    actual_gallons,  # Keep original actual_gallons value
                     run.status,
                     getattr(run, 'failure_reason', None),
                     getattr(run, 'current_ma', None),
@@ -520,9 +607,9 @@ class UniversalDatabaseManager:
                     parsed_summary,
                     getattr(run, 'water_efficiency', None),
                     getattr(run, 'abort_reason', None),
-                    getattr(run, 'usage_type', 'actual'),
-                    run.actual_gallons,  # Fixed: use actual_gallons for usage field
-                    getattr(run, 'usage_flag', 'normal')
+                    usage_type,  # Use calculated usage_type
+                    usage_value,  # Use calculated usage_value (estimated when actual_gallons is 0)
+                    usage_flag   # Use calculated usage_flag
                 )
                 
                 self.adapter.execute_insert(query, params)
