@@ -50,12 +50,13 @@ class AutomatedCollector:
     Automated background collector for schedules and reported runs
     """
     
-    def __init__(self, config: ScheduleConfig = None):
+    def __init__(self, config: ScheduleConfig = None, log_level: str = None):
         """
         Initialize the automated collector
         
         Args:
             config: Schedule configuration (uses defaults if None)
+            log_level: Override log level from command line
         """
         self.config = config or ScheduleConfig()
         self.running = False
@@ -67,8 +68,14 @@ class AutomatedCollector:
         # Initialize the reported runs manager with proper headless setting
         self.manager = ReportedRunsManager(headless=self.config.headless_mode)
         
-        # Setup universal logging (works for both local and render.com)
-        self.logger, self.log_filename = setup_universal_logging(__name__, "automated_collector")
+        # Setup universal logging with command line log level override
+        # Force stdout mode when running as service (detected by NSSM environment)
+        force_mode = "stdout" if self._is_running_as_service() else None
+        self.logger, self.log_filename = setup_universal_logging(__name__, "automated_collector", log_level=log_level, force_mode=force_mode)
+        
+        # Set global log level override for all modules in this process
+        if log_level:
+            self._set_global_log_level(log_level)
         
         # Track collection state
         self.last_daily_date = None
@@ -83,6 +90,56 @@ class AutomatedCollector:
                 self.logger.info("AutomatedCollector initialized (tracking disabled)")
         except Exception as e:
             self.logger.warning(f"AutomatedCollector initialized (tracking failed to initialize: {e})")
+    
+    def _is_running_as_service(self) -> bool:
+        """
+        Detect if we're running as an NSSM service by checking environment
+        NSSM services typically have specific environment characteristics
+        """
+        # Check for NSSM-specific indicators
+        if (os.getenv('LOGGING_MODE') == 'stdout' and 
+            os.getenv('ENABLE_FILE_LOGGING') == 'false'):
+            return True
+            
+        # Check if we're running as a Windows service
+        # Services typically don't have interactive session
+        try:
+            import win32api
+            session_id = win32api.GetCurrentProcessId()
+            # Additional service detection could be added here
+        except ImportError:
+            pass
+            
+        return False
+    
+    def _set_global_log_level(self, log_level: str):
+        """
+        Set log level for all existing loggers in the current process
+        This ensures modules that create their own loggers inherit the command line log level
+        """
+        try:
+            # Set environment variable for future logger creation
+            os.environ['LOG_LEVEL'] = log_level.upper()
+            
+            # Convert string to logging level
+            numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+            
+            # Set root logger level (affects all child loggers by default)
+            root_logger = logging.getLogger()
+            root_logger.setLevel(numeric_level)
+            
+            # Update all existing loggers
+            for name, logger in logging.Logger.manager.loggerDict.items():
+                if isinstance(logger, logging.Logger):
+                    logger.setLevel(numeric_level)
+                    # Also update handlers if they exist
+                    for handler in logger.handlers:
+                        handler.setLevel(numeric_level)
+            
+            self.logger.info(f"[LOG_OVERRIDE] Set global log level to {log_level} for all modules")
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to set global log level: {e}")
     
     def start(self):
         """Start the automated collection service"""
@@ -264,13 +321,19 @@ class AutomatedCollector:
         import time
         
         try:
-            # Set up environment for better memory management
+            # Set up environment for better memory management and log level inheritance
             enhanced_env = {
                 **os.environ,
                 'PYTHONMALLOC': 'malloc',  # Use system malloc for better memory management
                 'PYTHONHASHSEED': '0',     # Consistent hashing for better memory patterns
                 'PYTHONOPTIMIZE': '1'      # Enable basic optimizations
             }
+            
+            # Pass current log level to child processes if it was overridden
+            if hasattr(self, 'logger') and self.logger:
+                current_level = logging.getLevelName(self.logger.level)
+                enhanced_env['LOG_LEVEL'] = current_level
+                self.logger.debug(f"[ENV] Passing LOG_LEVEL={current_level} to child process: {script}")
             
             # Build command with visible flag if needed - use same Python interpreter
             cmd = [sys.executable, script]
@@ -279,17 +342,30 @@ class AutomatedCollector:
             cmd.extend(list(args))
             self.logger.info(f"[RUN] Running: {' '.join(cmd)}")
             
-            result = subprocess.run(
-                cmd, 
-                capture_output=True, 
-                text=True, 
-                timeout=300,  # 5 minute timeout
-                env=enhanced_env
-            )
+            # In service mode (stdout logging), don't capture output so it flows to NSSM logs
+            # In normal mode, capture output for processing
+            if self._is_running_as_service():
+                # Don't capture output - let it flow to stdout/stderr for NSSM
+                result = subprocess.run(
+                    cmd, 
+                    text=True, 
+                    timeout=300,  # 5 minute timeout
+                    env=enhanced_env
+                )
+            else:
+                # Capture output for processing and selective logging
+                result = subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=300,  # 5 minute timeout
+                    env=enhanced_env
+                )
             
             if result.returncode == 0:
                 self.logger.info(f"[SUCCESS] Command completed successfully: {script} {' '.join(args)}")
-                if result.stdout.strip():
+                # Only process stdout if it was captured (not in service mode)
+                if hasattr(result, 'stdout') and result.stdout and result.stdout.strip():
                     # Log key output lines
                     lines = result.stdout.strip().split('\n')
                     for line in lines[-10:]:  # Last 10 lines
@@ -304,7 +380,8 @@ class AutomatedCollector:
                 return True
             else:
                 self.logger.error(f"[ERROR] Command failed: {script} {' '.join(args)} (exit code: {result.returncode})")
-                if result.stderr.strip():
+                # Only process stderr if it was captured (not in service mode)
+                if hasattr(result, 'stderr') and result.stderr and result.stderr.strip():
                     self.logger.error(f"   Error: {result.stderr.strip()}")
                 
                 # Cleanup after error too
@@ -823,8 +900,9 @@ def main():
         headless_mode=not args.visible  # Default headless, --visible makes it visible
     )
     
-    # Setup logging
-    logger, _ = setup_universal_logging(__name__, "automated_collector_main", log_level=args.log_level)
+    # Setup logging - force stdout mode when running as service
+    force_mode = "stdout" if (os.getenv('LOGGING_MODE') == 'stdout' and os.getenv('ENABLE_FILE_LOGGING') == 'false') else None
+    logger, _ = setup_universal_logging(__name__, "automated_collector_main", log_level=args.log_level, force_mode=force_mode)
     
     print("Hydrawise Automated Data Collector")
     print("=" * 50)
@@ -845,7 +923,7 @@ def main():
         print("[RUN-ONCE] Running collection once and exiting...")
         
         # Create collector for one-time execution
-        collector = AutomatedCollector(config)
+        collector = AutomatedCollector(config, log_level=args.log_level)
         
         try:
             # Run startup collection which handles both yesterday and today
@@ -857,7 +935,7 @@ def main():
             return 1
     
     # Create and start collector for continuous operation
-    collector = AutomatedCollector(config)
+    collector = AutomatedCollector(config, log_level=args.log_level)
     
     def signal_handler(signum, frame):
         print("\n[SHUTDOWN] Signal received...")

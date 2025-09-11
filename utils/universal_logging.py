@@ -158,7 +158,14 @@ def setup_universal_logging(
             logger.info("Logging configured for render.com (stdout)")
     
     # Add file handler (for local development or when explicitly enabled)
-    if config['mode'] in ['file', 'both'] or config['enable_file_logging']:
+    # Only add file handler if mode is 'file'/'both' AND file logging is enabled
+    # If mode is 'stdout' and file logging is disabled, skip file handler entirely
+    should_add_file_handler = (
+        (config['mode'] in ['file', 'both']) or 
+        (config['mode'] != 'stdout' and config['enable_file_logging'])
+    )
+    
+    if should_add_file_handler:
         try:
             # Create logs directory if it doesn't exist
             os.makedirs(config['log_directory'], exist_ok=True)

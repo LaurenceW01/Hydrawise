@@ -22,12 +22,23 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
 def setup_logging(self):
-    """Set up logging for the scraper"""
-    # Set up logging with timestamp and level
-    log_format = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.INFO, format=log_format)
-    
-    self.logger = logging.getLogger(__name__)
+    """Set up logging for the scraper using universal logging system"""
+    try:
+        # Import universal logging system
+        from utils.universal_logging import setup_universal_logging
+        
+        # Force stdout mode when running as service (detected by NSSM environment)
+        force_mode = "stdout" if (os.getenv('LOGGING_MODE') == 'stdout' and os.getenv('ENABLE_FILE_LOGGING') == 'false') else None
+        
+        # Setup logger that respects .env LOG_LEVEL setting and service mode
+        self.logger, _ = setup_universal_logging('web_scraper', 'web_scraper', force_mode=force_mode)
+        
+    except ImportError:
+        # Fallback to basic logging if universal logging not available
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        logging.basicConfig(level=logging.INFO, format=log_format)
+        self.logger = logging.getLogger(__name__)
+        self.logger.warning("Universal logging not available, using basic logging")
 
 def start_browser(self):
     """Start the Chrome browser with appropriate settings"""

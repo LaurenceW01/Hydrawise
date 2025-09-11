@@ -811,13 +811,25 @@ Examples:
     # Parse arguments
     args = parser.parse_args()
     
-    # Configure logging level based on command line argument
-    log_level = getattr(logging, args.log_level.upper())
+    # Configure logging level - prioritize command line, then environment variable, then default
+    # Check if log level was explicitly set on command line or if we should use environment
+    if hasattr(args, 'log_level') and args.log_level != 'INFO':
+        # Command line argument was explicitly provided
+        log_level_str = args.log_level.upper()
+    else:
+        # Use environment variable if available, otherwise use command line default
+        log_level_str = os.getenv('LOG_LEVEL', args.log_level).upper()
+    
+    log_level = getattr(logging, log_level_str)
     logging.basicConfig(
         level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         force=True  # Override any existing configuration
     )
+    
+    # Log the log level source for debugging
+    if log_level_str != args.log_level.upper():
+        print(f"[LOG] Using LOG_LEVEL={log_level_str} from environment (parent process override)")
     
     # Setup logging if --log-file was specified
     if args.log_file:

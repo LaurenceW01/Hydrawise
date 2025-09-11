@@ -233,23 +233,28 @@ class HydrawiseNavigationHelper:
         
         # If not found, try general button search with headless mode enhancements
         if not day_button:
-            self.logger.info("Day button not immediately found, searching all buttons...")
+            self.logger.info("[DAY_VIEW] Day button not immediately found, searching all buttons...")
             
             # In headless mode, add retry logic and extra waits
             if self._is_headless_mode():
-                for retry in range(2):  # Try twice in headless mode
+                for retry in range(3):  # Increased from 2 to 3 retries in headless mode
                     if retry > 0:
-                        self.logger.debug(f"[HEADLESS] Retry {retry + 1}/2 for Day button search...")
+                        self.logger.debug(f"[DAY_VIEW] Headless retry {retry + 1}/3 for Day button search...")
                         self._headless_safe_wait(1.0)
                     
                     all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                    for button in all_buttons:
+                    self.logger.debug(f"[DAY_VIEW] Found {len(all_buttons)} total buttons on retry {retry + 1}")
+                    
+                    for i, button in enumerate(all_buttons):
                         try:
-                            if button.text.strip().lower() == 'day' and button.is_displayed():
+                            button_text = button.text.strip().lower()
+                            if button_text == 'day' and button.is_displayed() and button.is_enabled():
                                 day_button = button
-                                successful_selector = f"General button search (headless retry {retry + 1})"
+                                successful_selector = f"General button search (headless retry {retry + 1}, button {i+1})"
+                                self.logger.debug(f"[DAY_VIEW] Found Day button on retry {retry + 1}: button {i+1}")
                                 break
-                        except:
+                        except Exception as e:
+                            self.logger.debug(f"[DAY_VIEW] Error checking button {i+1}: {e}")
                             continue
                     
                     if day_button:
@@ -257,11 +262,13 @@ class HydrawiseNavigationHelper:
             else:
                 # Original logic for visible mode (unchanged)
                 all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                for button in all_buttons:
+                self.logger.debug(f"[DAY_VIEW] Found {len(all_buttons)} total buttons in visible mode")
+                
+                for i, button in enumerate(all_buttons):
                     try:
                         if button.text.strip().lower() == 'day' and button.is_displayed():
                             day_button = button
-                            successful_selector = "General button search"
+                            successful_selector = f"General button search (visible mode, button {i+1})"
                             break
                     except:
                         continue
@@ -324,19 +331,39 @@ class HydrawiseNavigationHelper:
                 
                 # CRITICAL: Verify we actually switched to Day view
                 if self._is_headless_mode():
-                    self.logger.debug("[HEADLESS] Verifying Day view switch was successful...")
-                    self._headless_safe_wait(1.0)  # Extra time for view to update
+                    self.logger.debug("[DAY_VIEW] Verifying Day view switch was successful...")
+                    self._headless_safe_wait(1.5)  # Increased wait time for view to update
                     
                     current_view = self.get_current_view_type()
                     if current_view == "day":
-                        self.logger.info("[OK] Successfully switched to Day view")
+                        self.logger.info("[DAY_VIEW] Successfully switched to Day view")
                         return True
                     else:
-                        self.logger.error(f"[HEADLESS ERROR] Day view switch failed - still in {current_view} view")
-                        return False
+                        self.logger.error(f"[DAY_VIEW] Day view switch failed - still in '{current_view}' view")
+                        # Try one more time with different approach
+                        self.logger.debug("[DAY_VIEW] Attempting one final Day button click...")
+                        try:
+                            self.driver.execute_script("arguments[0].click();", day_button)
+                            self._headless_safe_wait(2.0)
+                            final_view = self.get_current_view_type()
+                            if final_view == "day":
+                                self.logger.info("[DAY_VIEW] Final attempt succeeded - now in Day view")
+                                return True
+                            else:
+                                self.logger.error(f"[DAY_VIEW] Final attempt failed - still in '{final_view}' view")
+                                return False
+                        except Exception as e:
+                            self.logger.error(f"[DAY_VIEW] Final click attempt failed: {e}")
+                            return False
                 else:
-                    # In visible mode, trust the click succeeded (original behavior)
-                    return True
+                    # In visible mode, still verify the switch worked
+                    current_view = self.get_current_view_type()
+                    if current_view == "day":
+                        self.logger.info("[DAY_VIEW] Successfully switched to Day view")
+                        return True
+                    else:
+                        self.logger.warning(f"[DAY_VIEW] Day view switch may have failed - detected view: {current_view}")
+                        return True  # Continue anyway in visible mode
                 
             except Exception as e:
                 self.logger.error(f"Failed to click Day button: {e}")
@@ -344,13 +371,15 @@ class HydrawiseNavigationHelper:
         else:
             # CRITICAL: Don't assume we're in day view - verify it!
             current_view = self.get_current_view_type()
-            self.logger.warning(f"[WARNING] Could not find Day button - current view: {current_view}")
+            current_date = self.get_current_displayed_date()
+            self.logger.warning(f"[DAY_VIEW] Could not find Day button - current view: {current_view}, displayed date: '{current_date}'")
             
             if current_view == "day":
-                self.logger.info("[OK] Already in Day view")
+                self.logger.info("[DAY_VIEW] Already in Day view, no switch needed")
                 return True
             else:
-                self.logger.error(f"[ERROR] Failed to switch to Day view - still in {current_view} view")
+                self.logger.error(f"[DAY_VIEW] Failed to switch to Day view - still in '{current_view}' view")
+                self.logger.error("[DAY_VIEW] This will likely cause navigation and data collection to fail")
                 return False
     
     def switch_to_week_view(self, wait_seconds: int = 3) -> bool:
@@ -678,12 +707,14 @@ class HydrawiseNavigationHelper:
     def get_current_displayed_date(self) -> Optional[str]:
         """
         Get currently displayed date from the page
-        Based on working implementation from navigation_helper.py
+        Enhanced with comprehensive week view pattern detection and debug logging
         
         Returns:
             Optional[str]: Current displayed date string or None
         """
         try:
+            self.logger.debug("[DATE_DETECTION] Starting date detection process...")
+            
             # Look for date display element - prioritize rbc-toolbar-label
             primary_selectors = [
                 "//span[contains(@class, 'rbc-toolbar-label')]",
@@ -697,14 +728,16 @@ class HydrawiseNavigationHelper:
                     if date_element.is_displayed():
                         date_text = date_element.text.strip()
                         if date_text and len(date_text) > 3:
-                            self.logger.debug(f"Found primary date display: '{date_text}' using: {selector}")
+                            self.logger.debug(f"[DATE_DETECTION] Found primary date display: '{date_text}' using: {selector}")
                             return date_text
                 except:
                     continue
             
-            # Fallback selectors for other patterns
+            self.logger.debug("[DATE_DETECTION] Primary selectors failed, trying fallback patterns...")
+            
+            # Fallback selectors for specific view patterns
             fallback_selectors = [
-                # Day of week patterns
+                # Day view patterns: "Thursday Sep 11" (day of week + abbreviated month)
                 "//*[contains(text(), 'Monday')]",
                 "//*[contains(text(), 'Tuesday')]", 
                 "//*[contains(text(), 'Wednesday')]",
@@ -712,7 +745,20 @@ class HydrawiseNavigationHelper:
                 "//*[contains(text(), 'Friday')]",
                 "//*[contains(text(), 'Saturday')]",
                 "//*[contains(text(), 'Sunday')]",
-                # Month patterns
+                # Week view patterns: "September 07 - 13" (full month + date range)
+                "//*[contains(text(), 'January')]",
+                "//*[contains(text(), 'February')]",
+                "//*[contains(text(), 'March')]",
+                "//*[contains(text(), 'April')]",
+                "//*[contains(text(), 'May')]",
+                "//*[contains(text(), 'June')]",
+                "//*[contains(text(), 'July')]",
+                "//*[contains(text(), 'August')]",
+                "//*[contains(text(), 'September')]",
+                "//*[contains(text(), 'October')]",
+                "//*[contains(text(), 'November')]",
+                "//*[contains(text(), 'December')]",
+                # Day view abbreviated month patterns: "Thursday Sep 11"
                 "//*[contains(text(), 'Jan')]",
                 "//*[contains(text(), 'Feb')]",
                 "//*[contains(text(), 'Mar')]",
@@ -727,17 +773,20 @@ class HydrawiseNavigationHelper:
                 "//*[contains(text(), 'Dec')]"
             ]
             
-            for selector in fallback_selectors:
+            for i, selector in enumerate(fallback_selectors):
                 try:
                     date_element = self.driver.find_element(By.XPATH, selector)
                     if date_element.is_displayed():
                         date_text = date_element.text.strip()
                         if date_text and len(date_text) > 3:
-                            self.logger.debug(f"Found fallback date display: '{date_text}' using: {selector}")
+                            self.logger.debug(f"[DATE_DETECTION] Found fallback date display: '{date_text}' using selector {i+1}/{len(fallback_selectors)}: {selector}")
                             return date_text
+                        else:
+                            self.logger.debug(f"[DATE_DETECTION] Element found but text too short: '{date_text}' using: {selector}")
                 except:
                     continue
             
+            self.logger.warning("[DATE_DETECTION] All date detection methods failed - no date display found")
             return None
             
         except Exception as e:
@@ -747,18 +796,20 @@ class HydrawiseNavigationHelper:
     def get_current_view_type(self) -> Optional[str]:
         """
         Determine current view type (day/week/month) by checking active buttons
-        Enhanced with headless mode retry logic and additional detection methods
+        Enhanced with headless mode retry logic, debug logging, and improved week view detection
         
         Returns:
             Optional[str]: 'day', 'week', 'month', or None
         """
         try:
+            self.logger.debug("[VIEW_DETECTION] Starting view type detection...")
+            
             # In headless mode, try multiple times with waits for DOM to update
             max_attempts = 3 if self._is_headless_mode() else 1
             
             for attempt in range(max_attempts):
                 if attempt > 0 and self._is_headless_mode():
-                    self.logger.debug(f"[HEADLESS] View detection attempt {attempt + 1}/{max_attempts}...")
+                    self.logger.debug(f"[VIEW_DETECTION] Headless retry attempt {attempt + 1}/{max_attempts}...")
                     self._headless_safe_wait(1.0)
                 
                 # Check for active button classes
@@ -771,30 +822,57 @@ class HydrawiseNavigationHelper:
                     ("//button[contains(@class, 'active') and contains(text(), 'Month')]", "month"),
                 ]
                 
-                for selector, view_type in view_checks:
+                for i, (selector, view_type) in enumerate(view_checks):
                     try:
                         element = self.driver.find_element(By.XPATH, selector)
                         if element.is_displayed():
-                            self.logger.debug(f"Detected {view_type} view using: {selector}")
+                            self.logger.debug(f"[VIEW_DETECTION] Detected {view_type} view using selector {i+1}/{len(view_checks)}: {selector}")
                             return view_type
                     except:
                         continue
+                
+                self.logger.debug(f"[VIEW_DETECTION] Active button detection failed on attempt {attempt + 1}, trying date pattern inference...")
                 
                 # If no active button found, try alternative detection methods
                 if self._is_headless_mode():
                     # Method 2: Check date display patterns to infer view type
                     current_date = self.get_current_displayed_date()
                     if current_date:
-                        # Single date patterns suggest Day view
-                        if any(pattern in current_date.lower() for pattern in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']):
-                            if '–' not in current_date and '-' not in current_date:
-                                self.logger.debug(f"Inferred Day view from date pattern: '{current_date}'")
-                                return "day"
-                        # Date ranges suggest Week view  
+                        self.logger.debug(f"[VIEW_DETECTION] Attempting pattern inference from date: '{current_date}'")
+                        
+                        # Day view pattern: "Thursday Sep 11" (full day name + abbreviated month + day number)
+                        day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                        abbrev_months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+                        
+                        if any(day in current_date.lower() for day in day_names):
+                            if any(month in current_date.lower() for month in abbrev_months):
+                                if '–' not in current_date and '-' not in current_date:
+                                    self.logger.debug(f"[VIEW_DETECTION] Inferred Day view from pattern: '{current_date}' (day name + abbreviated month)")
+                                    return "day"
+                        
+                        # Week view pattern: "September 07 - 13" (full month + date range)
                         elif '–' in current_date or '-' in current_date:
-                            self.logger.debug(f"Inferred Week view from date range: '{current_date}'")
-                            return "week"
+                            full_months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+                            if any(month in current_date.lower() for month in full_months):
+                                # Check for numeric date range pattern
+                                import re
+                                if re.search(r'\d+\s*[-–]\s*\d+', current_date):
+                                    self.logger.debug(f"[VIEW_DETECTION] Inferred Week view from pattern: '{current_date}' (full month + date range)")
+                                    return "week"
+                        
+                        # Month view pattern: "September 2025" (full month + year)
+                        else:
+                            full_months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+                            if any(month in current_date.lower() for month in full_months):
+                                # Check for year pattern (4 digits)
+                                import re
+                                if re.search(r'\b\d{4}\b', current_date):
+                                    self.logger.debug(f"[VIEW_DETECTION] Inferred Month view from pattern: '{current_date}' (full month + year)")
+                                    return "month"
+                    else:
+                        self.logger.debug("[VIEW_DETECTION] No date display found for pattern inference")
             
+            self.logger.warning("[VIEW_DETECTION] All view detection methods failed")
             return None
             
         except Exception as e:
@@ -805,11 +883,10 @@ class HydrawiseNavigationHelper:
         """
         Parse the displayed date range from rbc-toolbar-label text
         
-        Handles formats like:
-        - "August 24 [SYMBOL] 30" (single month week)
-        - "August 31 [SYMBOL] September 06" (cross-month week)  
-        - "Friday Aug 22" (day view)
-        - "August 2025" (month view)
+        Handles the specific Hydrawise date patterns:
+        - Week view: "September 07 - 13" (full month + date range)
+        - Day view: "Thursday Sep 11" (full day name + abbreviated month + day number)  
+        - Month view: "September 2025" (full month + year)
         
         Args:
             date_text: The text from rbc-toolbar-label
@@ -819,7 +896,7 @@ class HydrawiseNavigationHelper:
                 'view_type': 'day'|'week'|'month',
                 'start_date': date object,
                 'end_date': date object (same as start for day view),
-                'contains_target': bool (if target date is in range)
+                'original_text': str (original date text)
             }
         """
         try:
@@ -843,12 +920,12 @@ class HydrawiseNavigationHelper:
             
             date_text_lower = date_text.lower()
             
-            # Week view patterns:
-            # - Single month: "August 24 [SYMBOL] 30" 
-            # - Cross-month: "August 31 [SYMBOL] September 06", "June 29 [SYMBOL] July 05", "May 26 [SYMBOL] Jun 01"
-            # - Year boundary: "December 30 [SYMBOL] January 05"
-            # Pattern captures: (start_month) (start_day) [[SYMBOL]-] (optional_end_month) (end_day)
-            week_pattern = r'(\w+)\s+(\d+)\s*[[SYMBOL]-]\s*(?:(\w+)\s+)?(\d+)'
+            # Week view patterns: "September 07 - 13" (full month + date range)
+            # - Single month: "September 07 - 13" 
+            # - Cross-month: "August 31 - September 06"
+            # - Year boundary: "December 30 - January 05"
+            # Pattern captures: (start_month) (start_day) [- or –] (optional_end_month) (end_day)
+            week_pattern = r'(\w+)\s+(\d+)\s*[-–]\s*(?:(\w+)\s+)?(\d+)'
             week_match = re.search(week_pattern, date_text_lower)
             
             if week_match:
@@ -885,7 +962,7 @@ class HydrawiseNavigationHelper:
                     'original_text': date_text
                 }
             
-            # Day view: "Friday Aug 22" or "Friday August 22"
+            # Day view pattern: "Thursday Sep 11" (full day name + abbreviated month + day number)
             day_pattern = r'(?:\w+\s+)?(\w+)\s+(\d+)'
             day_match = re.search(day_pattern, date_text_lower)
             
@@ -903,7 +980,7 @@ class HydrawiseNavigationHelper:
                     'original_text': date_text
                 }
             
-            # Month view: "August 2025" or just "August"
+            # Month view pattern: "September 2025" (full month + year)
             month_pattern = r'(\w+)(?:\s+(\d{4}))?'
             month_match = re.search(month_pattern, date_text_lower)
             
