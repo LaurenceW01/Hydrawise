@@ -56,6 +56,7 @@ class ActualRun:
     notes: str
     end_time: Optional[datetime] = None  # Calculate from start + duration if needed
     failure_reason: Optional[str] = None  # Specific failure reason if any
+    current_ma: Optional[float] = None  # Current reading in milliamps from popup data
 
 @dataclass
 class IrrigationFailure:

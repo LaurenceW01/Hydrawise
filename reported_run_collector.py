@@ -394,7 +394,8 @@ def extract_reported_runs_for_date(self, target_date: datetime) -> List:
                         actual_gallons=actual_gallons,
                         status=status,
                         failure_reason=failure_reason,
-                        notes=enhanced_notes
+                        notes=enhanced_notes,
+                        current_ma=current_ma  # Set current milliamps from popup data
                     )
                     
                     # Add enhanced popup data as attributes

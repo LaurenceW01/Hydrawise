@@ -154,7 +154,8 @@ class IrrigationFailureDetector:
                     status=record.get('status', 'Normal'),
                     notes=record.get('notes', ''),
                     end_time=end_time,
-                    failure_reason=record.get('failure_reason')
+                    failure_reason=record.get('failure_reason'),
+                    current_ma=record.get('current_ma')  # Include current milliamps from database
                 )
                 actual_runs.append(actual_run)
             except Exception as e:

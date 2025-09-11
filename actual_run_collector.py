@@ -152,6 +152,7 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                 # Extract actual run details from popup
                 duration_minutes = popup_data.get('duration_minutes', 0)
                 actual_gallons = popup_data.get('actual_gallons')
+                current_ma = popup_data.get('current_ma')  # Extract current milliamps from popup
                 status = popup_data.get('status', 'Completed')
                 notes = popup_data.get('notes', '')
                 
@@ -192,7 +193,8 @@ def extract_actual_runs(self, target_date: datetime) -> List:
                     actual_gallons=actual_gallons,
                     status=status,
                     failure_reason=failure_reason,
-                    notes=notes
+                    notes=notes,
+                    current_ma=current_ma  # Set current milliamps from popup data
                 )
                 
                 # Add enhanced popup data as attributes (matching reported_run_collector.py)
