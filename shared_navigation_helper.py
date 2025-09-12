@@ -715,22 +715,35 @@ class HydrawiseNavigationHelper:
         try:
             self.logger.debug("[DATE_DETECTION] Starting date detection process...")
             
+            # Wait for page to be stable before attempting element detection
+            self.logger.debug("[DATE_DETECTION] Waiting for page stability...")
+            time.sleep(3)  # Give page time to fully render after navigation
+            
             # Look for date display element - prioritize rbc-toolbar-label
             primary_selectors = [
                 "//span[contains(@class, 'rbc-toolbar-label')]",
                 "//*[contains(@class, 'rbc-toolbar-label')]"
             ]
             
-            # Try primary selectors first (most reliable)
+            # Try primary selectors first (most reliable) with proper waits
             for selector in primary_selectors:
                 try:
-                    date_element = self.driver.find_element(By.XPATH, selector)
+                    # Use WebDriverWait with element_wait timeout from config
+                    from selenium.webdriver.support.ui import WebDriverWait
+                    from selenium.webdriver.support import expected_conditions as EC
+                    from config.web_scraper_config import TIMEOUTS
+                    
+                    wait = WebDriverWait(self.driver, TIMEOUTS['element_wait'])
+                    date_element = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
                     if date_element.is_displayed():
                         date_text = date_element.text.strip()
                         if date_text and len(date_text) > 3:
                             self.logger.debug(f"[DATE_DETECTION] Found primary date display: '{date_text}' using: {selector}")
                             return date_text
-                except:
+                except Exception as e:
+                    self.logger.debug(f"[DATE_DETECTION] Primary selector failed: {selector} - {e}")
+                    # Add delay before trying next selector to avoid rapid-fire requests
+                    time.sleep(2)
                     continue
             
             self.logger.debug("[DATE_DETECTION] Primary selectors failed, trying fallback patterns...")
@@ -773,9 +786,15 @@ class HydrawiseNavigationHelper:
                 "//*[contains(text(), 'Dec')]"
             ]
             
+            # Use shorter waits for fallback selectors to avoid excessive delays
+            from config.web_scraper_config import TIMEOUTS
+            fallback_wait_time = min(5, TIMEOUTS['element_wait'] // 4)  # Use 1/4 of normal wait time
+            
             for i, selector in enumerate(fallback_selectors):
                 try:
-                    date_element = self.driver.find_element(By.XPATH, selector)
+                    # Use shorter WebDriverWait for fallback patterns
+                    wait = WebDriverWait(self.driver, fallback_wait_time)
+                    date_element = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
                     if date_element.is_displayed():
                         date_text = date_element.text.strip()
                         if date_text and len(date_text) > 3:
@@ -783,7 +802,11 @@ class HydrawiseNavigationHelper:
                             return date_text
                         else:
                             self.logger.debug(f"[DATE_DETECTION] Element found but text too short: '{date_text}' using: {selector}")
-                except:
+                except Exception as e:
+                    self.logger.debug(f"[DATE_DETECTION] Fallback selector {i+1}/{len(fallback_selectors)} failed: {selector} - {e}")
+                    # Add small delay between fallback attempts to prevent rapid-fire requests
+                    if i < len(fallback_selectors) - 1:  # Don't delay after last attempt
+                        time.sleep(1)
                     continue
             
             self.logger.warning("[DATE_DETECTION] All date detection methods failed - no date display found")

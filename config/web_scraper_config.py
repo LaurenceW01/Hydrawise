@@ -53,12 +53,12 @@ SELECTORS = {
 
 # Timeout settings (in seconds)
 TIMEOUTS = {
-    'page_load': 30,
-    'element_wait': 20,
-    'popup_wait': 3,
+    'page_load': 45,  # Increased to match browser page_load_timeout
+    'element_wait': 30,  # Increased from 20 to give more time for dynamic elements
+    'popup_wait': 5,  # Increased from 3 for better popup handling
     'hover_delay': 1,
-    'tab_switch_delay': 2,
-    'login_wait': 10
+    'tab_switch_delay': 3,  # Increased from 2 for more stable tab switching
+    'login_wait': 15  # Increased from 10 for more reliable login
 }
 
 # URL patterns
@@ -74,8 +74,8 @@ BROWSER_CONFIG = {
     'window_size': (1920, 1080),
     'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'headless': True,  # Set to False for debugging
-    'implicit_wait': 10,
-    'page_load_timeout': 30
+    'implicit_wait': 15,  # Increased from 10 to give more time for elements to appear
+    'page_load_timeout': 45  # Increased from 30 to allow for slower page loads in headless mode
 }
 
 # Data parsing patterns

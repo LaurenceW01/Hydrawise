@@ -170,8 +170,17 @@ def start_browser(self):
     self.driver = webdriver.Chrome(service=service, options=options)
     self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
-    # Set up WebDriverWait
-    self.wait = WebDriverWait(self.driver, 20)
+    # Set up timeouts from config
+    from config.web_scraper_config import TIMEOUTS, BROWSER_CONFIG
+    
+    # Set implicit wait for element finding
+    self.driver.implicitly_wait(BROWSER_CONFIG['implicit_wait'])
+    
+    # Set page load timeout
+    self.driver.set_page_load_timeout(BROWSER_CONFIG['page_load_timeout'])
+    
+    # Set up WebDriverWait with config-based timeout
+    self.wait = WebDriverWait(self.driver, TIMEOUTS['element_wait'])
     
     self.logger.info("Browser started successfully")
 
