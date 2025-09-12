@@ -160,12 +160,69 @@ def cmd_collect(args):
         if len(scheduled_runs) > 10:
             print(f"   ... and {len(scheduled_runs) - 10} more runs")
         
+        # Log collection summary to database
+        try:
+            from database.db_config import is_postgresql
+            db_log = storage
+            now = datetime.now()
+            
+            if is_postgresql():
+                query = """
+                    INSERT INTO collection_log 
+                    (collection_date, collection_type, status, scheduled_runs_collected,
+                     zones_processed, start_time, end_time, errors_encountered, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+            else:
+                query = """
+                    INSERT INTO collection_log 
+                    (collection_date, collection_type, status, scheduled_runs_collected,
+                     zones_processed, start_time, end_time, errors_encountered, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+            
+            db_log.adapter.execute_insert(query, (
+                target_date, 'daily_scrape', 'SUCCESS', 
+                len(scheduled_runs), len(set(run.zone_name for run in scheduled_runs)),
+                now, now, 0, now
+            ))
+        except Exception:
+            pass  # Don't let logging errors affect main operation
+        
         return 0
         
     except Exception as e:
         print(f"[ERROR] Collection failed: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Log collection failure to database
+        try:
+            from database.db_config import is_postgresql
+            db_log = storage
+            now = datetime.now()
+            
+            if is_postgresql():
+                query = """
+                    INSERT INTO collection_log 
+                    (collection_date, collection_type, status, start_time, end_time, 
+                     errors_encountered, error_details, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+            else:
+                query = """
+                    INSERT INTO collection_log 
+                    (collection_date, collection_type, status, start_time, end_time, 
+                     errors_encountered, error_details, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """
+            
+            db_log.adapter.execute_insert(query, (
+                target_date, 'daily_scrape', 'FAILED', 
+                now, now, 1, str(e), now
+            ))
+        except Exception:
+            pass  # Don't let logging errors affect main operation
         
         # Cleanup browser
         try:

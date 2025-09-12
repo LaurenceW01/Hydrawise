@@ -220,8 +220,8 @@ CREATE TABLE IF NOT EXISTS failure_events (
 CREATE TABLE IF NOT EXISTS collection_log (
     id SERIAL PRIMARY KEY,
     collection_date DATE NOT NULL,
-    collection_type TEXT NOT NULL CHECK (collection_type IN ('daily_scrape', 'historical_backfill', 'excel_import')),
-    status TEXT NOT NULL CHECK (status IN ('SUCCESS', 'PARTIAL', 'FAILED')),
+    collection_type TEXT NOT NULL CHECK (collection_type IN ('daily_scrape', 'historical_backfill', 'excel_import', 'schedule_admin', 'actual_admin', 'schedule_automated', 'actual_automated')),
+    status TEXT NOT NULL CHECK (status IN ('SUCCESS', 'PARTIAL', 'FAILED', 'IN_PROGRESS')),
     
     -- Data collected
     scheduled_runs_collected INTEGER DEFAULT 0,

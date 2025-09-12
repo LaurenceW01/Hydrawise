@@ -110,6 +110,40 @@ def cmd_admin(args):
     
     print_result(result, f"Admin Collection Results for {target_date}")
     
+    # Log collection summary to database
+    try:
+        from database.universal_database_manager import get_universal_database_manager
+        from database.db_config import is_postgresql
+        db = get_universal_database_manager()
+        now = datetime.now()
+        
+        if is_postgresql():
+            query = """
+                INSERT INTO collection_log 
+                (collection_date, collection_type, status, actual_runs_collected,
+                 start_time, end_time, errors_encountered, error_details, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+        else:
+            query = """
+                INSERT INTO collection_log 
+                (collection_date, collection_type, status, actual_runs_collected,
+                 start_time, end_time, errors_encountered, error_details, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        
+        status = 'SUCCESS' if result.success else 'FAILED'
+        actual_count = result.runs_collected if hasattr(result, 'runs_collected') else 0
+        errors = 0 if result.success else 1
+        error_details = result.error if hasattr(result, 'error') and not result.success else None
+        
+        db.adapter.execute_insert(query, (
+            target_date, 'daily_scrape', status, actual_count,
+            now, now, errors, error_details, now
+        ))
+    except Exception:
+        pass  # Don't let logging errors affect main operation
+    
     return 0 if result.success else 1
 
 def cmd_status(args):

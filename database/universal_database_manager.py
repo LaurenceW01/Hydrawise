@@ -708,6 +708,138 @@ class UniversalDatabaseManager:
             logger.error(f"Failed to delete scheduled runs for {target_date}: {e}")
             raise
     
+    def log_collection_start(self, collection_date: date, collection_type: str, start_time: datetime) -> int:
+        """
+        Log the start of a collection operation and return the collection ID
+        
+        Args:
+            collection_date: Date being collected
+            collection_type: Type of collection (schedule_admin, actual_admin, etc.)
+            start_time: When collection started
+            
+        Returns:
+            int: Collection log ID for updating later
+        """
+        try:
+            if is_postgresql():
+                query = """
+                    INSERT INTO collection_log 
+                    (collection_date, collection_type, status, start_time, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id
+                """
+            else:
+                query = """
+                    INSERT INTO collection_log 
+                    (collection_date, collection_type, status, start_time, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                """
+            
+            params = (collection_date, collection_type, 'IN_PROGRESS', start_time, datetime.now())
+            
+            if is_postgresql():
+                result = self.adapter.execute_query(query, params)
+                collection_id = result[0]['id'] if result else None
+            else:
+                collection_id = self.adapter.execute_insert(query, params)
+            
+            logger.info(f"Started collection log {collection_id} for {collection_type} on {collection_date}")
+            return collection_id
+            
+        except Exception as e:
+            logger.error(f"Failed to log collection start: {e}")
+            return None
+    
+    def log_collection_end(self, collection_id: int, status: str, scheduled_count: int = 0, 
+                          actual_count: int = 0, zones_processed: int = 0, 
+                          errors: int = 0, error_details: str = None, warnings: str = None) -> None:
+        """
+        Update collection log with final results
+        
+        Args:
+            collection_id: ID from log_collection_start
+            status: SUCCESS, PARTIAL, or FAILED
+            scheduled_count: Number of scheduled runs collected
+            actual_count: Number of actual runs collected
+            zones_processed: Number of zones processed
+            errors: Number of errors encountered
+            error_details: Details about errors
+            warnings: Warning messages
+        """
+        try:
+            if not collection_id:
+                logger.warning("No collection_id provided, skipping collection end log")
+                return
+                
+            end_time = datetime.now()
+            
+            if is_postgresql():
+                query = """
+                    UPDATE collection_log SET
+                        status = %s,
+                        scheduled_runs_collected = %s,
+                        actual_runs_collected = %s,
+                        zones_processed = %s,
+                        end_time = %s,
+                        processing_duration_seconds = EXTRACT(EPOCH FROM (%s - start_time)),
+                        errors_encountered = %s,
+                        error_details = %s,
+                        warnings = %s
+                    WHERE id = %s
+                """
+            else:
+                query = """
+                    UPDATE collection_log SET
+                        status = ?,
+                        scheduled_runs_collected = ?,
+                        actual_runs_collected = ?,
+                        zones_processed = ?,
+                        end_time = ?,
+                        processing_duration_seconds = (julianday(?) - julianday(start_time)) * 86400,
+                        errors_encountered = ?,
+                        error_details = ?,
+                        warnings = ?
+                    WHERE id = ?
+                """
+            
+            params = (status, scheduled_count, actual_count, zones_processed, end_time, 
+                     end_time, errors, error_details, warnings, collection_id)
+            
+            self.adapter.execute_update(query, params)
+            
+            logger.info(f"Updated collection log {collection_id}: {status} - {scheduled_count} scheduled, {actual_count} actual, {zones_processed} zones, {errors} errors")
+            
+        except Exception as e:
+            logger.error(f"Failed to log collection end: {e}")
+    
+    def get_recent_collection_logs(self, days: int = 7) -> List[Dict]:
+        """Get recent collection logs"""
+        try:
+            if is_postgresql():
+                query = """
+                    SELECT * FROM collection_log 
+                    WHERE collection_date >= %s
+                    ORDER BY start_time DESC
+                """
+            else:
+                query = """
+                    SELECT * FROM collection_log 
+                    WHERE collection_date >= date('now', '-{} days')
+                    ORDER BY start_time DESC
+                """.format(days)
+            
+            if is_postgresql():
+                cutoff_date = date.today() - timedelta(days=days)
+                result = self.adapter.execute_query(query, (cutoff_date,))
+            else:
+                result = self.adapter.execute_query(query)
+            
+            return result if result else []
+            
+        except Exception as e:
+            logger.error(f"Failed to get recent collection logs: {e}")
+            return []
+
     def close(self):
         """Close database connection"""
         if self.adapter:
