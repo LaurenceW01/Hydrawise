@@ -157,12 +157,14 @@ def setup_universal_logging(
         if config['is_render']:
             logger.info("Logging configured for render.com (stdout)")
     
-    # Add file handler (for local development or when explicitly enabled)
-    # Only add file handler if mode is 'file'/'both' AND file logging is enabled
-    # If mode is 'stdout' and file logging is disabled, skip file handler entirely
+    # Add file handler logic:
+    # - Always add if mode is 'file' or 'both'
+    # - For stdout mode: add rotating logs if USE_ROTATING_LOGS=true (for NSSM service backup)
+    # - For stdout mode: skip regular file logging if ENABLE_FILE_LOGGING=false
     should_add_file_handler = (
         (config['mode'] in ['file', 'both']) or 
-        (config['mode'] != 'stdout' and config['enable_file_logging'])
+        (config['mode'] != 'stdout' and config['enable_file_logging']) or
+        (config['mode'] == 'stdout' and config['use_rotating_logs'])  # Allow rotating logs for NSSM service
     )
     
     if should_add_file_handler:
@@ -170,8 +172,19 @@ def setup_universal_logging(
             # Create logs directory if it doesn't exist
             os.makedirs(config['log_directory'], exist_ok=True)
             
-            if config['use_rotating_logs'] and not config['is_render']:
-                # Use rotating file handler for local development
+            # Determine if we should create rotating logs or regular file logs
+            use_rotating = config['use_rotating_logs'] and not config['is_render']
+            
+            # For stdout mode with rotating logs enabled, only create rotating logs (NSSM service case)
+            if config['mode'] == 'stdout' and config['use_rotating_logs']:
+                use_rotating = True
+                # Skip regular file logging when in stdout mode with rotating logs
+            elif config['mode'] == 'stdout' and not config['enable_file_logging']:
+                # Skip all file logging if explicitly disabled in stdout mode
+                use_rotating = False
+                
+            if use_rotating:
+                # Use rotating file handler 
                 log_filename = os.path.join(config['log_directory'], f'{base_filename}.log')
                 
                 if config['rotation_type'] == 'size':
@@ -183,7 +196,10 @@ def setup_universal_logging(
                         backupCount=config['backup_count'],
                         encoding='utf-8'
                     )
-                    logger.info(f"Rotating file logging enabled: {log_filename} (max {config['max_log_size_mb']}MB, {config['backup_count']} backups)")
+                    if config['mode'] == 'stdout':
+                        logger.info(f"NSSM service rotating backup logs enabled: {log_filename} (max {config['max_log_size_mb']}MB, {config['backup_count']} backups)")
+                    else:
+                        logger.info(f"Rotating file logging enabled: {log_filename} (max {config['max_log_size_mb']}MB, {config['backup_count']} backups)")
                     
                 elif config['rotation_type'] == 'time':
                     # Time-based rotation
@@ -193,9 +209,12 @@ def setup_universal_logging(
                         backupCount=config['backup_count'],
                         encoding='utf-8'
                     )
-                    logger.info(f"Time-rotating file logging enabled: {log_filename} (rotate at {config['rotation_interval']}, {config['backup_count']} backups)")
+                    if config['mode'] == 'stdout':
+                        logger.info(f"NSSM service time-rotating backup logs enabled: {log_filename} (rotate at {config['rotation_interval']}, {config['backup_count']} backups)")
+                    else:
+                        logger.info(f"Time-rotating file logging enabled: {log_filename} (rotate at {config['rotation_interval']}, {config['backup_count']} backups)")
                 
-            else:
+            elif config['enable_file_logging'] or config['mode'] in ['file', 'both']:
                 # Use regular file handler (for render.com or when rotation is disabled)
                 if config['is_render']:
                     log_filename = os.path.join(config['log_directory'], f'{base_filename}.log')
@@ -206,17 +225,21 @@ def setup_universal_logging(
                 
                 file_handler = logging.FileHandler(log_filename, encoding='utf-8')
                 logger.info(f"File logging enabled: {log_filename}")
-            
-            file_handler.setLevel(logger.level)
-            
-            # Use detailed formatter for files
-            if config['is_render']:
-                file_handler.setFormatter(get_log_formatter('detailed'))
             else:
-                file_handler.setFormatter(formatter)
+                # Skip file handler creation
+                file_handler = None
             
-            logger.addHandler(file_handler)
-            handlers_added += 1
+            if file_handler:
+                file_handler.setLevel(logger.level)
+                
+                # Use detailed formatter for files
+                if config['is_render']:
+                    file_handler.setFormatter(get_log_formatter('detailed'))
+                else:
+                    file_handler.setFormatter(formatter)
+                
+                logger.addHandler(file_handler)
+                handlers_added += 1
             
         except Exception as e:
             # If file logging fails (e.g., read-only filesystem), continue with stdout only
