@@ -83,3 +83,6 @@ geckodriver
 
 # Chrome debugging
 DevTools*
+
+# NSSM setup scripts (contain sensitive credentials)
+setup_nssm_service.bat
