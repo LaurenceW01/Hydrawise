@@ -349,7 +349,7 @@ class AutomatedCollector:
                 result = subprocess.run(
                     cmd, 
                     text=True, 
-                    timeout=300,  # 5 minute timeout
+                    timeout=1800,  # 30 minute timeout - allows for 43 zones × 20s + page load time
                     env=enhanced_env
                 )
             else:
@@ -358,7 +358,7 @@ class AutomatedCollector:
                     cmd, 
                     capture_output=True, 
                     text=True, 
-                    timeout=300,  # 5 minute timeout
+                    timeout=1800,  # 30 minute timeout - allows for 43 zones × 20s + page load time
                     env=enhanced_env
                 )
             
