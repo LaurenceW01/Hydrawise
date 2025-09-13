@@ -163,7 +163,7 @@ CREATE TABLE failure_events (
 CREATE TABLE collection_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     collection_date DATE NOT NULL,
-    collection_type TEXT NOT NULL CHECK (collection_type IN ('daily_scrape', 'historical_backfill', 'excel_import', 'schedule_admin', 'actual_admin', 'schedule_automated', 'actual_automated')),
+    collection_type TEXT NOT NULL CHECK (collection_type IN ('schedule_collection', 'reported_runs_collection', 'daily_scrape', 'historical_backfill', 'excel_import', 'schedule_admin', 'actual_admin', 'schedule_automated', 'actual_automated')),
     status TEXT NOT NULL CHECK (status IN ('SUCCESS', 'PARTIAL', 'FAILED', 'IN_PROGRESS')),
     
     -- Data collected
@@ -185,6 +185,9 @@ CREATE TABLE collection_log (
     source_url TEXT,
     scraper_version TEXT,
     browser_info TEXT,
+    
+    -- Command information
+    command_parameters TEXT,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

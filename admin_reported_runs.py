@@ -29,6 +29,56 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from reported_runs_manager import ReportedRunsManager, CollectionMode
 from database.universal_database_manager import get_universal_database_manager
 
+def log_collection_to_database(target_date, collection_type, result, command_params, start_time, run_id=None):
+    """
+    Log collection summary to database with enhanced timing and parameter information
+    
+    Args:
+        target_date: Date that was collected
+        collection_type: Type of collection (e.g., 'reported_runs_collection')
+        result: Collection result object
+        command_params: String describing command parameters used
+        start_time: When the collection started
+        run_id: Unique identifier for this program execution
+    """
+    try:
+        from database.universal_database_manager import get_universal_database_manager
+        from database.db_config import is_postgresql
+        db = get_universal_database_manager()
+        end_time = datetime.now()
+        duration_seconds = int((end_time - start_time).total_seconds())
+        
+        if is_postgresql():
+            query = """
+                INSERT INTO collection_log 
+                (collection_date, collection_type, status, actual_runs_collected,
+                 start_time, end_time, processing_duration_seconds, errors_encountered, 
+                 error_details, command_parameters, run_id, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+        else:
+            query = """
+                INSERT INTO collection_log 
+                (collection_date, collection_type, status, actual_runs_collected,
+                 start_time, end_time, processing_duration_seconds, errors_encountered, 
+                 error_details, command_parameters, run_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        
+        status = 'SUCCESS' if result.success else 'FAILED'
+        actual_count = result.runs_collected if hasattr(result, 'runs_collected') else 0
+        errors = 0 if result.success else 1
+        error_details = result.error if hasattr(result, 'error') and not result.success else None
+        
+        db.adapter.execute_insert(query, (
+            target_date, collection_type, status, actual_count,
+            start_time, end_time, duration_seconds, errors, 
+            error_details, command_params, run_id, end_time
+        ))
+        db.close()
+    except Exception:
+        pass  # Don't let logging errors affect main operation
+
 def print_banner():
     """Print the admin banner"""
     print("=" * 70)
@@ -218,6 +268,20 @@ def cmd_update(args):
     print("[PERIODIC] UPDATING CURRENT DAY'S REPORTED RUNS")
     print()
     
+    # Generate unique run ID for traceability
+    import uuid
+    import os
+    run_id = f"rep_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+    process_id = os.getpid()
+    
+    # Display run information for traceability
+    print(f"[RUN ID] {run_id}")
+    print(f"[PROCESS] PID {process_id}")
+    print()
+    
+    # Capture start time for accurate logging
+    start_time = datetime.now()
+    
     try:
         # Default is headless (invisible), --visible makes it visible
         # Keep backward compatibility with --headless flag
@@ -263,10 +327,22 @@ def cmd_update(args):
             if result.errors:
                 print("   Check errors above for troubleshooting")
         
+        # Log collection summary to database with enhanced timing and parameters
+        command_params = f"update (limit: {args.limit if hasattr(args, 'limit') and args.limit else 'none'})"
+        log_collection_to_database(target_date, 'reported_runs_collection', result, command_params, start_time, run_id=run_id)
+        
         return 0 if result.success else 1
         
     except Exception as e:
         print(f"[ERROR] Update failed: {e}")
+        # Log failed collection
+        command_params = f"update (limit: {args.limit if hasattr(args, 'limit') and args.limit else 'none'})"
+        try:
+            from types import SimpleNamespace
+            failed_result = SimpleNamespace(success=False, runs_collected=0, error=str(e))
+            log_collection_to_database(target_date, 'reported_runs_collection', failed_result, command_params, start_time, run_id=run_id)
+        except:
+            pass
         import traceback
         traceback.print_exc()
         return 1
@@ -276,6 +352,20 @@ def cmd_yesterday(args):
     print_banner()
     print("[DATE] COLLECTING YESTERDAY'S REPORTED RUNS")
     print()
+    
+    # Generate unique run ID for traceability
+    import uuid
+    import os
+    run_id = f"rep_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+    process_id = os.getpid()
+    
+    # Display run information for traceability
+    print(f"[RUN ID] {run_id}")
+    print(f"[PROCESS] PID {process_id}")
+    print()
+    
+    # Capture start time for accurate logging
+    start_time = datetime.now()
     
     try:
         # Default is headless (invisible), --visible makes it visible
@@ -326,10 +416,22 @@ def cmd_yesterday(args):
             # Update water usage estimation for collected data
             update_water_usage_estimation_for_date(target_date)
         
+        # Log collection summary to database with enhanced timing and parameters
+        command_params = f"yesterday (limit: {args.limit if hasattr(args, 'limit') and args.limit else 'none'})"
+        log_collection_to_database(target_date, 'reported_runs_collection', result, command_params, start_time, run_id=run_id)
+        
         return 0 if result.success else 1
         
     except Exception as e:
         print(f"[ERROR] Yesterday collection failed: {e}")
+        # Log failed collection
+        command_params = f"yesterday (limit: {args.limit if hasattr(args, 'limit') and args.limit else 'none'})"
+        try:
+            from types import SimpleNamespace
+            failed_result = SimpleNamespace(success=False, runs_collected=0, error=str(e))
+            log_collection_to_database(target_date, 'reported_runs_collection', failed_result, command_params, start_time, run_id=run_id)
+        except:
+            pass
         return 1
 
 def cmd_today(args):
@@ -337,6 +439,20 @@ def cmd_today(args):
     print_banner()
     print("[DATE] COLLECTING TODAY'S REPORTED RUNS")
     print()
+    
+    # Generate unique run ID for traceability
+    import uuid
+    import os
+    run_id = f"rep_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+    process_id = os.getpid()
+    
+    # Display run information for traceability
+    print(f"[RUN ID] {run_id}")
+    print(f"[PROCESS] PID {process_id}")
+    print()
+    
+    # Capture start time for accurate logging
+    start_time = datetime.now()
     
     try:
         # Default is headless (invisible), --visible makes it visible
@@ -384,10 +500,22 @@ def cmd_today(args):
             # Update water usage estimation for collected data
             update_water_usage_estimation_for_date(target_date)
         
+        # Log collection summary to database with enhanced timing and parameters
+        command_params = f"today (limit: {args.limit if hasattr(args, 'limit') and args.limit else 'none'})"
+        log_collection_to_database(target_date, 'reported_runs_collection', result, command_params, start_time, run_id=run_id)
+        
         return 0 if result.success else 1
         
     except Exception as e:
         print(f"[ERROR] Today collection failed: {e}")
+        # Log failed collection
+        command_params = f"today (limit: {args.limit if hasattr(args, 'limit') and args.limit else 'none'})"
+        try:
+            from types import SimpleNamespace
+            failed_result = SimpleNamespace(success=False, runs_collected=0, error=str(e))
+            log_collection_to_database(date.today(), 'reported_runs_collection', failed_result, command_params, start_time, run_id=run_id)
+        except:
+            pass
         return 1
 
 def cmd_catchup(args):

@@ -377,17 +377,17 @@ class ReportedRunsManager:
             if target_date < date.today():
                 logger.info(f"[LOG] Extracting reported runs for {target_date}...")
                 target_datetime = datetime.combine(target_date + timedelta(days=1), datetime.min.time())  # Reference date should be day after target
+                # Note: extract_previous_day_reported_runs doesn't support limit_zones yet
                 actual_runs = scraper.extract_previous_day_reported_runs(target_datetime)
+                # Apply zone limit after collection for historical dates
+                if limit_zones and len(actual_runs) > limit_zones:
+                    logger.info(f"Limiting to first {limit_zones} runs (found {len(actual_runs)} total)")
+                    actual_runs = actual_runs[:limit_zones]
             else:
-                # For current day, use extract_actual_runs 
+                # For current day, use extract_actual_runs with zone limiting
                 logger.info(f"[LOG] Extracting current day reported runs for {target_date}...")
                 target_datetime = datetime.combine(target_date, datetime.min.time())
-                actual_runs = scraper.extract_actual_runs(target_datetime)
-            
-            # Apply zone limit if specified
-            if limit_zones and len(actual_runs) > limit_zones:
-                logger.info(f"Limiting to first {limit_zones} zones (found {len(actual_runs)} total)")
-                actual_runs = actual_runs[:limit_zones]
+                actual_runs = scraper.extract_actual_runs(target_datetime, limit_zones)
             
             return actual_runs
             

@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS failure_events (
 CREATE TABLE IF NOT EXISTS collection_log (
     id SERIAL PRIMARY KEY,
     collection_date DATE NOT NULL,
-    collection_type TEXT NOT NULL CHECK (collection_type IN ('daily_scrape', 'historical_backfill', 'excel_import', 'schedule_admin', 'actual_admin', 'schedule_automated', 'actual_automated')),
+    collection_type TEXT NOT NULL CHECK (collection_type IN ('schedule_collection', 'reported_runs_collection', 'daily_scrape', 'historical_backfill', 'excel_import', 'schedule_admin', 'actual_admin', 'schedule_automated', 'actual_automated')),
     status TEXT NOT NULL CHECK (status IN ('SUCCESS', 'PARTIAL', 'FAILED', 'IN_PROGRESS')),
     
     -- Data collected
@@ -242,6 +242,9 @@ CREATE TABLE IF NOT EXISTS collection_log (
     source_url TEXT,
     scraper_version TEXT,
     browser_info TEXT,
+    
+    -- Command information
+    command_parameters TEXT,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

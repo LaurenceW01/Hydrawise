@@ -27,6 +27,58 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hydrawise_web_scraper_refactored import HydrawiseWebScraper
 from database.universal_database_manager import get_universal_database_manager
 
+def log_collection_to_database(target_date, collection_type, scheduled_runs, command_params, start_time, success=True, error_msg=None, run_id=None):
+    """
+    Log schedule collection summary to database with enhanced timing and parameter information
+    
+    Args:
+        target_date: Date that was collected
+        collection_type: Type of collection (e.g., 'schedule_collection')
+        scheduled_runs: List of scheduled runs collected
+        command_params: String describing command parameters used
+        start_time: When the collection started
+        success: Whether collection was successful
+        error_msg: Error message if collection failed
+        run_id: Unique identifier for this program execution
+    """
+    try:
+        from database.universal_database_manager import get_universal_database_manager
+        from database.db_config import is_postgresql
+        db = get_universal_database_manager()
+        end_time = datetime.now()
+        duration_seconds = int((end_time - start_time).total_seconds())
+        
+        if is_postgresql():
+            query = """
+                INSERT INTO collection_log 
+                (collection_date, collection_type, status, scheduled_runs_collected,
+                 zones_processed, start_time, end_time, processing_duration_seconds, 
+                 errors_encountered, error_details, command_parameters, run_id, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+        else:
+            query = """
+                INSERT INTO collection_log 
+                (collection_date, collection_type, status, scheduled_runs_collected,
+                 zones_processed, start_time, end_time, processing_duration_seconds, 
+                 errors_encountered, error_details, command_parameters, run_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        
+        status = 'SUCCESS' if success else 'FAILED'
+        scheduled_count = len(scheduled_runs) if scheduled_runs else 0
+        zones_count = len(set(run.zone_name for run in scheduled_runs)) if scheduled_runs else 0
+        errors = 0 if success else 1
+        
+        db.adapter.execute_insert(query, (
+            target_date, collection_type, status, scheduled_count,
+            zones_count, start_time, end_time, duration_seconds, 
+            errors, error_msg, command_params, run_id, end_time
+        ))
+        db.close()
+    except Exception:
+        pass  # Don't let logging errors affect main operation
+
 def print_banner():
     """Print the admin banner"""
     print("=" * 70)
@@ -36,6 +88,20 @@ def print_banner():
 def cmd_collect(args):
     """Execute schedule collection"""
     print_banner()
+    
+    # Generate unique run ID for traceability
+    import uuid
+    import os
+    run_id = f"sched_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+    process_id = os.getpid()
+    
+    # Display run information for traceability
+    print(f"[RUN ID] {run_id}")
+    print(f"[PROCESS] PID {process_id}")
+    print()
+    
+    # Capture start time for accurate logging
+    start_time = datetime.now()
     
     # Parse target date
     try:
@@ -153,41 +219,16 @@ def cmd_collect(args):
         print("[LOG] COLLECTED SCHEDULE:")
         print("-" * 60)
         for i, run in enumerate(scheduled_runs[:10], 1):  # Show first 10
-            start_time = run.start_time.strftime('%I:%M %p')
+            run_start_time = run.start_time.strftime('%I:%M %p')
             duration = run.duration_minutes
-            print(f"   {i:2}. {run.zone_name[:35]:<35} {start_time} ({duration}min)")
+            print(f"   {i:2}. {run.zone_name[:35]:<35} {run_start_time} ({duration}min)")
         
         if len(scheduled_runs) > 10:
             print(f"   ... and {len(scheduled_runs) - 10} more runs")
         
-        # Log collection summary to database
-        try:
-            from database.db_config import is_postgresql
-            db_log = storage
-            now = datetime.now()
-            
-            if is_postgresql():
-                query = """
-                    INSERT INTO collection_log 
-                    (collection_date, collection_type, status, scheduled_runs_collected,
-                     zones_processed, start_time, end_time, errors_encountered, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-            else:
-                query = """
-                    INSERT INTO collection_log 
-                    (collection_date, collection_type, status, scheduled_runs_collected,
-                     zones_processed, start_time, end_time, errors_encountered, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-            
-            db_log.adapter.execute_insert(query, (
-                target_date, 'daily_scrape', 'SUCCESS', 
-                len(scheduled_runs), len(set(run.zone_name for run in scheduled_runs)),
-                now, now, 0, now
-            ))
-        except Exception:
-            pass  # Don't let logging errors affect main operation
+        # Log collection summary to database with enhanced timing and parameters
+        command_params = f"collect {args.date} (limit: {args.limit if args.limit else 'none'}, clear: {args.clear})"
+        log_collection_to_database(target_date, 'schedule_collection', scheduled_runs, command_params, start_time, run_id=run_id)
         
         return 0
         
@@ -196,33 +237,9 @@ def cmd_collect(args):
         import traceback
         traceback.print_exc()
         
-        # Log collection failure to database
-        try:
-            from database.db_config import is_postgresql
-            db_log = storage
-            now = datetime.now()
-            
-            if is_postgresql():
-                query = """
-                    INSERT INTO collection_log 
-                    (collection_date, collection_type, status, start_time, end_time, 
-                     errors_encountered, error_details, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """
-            else:
-                query = """
-                    INSERT INTO collection_log 
-                    (collection_date, collection_type, status, start_time, end_time, 
-                     errors_encountered, error_details, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """
-            
-            db_log.adapter.execute_insert(query, (
-                target_date, 'daily_scrape', 'FAILED', 
-                now, now, 1, str(e), now
-            ))
-        except Exception:
-            pass  # Don't let logging errors affect main operation
+        # Log failure to database with enhanced timing and parameters
+        command_params = f"collect {args.date} (limit: {args.limit if args.limit else 'none'}, clear: {args.clear})"
+        log_collection_to_database(target_date, 'schedule_collection', [], command_params, start_time, success=False, error_msg=str(e), run_id=run_id)
         
         # Cleanup browser
         try:

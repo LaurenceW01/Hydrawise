@@ -18,12 +18,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
-def extract_actual_runs(self, target_date: datetime) -> List:
+def extract_actual_runs(self, target_date: datetime, limit_zones: int = None) -> List:
     """
     Extract actual runs from the Reported tab.
     
     Args:
         target_date (datetime): Date to extract actual runs for
+        limit_zones (int, optional): Limit number of zones to process (for testing)
         
     Returns:
         list: List of actual runs with failure details
@@ -79,10 +80,16 @@ def extract_actual_runs(self, target_date: datetime) -> List:
             self.logger.warning("No actual run elements found on Reported page")
             return []
         
+        # Limit zones for testing if specified
+        zones_to_process = zone_elements
+        if limit_zones:
+            zones_to_process = zone_elements[:limit_zones]
+            self.logger.info(f"[SYMBOL] TESTING MODE: Processing only first {limit_zones} zones out of {len(zone_elements)}")
+        
         # Process each actual run element (same structure as scheduled)
         seen_runs = set()  # Track unique runs to avoid duplicates
         
-        for i, element in enumerate(zone_elements):
+        for i, element in enumerate(zones_to_process):
             try:
                 # Extract zone name from title attribute of rbc-event-content
                 zone_name = ""

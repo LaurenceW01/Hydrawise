@@ -149,9 +149,9 @@ class HydrawiseWebScraper:
         return schedule_collector._setup_schedule_view(self)
     
     # ========== ACTUAL RUN COLLECTION (DELEGATED) ==========
-    def extract_actual_runs(self, target_date: datetime) -> List[ActualRun]:
+    def extract_actual_runs(self, target_date: datetime, limit_zones: int = None) -> List[ActualRun]:
         """Extract actual runs from the Reported tab"""
-        return actual_run_collector.extract_actual_runs(self, target_date)
+        return actual_run_collector.extract_actual_runs(self, target_date, limit_zones)
     
     # ========== NAVIGATION (SHARED HELPER) ==========
     def navigate_to_date(self, target_date: datetime, tab: str = "schedule") -> bool:
