@@ -218,13 +218,21 @@ def cmd_usage_flags(args):
                 print(f"    Pattern: {' -> '.join(issue['pattern'])}")
             print()
         
-        # Display missing usage summary
+        # Display usage comparison summary
         missing_info = analysis.missing_usage_analysis
-        print("[SUMMARY] Missing Usage Analysis:")
-        print(f"  Total Actual Usage:     {missing_info['total_actual_usage']:8.2f} gallons")
-        print(f"  Total Calculated Usage: {missing_info['total_calculated_usage']:8.2f} gallons")
-        print(f"  Missing Percentage:     {missing_info['missing_percentage']:8.1f}%")
-        print(f"  Estimated Usage Added:  {missing_info['estimated_gallons_used']:8.2f} gallons")
+        print("[SUMMARY] Actual vs Expected Usage Analysis:")
+        print(f"  Total Reported Usage:   {missing_info['total_actual_usage']:8.2f} gallons (includes {missing_info['estimated_gallons_used']:4.2f}g estimated for zero reported)")
+        print(f"  Total Expected Usage:   {missing_info['total_calculated_usage']:8.2f} gallons")
+        
+        # Calculate and display variance more intuitively
+        variance_pct = missing_info['missing_percentage']
+        if variance_pct > 0:
+            print(f"  Variance:                {variance_pct:7.1f}% UNDER expected (zones reported lower usage than expected)")
+        elif variance_pct < 0:
+            print(f"  Variance:                {abs(variance_pct):7.1f}% OVER expected (zones reported higher usage than expected)")
+        else:
+            print(f"  Variance:                {variance_pct:7.1f}% (perfect match)")
+        
         print()
         
         # Zone-by-zone details if requested
@@ -236,7 +244,14 @@ def cmd_usage_flags(args):
                 print(f"    Flag Distribution:")
                 for flag, percentage in pattern['flag_percentages'].items():
                     print(f"      {flag.upper():<12}: {percentage:5.1f}%")
-                print(f"    Missing Usage: {pattern['missing_usage_percentage']:5.1f}%")
+                # Display usage variance more intuitively
+                variance_pct = pattern['missing_usage_percentage']
+                if variance_pct > 0:
+                    print(f"    vs Expected:   {variance_pct:5.1f}% UNDER (zone reported lower usage than expected)")
+                elif variance_pct < 0:
+                    print(f"    vs Expected:   {abs(variance_pct):5.1f}% OVER (zone reported higher usage than expected)")
+                else:
+                    print(f"    vs Expected:   {variance_pct:5.1f}% (perfect match)")
                 if pattern['recent_issues']:
                     print(f"    Recent Issues: {', '.join([f'{date}:{flag}' for date, flag in pattern['recent_issues']])}")
         

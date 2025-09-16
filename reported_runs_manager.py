@@ -160,11 +160,23 @@ class ReportedRunsManager:
             
             result.runs_collected = len(previous_runs) + len(current_runs)
             result.success = True
+            
+            # Calculate unique zones processed
+            all_runs = previous_runs + current_runs
+            unique_zones = set()
+            for run in all_runs:
+                if hasattr(run, 'zone_id') and run.zone_id:
+                    unique_zones.add(run.zone_id)
+                elif hasattr(run, 'zone_name') and run.zone_name:
+                    unique_zones.add(run.zone_name)
+            zones_processed = len(unique_zones)
+            
             result.details = {
                 "previous_day_runs": len(previous_runs),
                 "current_day_runs": len(current_runs),
                 "previous_date": str(previous_date),
-                "current_date": str(collection_date)
+                "current_date": str(collection_date),
+                "zones_processed": zones_processed
             }
             
             # Update last collection time
@@ -246,10 +258,21 @@ class ReportedRunsManager:
             
             result.runs_collected = len(current_runs)
             result.success = True
+            
+            # Calculate unique zones processed
+            unique_zones = set()
+            for run in current_runs:
+                if hasattr(run, 'zone_id') and run.zone_id:
+                    unique_zones.add(run.zone_id)
+                elif hasattr(run, 'zone_name') and run.zone_name:
+                    unique_zones.add(run.zone_name)
+            zones_processed = len(unique_zones)
+            
             result.details = {
                 "current_day_runs": len(current_runs),
                 "collection_date": str(collection_date),
-                "interval_minutes": min_interval_minutes
+                "interval_minutes": min_interval_minutes,
+                "zones_processed": zones_processed
             }
             
             # Update last collection time
@@ -326,12 +349,23 @@ class ReportedRunsManager:
             
             result.runs_collected = len(collected_runs)
             result.success = True
+            
+            # Calculate unique zones processed
+            unique_zones = set()
+            for run in collected_runs:
+                if hasattr(run, 'zone_id') and run.zone_id:
+                    unique_zones.add(run.zone_id)
+                elif hasattr(run, 'zone_name') and run.zone_name:
+                    unique_zones.add(run.zone_name)
+            zones_processed = len(unique_zones)
+            
             result.details = {
                 "target_date": str(target_date),
                 "runs_collected": len(collected_runs),
                 "limit_zones": limit_zones,
                 "admin_mode": True,
-                "storage_breakdown": storage_breakdown
+                "storage_breakdown": storage_breakdown,
+                "zones_processed": zones_processed
             }
             
             logger.info(f"[OK] Admin collection completed: {result.runs_collected} runs collected, {result.runs_stored} stored")

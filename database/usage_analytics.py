@@ -200,12 +200,14 @@ class UsageAnalytics:
                 'recent_issues': zone_info['issue_pattern'][-5:] if zone_info['issue_pattern'] else []
             }
             
-            # Calculate missing usage percentage
+            # Calculate usage variance compared to expected usage
+            # Positive = actual usage is UNDER expected (meters reading low)
+            # Negative = actual usage is OVER expected (meters reading high)
             total_reported = zone_info['actual_usage_sum'] + zone_info['estimated_usage_sum']
-            calculated_total = zone_info['calculated_usage_sum']
-            if calculated_total > 0:
-                missing_percentage = ((calculated_total - zone_info['actual_usage_sum']) / calculated_total) * 100
-                zone_pattern['missing_usage_percentage'] = missing_percentage
+            expected_total = zone_info['calculated_usage_sum']
+            if expected_total > 0:
+                usage_variance_percentage = ((expected_total - zone_info['actual_usage_sum']) / expected_total) * 100
+                zone_pattern['missing_usage_percentage'] = usage_variance_percentage  # Keep old key for compatibility
             else:
                 zone_pattern['missing_usage_percentage'] = 0
             
@@ -238,18 +240,18 @@ class UsageAnalytics:
                         'description': "Possible flow meter lag - zero/low followed by high usage"
                     })
         
-        # Overall missing usage analysis
+        # Overall usage variance analysis (actual vs expected)
         total_actual = sum(zone['actual_usage_sum'] for zone in zone_data.values())
-        total_calculated = sum(zone['calculated_usage_sum'] for zone in zone_data.values())
-        if total_calculated > 0:
-            overall_missing_percentage = ((total_calculated - total_actual) / total_calculated) * 100
+        total_expected = sum(zone['calculated_usage_sum'] for zone in zone_data.values())
+        if total_expected > 0:
+            overall_variance_percentage = ((total_expected - total_actual) / total_expected) * 100
         else:
-            overall_missing_percentage = 0
+            overall_variance_percentage = 0
         
         analysis_data['missing_usage_analysis'] = {
             'total_actual_usage': total_actual,
-            'total_calculated_usage': total_calculated,
-            'missing_percentage': overall_missing_percentage,
+            'total_calculated_usage': total_expected,
+            'missing_percentage': overall_variance_percentage,
             'estimated_gallons_used': sum(zone['estimated_usage_sum'] for zone in zone_data.values())
         }
         
