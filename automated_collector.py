@@ -29,6 +29,7 @@ from utils.timezone_utils import get_houston_now, get_display_timestamp, get_dat
 from utils.universal_logging import setup_universal_logging, get_logger_for_module
 from utils.automated_collector_integration import initialize_tracking, add_tracking_to_collection, is_tracking_enabled
 from database.universal_database_manager import get_universal_database_manager
+from integrate_daily_usage_analytics import integrate_with_automated_collector, add_to_daily_collection
 import subprocess
 
 @dataclass
@@ -90,6 +91,17 @@ class AutomatedCollector:
                 self.logger.info("AutomatedCollector initialized (tracking disabled)")
         except Exception as e:
             self.logger.warning(f"AutomatedCollector initialized (tracking failed to initialize: {e})")
+        
+        # Initialize daily usage analytics integration
+        try:
+            self.analytics_integration = integrate_with_automated_collector()
+            if self.analytics_integration and self.analytics_integration.is_enabled():
+                self.logger.info("AutomatedCollector initialized with daily usage analytics integration")
+            else:
+                self.logger.info("AutomatedCollector initialized (daily usage analytics disabled)")
+        except Exception as e:
+            self.logger.warning(f"AutomatedCollector initialized (daily usage analytics failed to initialize: {e})")
+            self.analytics_integration = None
     
     def _is_running_as_service(self) -> bool:
         """
@@ -597,6 +609,18 @@ class AutomatedCollector:
                                         self.logger.warning(f"[DAILY] Today: {today_tracking['status_changes_detected']} status changes detected")
                             except Exception as e:
                                 self.logger.error(f"[DAILY] Tracking analysis failed: {e}")
+                        
+                        # Run daily usage analytics report after daily collection completes
+                        if self.analytics_integration:
+                            try:
+                                self.logger.info("[DAILY] Running daily usage analytics report...")
+                                analytics_success = add_to_daily_collection(self.analytics_integration)
+                                if analytics_success:
+                                    self.logger.info("[DAILY] Daily usage analytics report completed successfully")
+                                else:
+                                    self.logger.warning("[DAILY] Daily usage analytics report failed")
+                            except Exception as e:
+                                self.logger.error(f"[DAILY] Error running daily usage analytics: {e}")
                         
                         self.last_daily_date = current_date
                         self.logger.info("[DAILY] Daily collection completed")
