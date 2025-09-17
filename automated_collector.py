@@ -623,6 +623,10 @@ class AutomatedCollector:
                                 self.logger.error(f"[DAILY] Error running daily usage analytics: {e}")
                         
                         self.last_daily_date = current_date
+                        # Mark startup as completed after successful daily collection
+                        if not self.startup_completed:
+                            self.startup_completed = True
+                            self.logger.info("[DAILY] Marking startup as completed after daily collection")
                         self.logger.info("[DAILY] Daily collection completed")
                     except Exception as e:
                         self.logger.error(f"[ERROR] Daily collection error: {e}")
