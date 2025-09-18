@@ -626,6 +626,7 @@ class AutomatedCollector:
                         # Mark startup as completed after successful daily collection
                         if not self.startup_completed:
                             self.startup_completed = True
+                            self.last_interval_time = now  # Initialize interval timing after daily collection
                             self.logger.info("[DAILY] Marking startup as completed after daily collection")
                         self.logger.info("[DAILY] Daily collection completed")
                     except Exception as e:
