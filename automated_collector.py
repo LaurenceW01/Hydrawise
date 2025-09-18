@@ -317,6 +317,18 @@ class AutomatedCollector:
                 except Exception as e:
                     self.logger.error(f"[STARTUP] Tracking analysis failed: {e}")
             
+            # Run daily usage analytics report after startup collection completes
+            if self.analytics_integration:
+                try:
+                    self.logger.info("[STARTUP] Running daily usage analytics report...")
+                    analytics_success = add_to_daily_collection(self.analytics_integration)
+                    if analytics_success:
+                        self.logger.info("[STARTUP] Daily usage analytics report completed successfully")
+                    else:
+                        self.logger.warning("[STARTUP] Daily usage analytics report failed")
+                except Exception as e:
+                    self.logger.error(f"[STARTUP] Error running daily usage analytics: {e}")
+            
             self.startup_completed = True
             self.last_daily_date = now.date()
             self.last_interval_time = now  # Set last interval time to prevent immediate interval run

@@ -15,6 +15,7 @@ Date: 2025-09-15
 import os
 import sys
 import logging
+import json
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
@@ -447,9 +448,10 @@ class DailyUsageAnalyticsReporter:
             today = get_houston_now().date()
             result = self.db_manager.adapter.execute_query("""
                 SELECT COUNT(*) as count
-                FROM system_config 
-                WHERE config_key = 'last_daily_usage_report_date'
-                AND config_value = %s
+                FROM email_notifications_log 
+                WHERE notification_date = %s
+                AND notification_type = 'daily_usage_analytics'
+                AND email_sent = true
             """, (today.isoformat(),))
             
             return result[0]['count'] > 0 if result else False
@@ -462,14 +464,28 @@ class DailyUsageAnalyticsReporter:
         """Mark that we've sent a report today"""
         try:
             today = get_houston_now().date()
-            self.db_manager.adapter.execute_update("""
-                INSERT INTO system_config (config_key, config_value, updated_at)
-                VALUES ('last_daily_usage_report_date', %s, %s)
-                ON CONFLICT (config_key) 
-                DO UPDATE SET 
-                    config_value = EXCLUDED.config_value,
-                    updated_at = EXCLUDED.updated_at
-            """, (today.isoformat(), get_houston_now()))
+            now = get_houston_now()
+            
+            # Log to email_notifications_log table
+            self.db_manager.adapter.execute_insert("""
+                INSERT INTO email_notifications_log (
+                    notification_date, notification_type, trigger_event, recipients,
+                    subject, body_preview, affected_zones, runs_affected_count,
+                    email_sent, sent_at, error_message
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                today.isoformat(),
+                'daily_usage_analytics',
+                f"Daily usage analytics report for {today}",
+                json.dumps(self.config.email_recipients),
+                f"Daily Hydrawise Usage Analytics - {today}",
+                "Daily irrigation usage analytics report with zone performance analysis",
+                json.dumps([]),  # No specific zones affected
+                0,  # No runs affected
+                True,  # Email sent successfully
+                now.isoformat(),
+                None  # No error
+            ))
             
         except Exception as e:
             self.logger.error(f"Error marking report as sent: {e}")
