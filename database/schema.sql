@@ -115,8 +115,8 @@ CREATE TABLE daily_variance (
     UNIQUE(analysis_date, zone_id)
 );
 
--- Failure events: Detected irrigation problems
-CREATE TABLE failure_events (
+-- Events: Detected irrigation anomalies and issues (renamed from failure_events)
+CREATE TABLE events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     failure_id TEXT UNIQUE NOT NULL,  -- e.g., 'missing_Front_Planters_1830'
     zone_id INTEGER NOT NULL,
