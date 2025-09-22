@@ -10,8 +10,11 @@ import os
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project root to path for config imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.water_usage_estimator import WaterUsageEstimator
+from config.water_usage_config import get_water_usage_thresholds
 
 def test_estimation():
     print("[SYMBOL] TESTING WATER USAGE ESTIMATION SYSTEM")
@@ -58,10 +61,10 @@ def test_estimation():
             assert usage_type == 'estimated', f"Expected 'estimated' for zero usage"
             assert usage_flag == 'zero_reported', f"Expected 'zero_reported' for zero usage"
             assert usage_value == expected, f"Expected estimated value for zero usage"
-        elif expected and actual_gallons > 1.5 * expected:
+        elif expected and actual_gallons > get_water_usage_thresholds()[0] * expected:
             assert usage_flag == 'too_high', f"Expected 'too_high' flag"
             assert usage_type == 'actual', f"Expected 'actual' type for high usage"
-        elif expected and actual_gallons < 0.5 * expected:
+        elif expected and actual_gallons < get_water_usage_thresholds()[1] * expected:
             assert usage_flag == 'too_low', f"Expected 'too_low' flag"
             assert usage_type == 'actual', f"Expected 'actual' type for low usage"
         else:

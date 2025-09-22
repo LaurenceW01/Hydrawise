@@ -4,6 +4,29 @@
 
 The `insert_actual_runs` method in `universal_database_manager.py` now includes comprehensive usage calculation logic that matches the previous SQLite implementation. This document explains the calculations used for different usage_flag situations.
 
+## Environment Variable Configuration
+
+The water usage variance thresholds are now configurable via environment variables:
+
+- **`HIGH_WATER_USAGE`**: Multiplier for determining "too high" usage (default: 2.0)
+- **`LOW_WATER_USAGE`**: Multiplier for determining "too low" usage (default: 0.5)
+
+### Examples:
+```bash
+# Set custom thresholds
+export HIGH_WATER_USAGE=2.5  # Flag as too high when > 2.5x expected
+export LOW_WATER_USAGE=0.3   # Flag as too low when < 0.3x expected
+
+# Use defaults (no environment variables needed)
+# HIGH_WATER_USAGE defaults to 2.0
+# LOW_WATER_USAGE defaults to 0.5
+```
+
+The system validates these values:
+- Must be positive numbers
+- HIGH_WATER_USAGE must be greater than LOW_WATER_USAGE
+- Invalid values fall back to defaults with warning logs
+
 ## Zone Flow Rate Data
 
 Flow rates are stored in the `zones` table with the `average_flow_rate` column (in GPM - Gallons Per Minute).
@@ -38,14 +61,15 @@ usage_flag = 'zero_reported'
 ### 2. `too_high` Usage Flag
 
 **When Applied:**
-- `actual_gallons` > 2.0 × expected_gallons
-- Threshold: `HIGH_USAGE_MULTIPLIER = 2.0`
+- `actual_gallons` > configured HIGH_WATER_USAGE threshold × expected_gallons
+- Configurable via environment variable: `HIGH_WATER_USAGE` (default: 2.0)
 
 **Calculation:**
 ```
 expected_gallons = zone_average_flow_rate * duration_minutes
 usage_ratio = actual_gallons / expected_gallons
-if usage_ratio > 2.0:
+high_threshold = get_water_usage_thresholds()[0]  # From HIGH_WATER_USAGE env var
+if usage_ratio > high_threshold:
     usage_flag = 'too_high'
     usage_type = 'actual'
     usage_value = actual_gallons
@@ -55,19 +79,20 @@ if usage_ratio > 2.0:
 - Zone 1 (2.5 GPM) runs for 4 minutes, actual_gallons = 25.0
 - Expected: 2.5 GPM × 4 min = 10.0 gallons
 - Ratio: 25.0 ÷ 10.0 = 2.5
-- Since 2.5 > 2.0: usage_flag = 'too_high'
+- Since 2.5 > 2.0 (default threshold): usage_flag = 'too_high'
 
 ### 3. `too_low` Usage Flag
 
 **When Applied:**
-- `actual_gallons` < 0.5 × expected_gallons
-- Threshold: `LOW_USAGE_MULTIPLIER = 0.5`
+- `actual_gallons` < configured LOW_WATER_USAGE threshold × expected_gallons
+- Configurable via environment variable: `LOW_WATER_USAGE` (default: 0.5)
 
 **Calculation:**
 ```
 expected_gallons = zone_average_flow_rate * duration_minutes
 usage_ratio = actual_gallons / expected_gallons
-if usage_ratio < 0.5:
+low_threshold = get_water_usage_thresholds()[1]  # From LOW_WATER_USAGE env var
+if usage_ratio < low_threshold:
     usage_flag = 'too_low'
     usage_type = 'actual'
     usage_value = actual_gallons
@@ -77,12 +102,13 @@ if usage_ratio < 0.5:
 - Zone 10 (3.9 GPM) runs for 5 minutes, actual_gallons = 8.0
 - Expected: 3.9 GPM × 5 min = 19.5 gallons
 - Ratio: 8.0 ÷ 19.5 = 0.41
-- Since 0.41 < 0.5: usage_flag = 'too_low'
+- Since 0.41 < 0.5 (default threshold): usage_flag = 'too_low'
 
 ### 4. `normal` Usage Flag
 
 **When Applied:**
-- 0.5 × expected_gallons ≤ `actual_gallons` ≤ 2.0 × expected_gallons
+- LOW_WATER_USAGE × expected_gallons ≤ `actual_gallons` ≤ HIGH_WATER_USAGE × expected_gallons
+- Within the configured threshold range (default: 0.5x to 2.0x expected)
 - OR no flow rate data available for comparison
 
 **Calculation:**
@@ -114,8 +140,8 @@ Both SQLite and PostgreSQL schemas include:
 ### Thresholds
 
 The current thresholds match the SQLite `WaterUsageEstimator` defaults:
-- **High Usage Threshold**: 2.0x (200% of expected)
-- **Low Usage Threshold**: 0.5x (50% of expected)
+- **High Usage Threshold**: Configurable via `HIGH_WATER_USAGE` environment variable (default: 2.0x = 200% of expected)
+- **Low Usage Threshold**: Configurable via `LOW_WATER_USAGE` environment variable (default: 0.5x = 50% of expected)
 
 ### Logging
 

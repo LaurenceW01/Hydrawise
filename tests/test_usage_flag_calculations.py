@@ -4,10 +4,17 @@ Test Usage Flag Calculations
 
 Demonstrates the calculations used for different usage_flag situations:
 - zero_reported: when actual_gallons = 0
-- too_high: when actual_gallons > 2.0x expected  
-- too_low: when actual_gallons < 0.5x expected
-- normal: when 0.5x <= actual_gallons <= 2.0x expected
+- too_high: when actual_gallons > configured HIGH_WATER_USAGE threshold
+- too_low: when actual_gallons < configured LOW_WATER_USAGE threshold  
+- normal: when LOW_WATER_USAGE <= actual_gallons <= HIGH_WATER_USAGE
 """
+
+import sys
+import os
+
+# Add project root to path for config imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.water_usage_config import get_water_usage_thresholds
 
 def demonstrate_usage_calculations():
     """Demonstrate usage flag calculations with example data"""
@@ -23,14 +30,13 @@ def demonstrate_usage_calculations():
         10: {"name": "Rear Left Pots, Baskets & Planters (M)", "flow_rate": 3.9}
     }
     
-    # Calculation thresholds
-    HIGH_USAGE_MULTIPLIER = 2.0  # > 2.0x expected = too_high
-    LOW_USAGE_MULTIPLIER = 0.5   # < 0.5x expected = too_low
+    # Get configurable calculation thresholds from environment variables or defaults
+    HIGH_USAGE_MULTIPLIER, LOW_USAGE_MULTIPLIER = get_water_usage_thresholds()
     
-    print(f"\nTHRESHOLDS:")
-    print(f"  High Usage: > {HIGH_USAGE_MULTIPLIER}x expected")
-    print(f"  Low Usage:  < {LOW_USAGE_MULTIPLIER}x expected")
-    print(f"  Normal:     {LOW_USAGE_MULTIPLIER}x to {HIGH_USAGE_MULTIPLIER}x expected")
+    print(f"\nTHRESHOLDS (configurable via environment variables):")
+    print(f"  HIGH_WATER_USAGE: > {HIGH_USAGE_MULTIPLIER}x expected = too_high")
+    print(f"  LOW_WATER_USAGE:  < {LOW_USAGE_MULTIPLIER}x expected = too_low")
+    print(f"  Normal Range:     {LOW_USAGE_MULTIPLIER}x to {HIGH_USAGE_MULTIPLIER}x expected")
     
     # Test cases for each usage flag type
     test_cases = [
@@ -130,11 +136,13 @@ def demonstrate_usage_calculations():
     print("=" * 80)
     print("The insert_actual_runs method now includes comprehensive usage calculation:")
     print("1. Zero reported gallons → Estimate from flow rate × duration")
-    print("2. Actual gallons > 2.0x expected → Flag as 'too_high'")
-    print("3. Actual gallons < 0.5x expected → Flag as 'too_low'")
+    print(f"2. Actual gallons > {HIGH_USAGE_MULTIPLIER}x expected → Flag as 'too_high'")
+    print(f"3. Actual gallons < {LOW_USAGE_MULTIPLIER}x expected → Flag as 'too_low'")
     print("4. Actual gallons within range → Flag as 'normal'")
-    print("\nThis matches the previous SQLite implementation and provides")
-    print("accurate water usage tracking and anomaly detection.")
+    print("\nThresholds are configurable via environment variables:")
+    print("- HIGH_WATER_USAGE: Controls the high usage threshold")
+    print("- LOW_WATER_USAGE: Controls the low usage threshold")
+    print("This provides accurate water usage tracking and anomaly detection.")
 
 if __name__ == "__main__":
     demonstrate_usage_calculations()

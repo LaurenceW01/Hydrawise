@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database.universal_database_adapter import UniversalDatabaseAdapter, get_universal_adapter
 from database.db_config import get_database_config, is_postgresql, is_sqlite
 from config.zone_configuration import ZoneConfiguration
+from config.water_usage_config import get_water_usage_thresholds
 from utils.timezone_utils import get_database_timestamp
 
 # Import our data models
@@ -568,22 +569,21 @@ class UniversalDatabaseManager:
                         # Calculate usage ratio for comparison
                         usage_ratio = actual_gallons / expected_gallons
                         
-                        # Default thresholds from WaterUsageEstimator
-                        HIGH_USAGE_MULTIPLIER = 2.0  # Usage > 2.0x expected is too high
-                        LOW_USAGE_MULTIPLIER = 0.5   # Usage < 0.5x expected is too low
+                        # Get configurable thresholds from environment variables or defaults
+                        HIGH_USAGE_MULTIPLIER, LOW_USAGE_MULTIPLIER = get_water_usage_thresholds()
                         
-                        # Check if usage is too high (> 2.0x expected)
+                        # Check if usage is too high (> configured threshold)
                         if usage_ratio > HIGH_USAGE_MULTIPLIER:
                             usage_flag = 'too_high'
-                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (too high: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected)")
-                        # Check if usage is too low (< 0.5x expected)  
+                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (too high: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected, threshold: {HIGH_USAGE_MULTIPLIER}x)")
+                        # Check if usage is too low (< configured threshold)  
                         elif usage_ratio < LOW_USAGE_MULTIPLIER:
                             usage_flag = 'too_low'
-                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (too low: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected)")
+                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (too low: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected, threshold: {LOW_USAGE_MULTIPLIER}x)")
                         else:
                             # Usage is within normal range
                             usage_flag = 'normal'
-                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (normal: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected)")
+                            logger.debug(f"Zone {zone_id} ({run.zone_name}): Usage {usage_ratio:.1f}x expected (normal: {actual_gallons:.1f}g vs {expected_gallons:.1f}g expected, thresholds: {LOW_USAGE_MULTIPLIER}x-{HIGH_USAGE_MULTIPLIER}x)")
                     else:
                         # No expected usage for comparison, use actual value as normal
                         usage_flag = 'normal'

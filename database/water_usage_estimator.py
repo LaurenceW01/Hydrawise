@@ -21,6 +21,7 @@ from pytz import timezone
 # Add project root to path for config imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.zone_configuration import get_zone_average_flow_rate
+from config.water_usage_config import get_water_usage_thresholds
 from database.universal_database_manager import get_universal_database_manager
 
 # Houston timezone for consistent timestamps
@@ -40,19 +41,18 @@ class WaterUsageEstimator:
     Enhanced with configurable thresholds for usage deviation detection
     """
     
-    # Default thresholds for determining if usage is unusual
-    DEFAULT_HIGH_USAGE_MULTIPLIER = 2.0  # Usage > 2.0x expected is considered too high (double)
-    DEFAULT_LOW_USAGE_MULTIPLIER = 0.5   # Usage < 0.5x expected is considered too low (half)
-    
     def __init__(self, high_usage_multiplier: float = None, low_usage_multiplier: float = None):
         """Initialize the water usage estimator
         
         Args:
-            high_usage_multiplier: Multiplier for too_high usage flag (defaults to 2.0)
-            low_usage_multiplier: Multiplier for too_low usage flag (defaults to 0.5)
+            high_usage_multiplier: Multiplier for too_high usage flag (defaults from environment or 2.0)
+            low_usage_multiplier: Multiplier for too_low usage flag (defaults from environment or 0.5)
         """
-        self.high_usage_multiplier = high_usage_multiplier or self.DEFAULT_HIGH_USAGE_MULTIPLIER
-        self.low_usage_multiplier = low_usage_multiplier or self.DEFAULT_LOW_USAGE_MULTIPLIER
+        # Get default thresholds from environment variables or use hardcoded defaults
+        default_high, default_low = get_water_usage_thresholds()
+        
+        self.high_usage_multiplier = high_usage_multiplier or default_high
+        self.low_usage_multiplier = low_usage_multiplier or default_low
     
     def set_deviation_thresholds(self, high_usage_multiplier: float, low_usage_multiplier: float):
         """Update configurable deviation thresholds
