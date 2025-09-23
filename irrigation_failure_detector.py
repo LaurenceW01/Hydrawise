@@ -111,13 +111,35 @@ class IrrigationFailureDetector:
             self.logger.error(f"Failure detection error: {e}")
             raise
     
+    def _parse_datetime(self, dt_value):
+        """Parse datetime from database - handles both string and datetime objects"""
+        if dt_value is None:
+            return None
+        
+        # If it's already a datetime object (PostgreSQL), return as-is
+        if isinstance(dt_value, datetime):
+            return dt_value
+        
+        # If it's a string (SQLite), parse it
+        if isinstance(dt_value, str):
+            try:
+                return datetime.fromisoformat(dt_value)
+            except ValueError:
+                # Try alternative formats if needed
+                try:
+                    return datetime.strptime(dt_value, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    return datetime.strptime(dt_value, '%Y-%m-%d %H:%M:%S.%f')
+        
+        return None
+
     def _convert_scheduled_data(self, scheduled_data: List[Dict]) -> List[ScheduledRun]:
         """Convert database scheduled run records to ScheduledRun objects"""
         scheduled_runs = []
         for record in scheduled_data:
             try:
-                # Parse start time from database string format
-                start_time = datetime.fromisoformat(record['scheduled_start_time'])
+                # Parse start time from database (handles both string and datetime objects)
+                start_time = self._parse_datetime(record['scheduled_start_time'])
                 
                 scheduled_run = ScheduledRun(
                     zone_id=str(record.get('zone_id', '')),
@@ -139,11 +161,11 @@ class IrrigationFailureDetector:
         actual_runs = []
         for record in actual_data:
             try:
-                # Parse start time from database string format
-                start_time = datetime.fromisoformat(record['actual_start_time'])  # Fixed field name
+                # Parse start time from database (handles both string and datetime objects)
+                start_time = self._parse_datetime(record['actual_start_time'])  # Fixed field name
                 end_time = None
                 if record.get('end_time'):
-                    end_time = datetime.fromisoformat(record['end_time'])
+                    end_time = self._parse_datetime(record['end_time'])
                 
                 actual_run = ActualRun(
                     zone_id=str(record.get('zone_id', '')),
@@ -223,11 +245,17 @@ class IrrigationFailureDetector:
         
         alerts = []
         
-        # FAILURE TYPE 1: Scheduled but didn't run
+        # FAILURE TYPE 1: Scheduled but didn't run (only check past scheduled runs)
+        current_time = datetime.now()
         for scheduled_run in scheduled:
-            if not self._find_matching_actual_run(scheduled_run, actual):
-                alert = self._create_missing_run_alert(zone_name, scheduled_run, target_date)
-                alerts.append(alert)
+            # Only flag as missing if the scheduled run was supposed to have completed already
+            # Add 15 minutes buffer to allow for run completion
+            scheduled_end_time = scheduled_run.start_time + timedelta(minutes=scheduled_run.duration_minutes + 15)
+            
+            if scheduled_end_time <= current_time:  # Only check past runs
+                if not self._find_matching_actual_run(scheduled_run, actual):
+                    alert = self._create_missing_run_alert(zone_name, scheduled_run, target_date)
+                    alerts.append(alert)
                 
         # FAILURE TYPE 2: Ran but not scheduled (unexpected runs)
         for actual_run in actual:

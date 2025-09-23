@@ -84,6 +84,8 @@ class UniversalDatabaseManager:
             self._fix_rain_sensor_table_schema()
             # Check for missing columns and add them
             self._add_missing_columns()
+            # Migrate failure_events table to events if needed
+            self._migrate_failure_events_to_events()
             logger.info("Schema migration completed")
         except Exception as e:
             logger.warning(f"Schema migration failed: {e}")
@@ -274,6 +276,179 @@ class UniversalDatabaseManager:
                 """
             
             self.adapter.execute_script(sql)
+    
+    def _migrate_failure_events_to_events(self):
+        """Migrate failure_events table to events table if needed"""
+        try:
+            # Use direct SQL queries to avoid potential recursion issues
+            # Check if old failure_events table exists
+            if is_postgresql():
+                check_failure_events = """
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'failure_events'
+                    )
+                """
+                check_events = """
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'events'
+                    )
+                """
+            else:
+                check_failure_events = """
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='failure_events'
+                """
+                check_events = """
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='events'
+                """
+            
+            # Check table existence
+            failure_events_result = self.adapter.execute_query(check_failure_events)
+            events_result = self.adapter.execute_query(check_events)
+            
+            failure_events_exists = bool(failure_events_result and (
+                failure_events_result[0].get('exists', False) if is_postgresql() 
+                else len(failure_events_result) > 0
+            ))
+            
+            events_exists = bool(events_result and (
+                events_result[0].get('exists', False) if is_postgresql()
+                else len(events_result) > 0
+            ))
+            
+            if failure_events_exists and not events_exists:
+                logger.info("Migrating failure_events table to events table")
+                
+                # Rename the table
+                if is_postgresql():
+                    # PostgreSQL supports ALTER TABLE RENAME - use execute_update for DDL
+                    self.adapter.execute_update("ALTER TABLE failure_events RENAME TO events")
+                    logger.info("Successfully renamed failure_events to events (PostgreSQL)")
+                    
+                    # Rename constraints and indexes
+                    try:
+                        # Rename constraints (PostgreSQL automatically renames some, but we need to handle others)
+                        constraint_renames = [
+                            "ALTER INDEX failure_events_pkey RENAME TO events_pkey",
+                            "ALTER INDEX failure_events_failure_id_key RENAME TO events_failure_id_key", 
+                            "ALTER INDEX failure_events_zone_id_fkey RENAME TO events_zone_id_fkey",
+                            "ALTER INDEX failure_events_scheduled_run_id_fkey RENAME TO events_scheduled_run_id_fkey",
+                            "ALTER INDEX failure_events_actual_run_id_fkey RENAME TO events_actual_run_id_fkey",
+                            "ALTER INDEX idx_failure_events_date_severity RENAME TO idx_events_date_severity",
+                            "ALTER INDEX idx_failure_events_detected_at RENAME TO idx_events_detected_at"
+                        ]
+                        
+                        for rename_sql in constraint_renames:
+                            try:
+                                self.adapter.execute_update(rename_sql)
+                                logger.debug(f"Renamed constraint/index: {rename_sql}")
+                            except Exception as e:
+                                # Some constraints might not exist or might have been auto-renamed
+                                logger.debug(f"Could not rename constraint/index (may not exist): {rename_sql} - {e}")
+                        
+                        # Rename check constraints (these need special handling)
+                        check_constraint_renames = [
+                            "ALTER TABLE events RENAME CONSTRAINT failure_events_failure_type_check TO events_failure_type_check",
+                            "ALTER TABLE events RENAME CONSTRAINT failure_events_severity_check TO events_severity_check", 
+                            "ALTER TABLE events RENAME CONSTRAINT failure_events_plant_risk_check TO events_plant_risk_check"
+                        ]
+                        
+                        for rename_sql in check_constraint_renames:
+                            try:
+                                self.adapter.execute_update(rename_sql)
+                                logger.debug(f"Renamed check constraint: {rename_sql}")
+                            except Exception as e:
+                                # Some constraints might not exist or have different names
+                                logger.debug(f"Could not rename check constraint (may not exist): {rename_sql} - {e}")
+                                
+                        logger.info("Successfully renamed constraints and indexes")
+                        
+                    except Exception as e:
+                        logger.warning(f"Some constraints/indexes could not be renamed: {e}")
+                        # Don't fail the migration for this
+                else:
+                    # SQLite requires more complex migration
+                    # First, create the new events table with the correct schema
+                    schema_sql = """
+                    CREATE TABLE events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        failure_id TEXT UNIQUE NOT NULL,
+                        zone_id INTEGER NOT NULL,
+                        zone_name TEXT NOT NULL,
+                        failure_date DATE NOT NULL,
+                        failure_type TEXT NOT NULL CHECK (failure_type IN (
+                            'MISSING_RUN', 'UNEXPECTED_RUN', 'FAILED_RUN', 
+                            'WATER_VARIANCE', 'DURATION_VARIANCE', 'SENSOR_ABORT'
+                        )),
+                        severity TEXT NOT NULL CHECK (severity IN ('CRITICAL', 'WARNING', 'INFO')),
+                        description TEXT NOT NULL,
+                        recommended_action TEXT,
+                        plant_risk TEXT CHECK (plant_risk IN ('HIGH', 'MEDIUM', 'LOW')),
+                        max_hours_without_water INTEGER,
+                        scheduled_run_id INTEGER,
+                        actual_run_id INTEGER,
+                        scheduled_gallons REAL,
+                        actual_gallons REAL,
+                        water_deficit REAL,
+                        hours_since_last_water REAL,
+                        resolved BOOLEAN DEFAULT FALSE,
+                        resolved_at TIMESTAMP,
+                        resolution_method TEXT,
+                        resolution_notes TEXT,
+                        detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        
+                        FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
+                        FOREIGN KEY (scheduled_run_id) REFERENCES scheduled_runs(id),
+                        FOREIGN KEY (actual_run_id) REFERENCES actual_runs(id)
+                    )
+                    """
+                    
+                    self.adapter.execute_update(schema_sql)
+                    
+                    # Copy data from old table to new table
+                    copy_sql = """
+                    INSERT INTO events (
+                        failure_id, zone_id, zone_name, failure_date, failure_type,
+                        severity, description, recommended_action, plant_risk,
+                        max_hours_without_water, scheduled_run_id, actual_run_id,
+                        scheduled_gallons, actual_gallons, water_deficit,
+                        hours_since_last_water, resolved, resolved_at,
+                        resolution_method, resolution_notes, detected_at
+                    )
+                    SELECT 
+                        failure_id, zone_id, zone_name, failure_date, failure_type,
+                        severity, description, recommended_action, plant_risk,
+                        max_hours_without_water, scheduled_run_id, actual_run_id,
+                        scheduled_gallons, actual_gallons, water_deficit,
+                        hours_since_last_water, resolved, resolved_at,
+                        resolution_method, resolution_notes, detected_at
+                    FROM failure_events
+                    """
+                    
+                    self.adapter.execute_update(copy_sql)
+                    
+                    # Drop the old table
+                    self.adapter.execute_update("DROP TABLE failure_events")
+                
+                logger.info("Successfully migrated failure_events table to events table")
+                
+            elif events_exists and not failure_events_exists:
+                logger.debug("Events table already exists, migration not needed")
+            elif events_exists and failure_events_exists:
+                logger.warning("Both failure_events and events tables exist, manual intervention may be needed")
+            else:
+                logger.debug("Neither failure_events nor events table exists, will be created from schema")
+                
+        except Exception as e:
+            logger.error(f"Failed to migrate failure_events to events: {e}")
+            import traceback
+            logger.error(f"Migration error details: {traceback.format_exc()}")
+            # Don't raise the exception - this is not critical for system operation
     
     def _initialize_zones(self):
         """Initialize zones table with basic zone data"""

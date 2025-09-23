@@ -30,6 +30,7 @@ from utils.universal_logging import setup_universal_logging, get_logger_for_modu
 from utils.automated_collector_integration import initialize_tracking, add_tracking_to_collection, is_tracking_enabled
 from database.universal_database_manager import get_universal_database_manager
 from integrate_daily_usage_analytics import integrate_with_automated_collector, add_to_daily_collection
+from water_usage_event_detector import integrate_with_automated_collector as integrate_event_detector, add_to_daily_collection as add_event_detection_to_daily_collection
 import subprocess
 
 @dataclass
@@ -102,6 +103,17 @@ class AutomatedCollector:
         except Exception as e:
             self.logger.warning(f"AutomatedCollector initialized (daily usage analytics failed to initialize: {e})")
             self.analytics_integration = None
+        
+        # Initialize water usage event detection integration
+        try:
+            self.event_detector = integrate_event_detector()
+            if self.event_detector and self.event_detector.is_enabled():
+                self.logger.info("AutomatedCollector initialized with water usage event detection integration")
+            else:
+                self.logger.info("AutomatedCollector initialized (water usage event detection disabled)")
+        except Exception as e:
+            self.logger.warning(f"AutomatedCollector initialized (water usage event detection failed to initialize: {e})")
+            self.event_detector = None
     
     def _is_running_as_service(self) -> bool:
         """
@@ -321,13 +333,30 @@ class AutomatedCollector:
             if self.analytics_integration:
                 try:
                     self.logger.info("[STARTUP] Running daily usage analytics report...")
-                    analytics_success = add_to_daily_collection(self.analytics_integration)
+                    # Debug analytics integration state
+                    self.logger.info(f"[STARTUP] Analytics integration enabled: {self.analytics_integration.is_enabled()}")
+                    self.logger.info(f"[STARTUP] Analytics config enabled: {self.analytics_integration.config.enabled}")
+                    self.logger.info(f"[STARTUP] Analytics reporter exists: {self.analytics_integration.reporter is not None}")
+                    analytics_success = add_to_daily_collection(self.analytics_integration, self.logger)
+                    self.logger.info(f"[STARTUP] Analytics add_to_daily_collection returned: {analytics_success}")
                     if analytics_success:
                         self.logger.info("[STARTUP] Daily usage analytics report completed successfully")
                     else:
                         self.logger.warning("[STARTUP] Daily usage analytics report failed")
                 except Exception as e:
                     self.logger.error(f"[STARTUP] Error running daily usage analytics: {e}")
+            
+            # Run water usage event detection after startup collection completes
+            if self.event_detector:
+                try:
+                    self.logger.info("[STARTUP] Running water usage event detection...")
+                    event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, now.date())
+                    if event_success:
+                        self.logger.info("[STARTUP] Water usage event detection completed successfully")
+                    else:
+                        self.logger.warning("[STARTUP] Water usage event detection failed")
+                except Exception as e:
+                    self.logger.error(f"[STARTUP] Error running water usage event detection: {e}")
             
             self.startup_completed = True
             self.last_daily_date = now.date()
@@ -626,13 +655,30 @@ class AutomatedCollector:
                         if self.analytics_integration:
                             try:
                                 self.logger.info("[DAILY] Running daily usage analytics report...")
-                                analytics_success = add_to_daily_collection(self.analytics_integration)
+                                # Debug analytics integration state
+                                self.logger.info(f"[DAILY] Analytics integration enabled: {self.analytics_integration.is_enabled()}")
+                                self.logger.info(f"[DAILY] Analytics config enabled: {self.analytics_integration.config.enabled}")
+                                self.logger.info(f"[DAILY] Analytics reporter exists: {self.analytics_integration.reporter is not None}")
+                                analytics_success = add_to_daily_collection(self.analytics_integration, self.logger)
+                                self.logger.info(f"[DAILY] Analytics add_to_daily_collection returned: {analytics_success}")
                                 if analytics_success:
                                     self.logger.info("[DAILY] Daily usage analytics report completed successfully")
                                 else:
                                     self.logger.warning("[DAILY] Daily usage analytics report failed")
                             except Exception as e:
                                 self.logger.error(f"[DAILY] Error running daily usage analytics: {e}")
+                        
+                        # Run water usage event detection after daily collection completes
+                        if self.event_detector:
+                            try:
+                                self.logger.info("[DAILY] Running water usage event detection...")
+                                event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, current_date)
+                                if event_success:
+                                    self.logger.info("[DAILY] Water usage event detection completed successfully")
+                                else:
+                                    self.logger.warning("[DAILY] Water usage event detection failed")
+                            except Exception as e:
+                                self.logger.error(f"[DAILY] Error running water usage event detection: {e}")
                         
                         self.last_daily_date = current_date
                         # Mark startup as completed after successful daily collection

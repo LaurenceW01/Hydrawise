@@ -66,10 +66,16 @@ def cmd_baseline(args):
         insufficient_data = 0
         
         for zone in zones:
-            if analytics.update_baseline(zone, start_date):
-                baseline = analytics.calculate_baseline(zone, start_date)
+            if analytics.update_baseline(zone, start_date, days=args.days):
+                baseline = analytics.calculate_baseline(zone, start_date, days=args.days)
                 print(f"[OK] {zone}")
                 print(f"   [RESULTS] {baseline.sample_count} runs, avg {baseline.avg_gallons:.1f} gal, {baseline.avg_gpm:.2f} GPM")
+                
+                # Show enhanced calculation quality if available
+                if hasattr(baseline, 'calculation_quality'):
+                    normal_pct = getattr(baseline, 'normal_runs_ratio', 0) * 100
+                    print(f"   [QUALITY] {baseline.calculation_quality} ({normal_pct:.0f}% normal runs)")
+                
                 updated_count += 1
             else:
                 print(f"[WARNING]  {zone} - Insufficient data (need 7+ runs)")
@@ -376,8 +382,8 @@ def cmd_reset(args):
         print(f"[INFO] Use this when schedules have changed")
         print()
         
-        if analytics.update_baseline(args.zone, reset_date):
-            baseline = analytics.calculate_baseline(args.zone, reset_date)
+        if analytics.update_baseline(args.zone, start_date=reset_date):
+            baseline = analytics.calculate_baseline(args.zone, start_date=reset_date)
             print("[OK] Baseline reset successfully!")
             print()
             print("[RESULTS] NEW BASELINE:")

@@ -54,7 +54,7 @@ class DatabaseCleaner:
             'collection_log',
             'system_status',
             'daily_variance',
-            'failure_events',
+            'events',
             'actual_runs',
             'scheduled_runs',
             # Master table last

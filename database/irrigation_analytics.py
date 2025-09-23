@@ -190,14 +190,15 @@ class IrrigationAnalytics:
         self.too_high_multiplier = too_high_multiplier
         self.too_low_multiplier = too_low_multiplier
     
-    def calculate_baseline(self, zone_name: str, start_date: date = None, end_date: date = None) -> Optional[UsageBaseline]:
+    def calculate_baseline(self, zone_name: str, start_date: date = None, end_date: date = None, days: int = 30) -> Optional[UsageBaseline]:
         """
         Calculate baseline usage pattern for a zone
         
         Args:
             zone_name: Zone to analyze
-            start_date: Start of baseline period (defaults to 30 days ago)
+            start_date: Start of baseline period (if not provided, calculated from days parameter)
             end_date: End of baseline period (defaults to today)
+            days: Number of days to analyze if start_date not provided (default: 30)
             
         Returns:
             UsageBaseline object or None if insufficient data
@@ -205,59 +206,141 @@ class IrrigationAnalytics:
         if end_date is None:
             end_date = date.today()
         if start_date is None:
-            start_date = end_date - timedelta(days=30)
+            start_date = end_date - timedelta(days=days)
             
         db_manager = get_universal_database_manager()
         
-        # Get all successful runs for this zone in the period
+        # Get all successful runs for this zone in the period, including usage_flag for quality assessment
         results = db_manager.adapter.execute_query("""
-            SELECT actual_gallons, actual_duration_minutes, run_date
+            SELECT actual_gallons, actual_duration_minutes, run_date, usage_flag
             FROM actual_runs 
             WHERE zone_name = %s 
             AND run_date BETWEEN %s AND %s
             AND actual_gallons IS NOT NULL 
             AND actual_gallons > 0
             AND actual_duration_minutes > 0
+            AND usage_flag IN ('normal', 'too_high', 'too_low')
             ORDER BY run_date
         """, (zone_name, start_date, end_date))
         
-        runs = [(row['actual_gallons'], row['actual_duration_minutes'], row['run_date']) for row in results]
-            
-        if len(runs) < self.min_baseline_samples:
+        if len(results) < self.min_baseline_samples:
             return None
             
-        # Calculate statistics
-        gallons_values = [float(run[0]) for run in runs]
-        duration_values = [float(run[1]) for run in runs]
-        gpm_values = [g/d for g, d in zip(gallons_values, duration_values) if d > 0]
+        # Prepare run data with GPM calculations
+        runs_data = []
+        total_gallons = 0
+        total_duration = 0
+        normal_runs = 0
+        
+        for row in results:
+            gallons = float(row['actual_gallons'])
+            duration = float(row['actual_duration_minutes'])
+            run_date = row['run_date']
+            usage_flag = row['usage_flag']
+            gpm = gallons / duration
+            
+            runs_data.append({
+                'gallons': gallons,
+                'duration': duration,
+                'gpm': gpm,
+                'date': run_date,
+                'usage_flag': usage_flag
+            })
+            
+            total_gallons += gallons
+            total_duration += duration
+            if usage_flag == 'normal':
+                normal_runs += 1
+        
+        total_runs = len(runs_data)
+        
+        # Enhanced calculation using 4 different methods (from manage_zone_config.py)
+        
+        # Method 1: Simple average (all runs)
+        simple_avg = total_gallons / total_duration
+        
+        # Method 2: Median GPM (more robust against outliers)
+        gpm_values = [run['gpm'] for run in runs_data]
+        gpm_values.sort()
+        median_gpm = gpm_values[len(gpm_values) // 2]
+        
+        # Method 3: Average of "normal" runs only (excludes anomalies)
+        normal_run_data = [run for run in runs_data if run['usage_flag'] == 'normal']
+        if normal_run_data:
+            normal_avg = sum(run['gpm'] for run in normal_run_data) / len(normal_run_data)
+        else:
+            normal_avg = simple_avg
+        
+        # Method 4: Weighted average (give more weight to recent runs)
+        sorted_runs = sorted(runs_data, key=lambda x: x['date'])
+        weighted_sum = 0
+        weight_sum = 0
+        for i, run in enumerate(sorted_runs):
+            weight = i + 1  # More recent runs get higher weight
+            weighted_sum += run['gpm'] * weight
+            weight_sum += weight
+        weighted_avg = weighted_sum / weight_sum if weight_sum > 0 else simple_avg
+        
+        # Choose the best method based on data quality (from manage_zone_config.py logic)
+        normal_ratio = normal_runs / total_runs
+        
+        if normal_ratio >= 0.8:  # 80% or more normal runs
+            calculated_gpm = normal_avg
+            quality = "Excellent"
+        elif normal_ratio >= 0.6:  # 60-80% normal runs
+            calculated_gpm = median_gpm
+            quality = "Good"
+        elif total_runs >= 10:  # Lots of data, use weighted average
+            calculated_gpm = weighted_avg
+            quality = "Fair"
+        else:
+            calculated_gpm = simple_avg
+            quality = "Poor"
+        
+        # Calculate traditional statistics for compatibility
+        gallons_values = [run['gallons'] for run in runs_data]
+        duration_values = [run['duration'] for run in runs_data]
         
         baseline = UsageBaseline(
             zone_name=zone_name,
             avg_gallons=statistics.mean(gallons_values),
             avg_duration_minutes=round(statistics.mean(duration_values), 2),
-            avg_gpm=statistics.mean(gpm_values),
+            avg_gpm=calculated_gpm,  # Use the sophisticated calculation
             std_dev_gallons=statistics.stdev(gallons_values) if len(gallons_values) > 1 else 0,
             std_dev_duration=statistics.stdev(duration_values) if len(duration_values) > 1 else 0,
-            sample_count=len(runs),
+            sample_count=len(runs_data),
             baseline_start_date=start_date,
             baseline_end_date=end_date,
             last_updated=get_houston_now()
         )
         
+        # Store calculation quality metadata for reporting
+        baseline.calculation_quality = quality
+        baseline.normal_runs_ratio = normal_ratio
+        baseline.calculation_methods = {
+            'simple_avg': simple_avg,
+            'median': median_gpm,
+            'normal_avg': normal_avg,
+            'weighted_avg': weighted_avg,
+            'selected_method': quality
+        }
+        
         return baseline
     
-    def update_baseline(self, zone_name: str, start_date: date = None) -> bool:
+    def update_baseline(self, zone_name: str, start_date: date = None, days: int = 30, sync_to_zones: bool = True) -> bool:
         """
         Update or create baseline for a zone and store in database
         
         Args:
             zone_name: Zone to update
             start_date: Start date for new baseline calculation
+            days: Number of days to analyze if start_date not provided (default: 30)
+            sync_to_zones: Whether to also update zones.average_flow_rate (default: True)
             
         Returns:
             True if baseline was updated successfully
         """
-        baseline = self.calculate_baseline(zone_name, start_date)
+        baseline = self.calculate_baseline(zone_name, start_date, days=days)
         if not baseline:
             return False
             
@@ -286,6 +369,28 @@ class IrrigationAnalytics:
             baseline.sample_count, baseline.baseline_start_date, 
             baseline.baseline_end_date, baseline.last_updated.strftime('%Y-%m-%d %H:%M:%S')
         ))
+        
+        # Optionally sync to zones table for unified flow rate management
+        if sync_to_zones:
+            try:
+                # Get zone_id for this zone_name
+                zone_result = db_manager.adapter.execute_query(
+                    "SELECT zone_id FROM zones WHERE zone_name = %s", 
+                    (zone_name,)
+                )
+                
+                if zone_result:
+                    zone_id = zone_result[0]['zone_id']
+                    
+                    # Update average_flow_rate in zones table
+                    db_manager.adapter.execute_update(
+                        "UPDATE zones SET average_flow_rate = %s WHERE zone_id = %s",
+                        (baseline.avg_gpm, zone_id)
+                    )
+            except Exception as e:
+                # Log the error but don't fail the baseline update
+                import logging
+                logging.warning(f"Failed to sync baseline to zones table for {zone_name}: {e}")
             
         return True
     

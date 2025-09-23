@@ -89,10 +89,13 @@ class HydrawiseDB:
         logger.info(f"Writing {len(scheduled_runs)} scheduled runs for {target_date}")
         
         # Sync down latest data before writing
-        if self.use_cloud_sync:
+        if self.use_cloud_sync and self.cloud_sync:
             try:
-                self.cloud_sync.sync_down()
-                logger.info("Synced latest data from cloud before writing")
+                if hasattr(self.cloud_sync, 'sync_down'):
+                    self.cloud_sync.sync_down()
+                    logger.info("Synced latest data from cloud before writing")
+                else:
+                    logger.debug("Cloud sync_down method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync down failed: {e}")
         
@@ -100,10 +103,13 @@ class HydrawiseDB:
         stored_count = self.storage.insert_scheduled_runs(scheduled_runs, target_date)
         
         # Sync up after writing
-        if self.use_cloud_sync and stored_count > 0:
+        if self.use_cloud_sync and self.cloud_sync and stored_count > 0:
             try:
-                self.cloud_sync.sync_up()
-                logger.info("Synced new data to cloud after writing")
+                if hasattr(self.cloud_sync, 'sync_up'):
+                    self.cloud_sync.sync_up()
+                    logger.info("Synced new data to cloud after writing")
+                else:
+                    logger.debug("Cloud sync_up method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync up failed: {e}")
         
@@ -127,10 +133,13 @@ class HydrawiseDB:
         logger.info(f"Writing {len(actual_runs)} actual runs for {target_date}")
         
         # Sync down latest data before writing
-        if self.use_cloud_sync:
+        if self.use_cloud_sync and self.cloud_sync:
             try:
-                self.cloud_sync.sync_down()
-                logger.info("Synced latest data from cloud before writing")
+                if hasattr(self.cloud_sync, 'sync_down'):
+                    self.cloud_sync.sync_down()
+                    logger.info("Synced latest data from cloud before writing")
+                else:
+                    logger.debug("Cloud sync_down method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync down failed: {e}")
         
@@ -145,10 +154,13 @@ class HydrawiseDB:
             result = {'new': stored_count, 'updated': 0, 'unchanged': 0, 'total': len(actual_runs)}
         
         # Sync up after writing
-        if self.use_cloud_sync and stored_count > 0:
+        if self.use_cloud_sync and self.cloud_sync and stored_count > 0:
             try:
-                self.cloud_sync.sync_up()
-                logger.info("Synced new data to cloud after writing")
+                if hasattr(self.cloud_sync, 'sync_up'):
+                    self.cloud_sync.sync_up()
+                    logger.info("Synced new data to cloud after writing")
+                else:
+                    logger.debug("Cloud sync_up method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync up failed: {e}")
         
@@ -172,34 +184,36 @@ class HydrawiseDB:
             target_date = date.today()
             
         # Sync down latest data before reading
-        if self.use_cloud_sync:
+        if self.use_cloud_sync and self.cloud_sync:
             try:
-                self.cloud_sync.sync_down()
-                logger.debug("Synced latest data from cloud before reading")
+                # Check if sync_down method exists
+                if hasattr(self.cloud_sync, 'sync_down'):
+                    self.cloud_sync.sync_down()
+                    logger.debug("Synced latest data from cloud before reading")
+                else:
+                    logger.debug("Cloud sync_down method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync down failed: {e}")
         
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row  # Return rows as dictionaries
-                cursor = conn.cursor()
-                
-                if zone_name:
-                    cursor.execute("""
-                        SELECT * FROM scheduled_runs 
-                        WHERE schedule_date = ? AND zone_name = ?
-                        ORDER BY scheduled_start_time
-                    """, (target_date, zone_name))
-                else:
-                    cursor.execute("""
-                        SELECT * FROM scheduled_runs 
-                        WHERE schedule_date = ?
-                        ORDER BY scheduled_start_time
-                    """, (target_date,))
-                
-                results = [dict(row) for row in cursor.fetchall()]
-                logger.info(f"Read {len(results)} scheduled runs for {target_date}")
-                return results
+            # Use universal database manager instead of direct SQLite connection
+            if zone_name:
+                query = """
+                    SELECT * FROM scheduled_runs 
+                    WHERE schedule_date = %s AND zone_name = %s
+                    ORDER BY scheduled_start_time
+                """
+                results = self.storage.adapter.execute_query(query, (target_date, zone_name))
+            else:
+                query = """
+                    SELECT * FROM scheduled_runs 
+                    WHERE schedule_date = %s
+                    ORDER BY scheduled_start_time
+                """
+                results = self.storage.adapter.execute_query(query, (target_date,))
+            
+            logger.info(f"Read {len(results)} scheduled runs for {target_date}")
+            return results
                 
         except Exception as e:
             logger.error(f"Failed to read scheduled runs: {e}")
@@ -220,34 +234,36 @@ class HydrawiseDB:
             target_date = date.today()
             
         # Sync down latest data before reading
-        if self.use_cloud_sync:
+        if self.use_cloud_sync and self.cloud_sync:
             try:
-                self.cloud_sync.sync_down()
-                logger.debug("Synced latest data from cloud before reading")
+                # Check if sync_down method exists
+                if hasattr(self.cloud_sync, 'sync_down'):
+                    self.cloud_sync.sync_down()
+                    logger.debug("Synced latest data from cloud before reading")
+                else:
+                    logger.debug("Cloud sync_down method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync down failed: {e}")
         
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row  # Return rows as dictionaries
-                cursor = conn.cursor()
-                
-                if zone_name:
-                    cursor.execute("""
-                        SELECT * FROM actual_runs 
-                        WHERE run_date = ? AND zone_name = ?
-                        ORDER BY actual_start_time
-                    """, (target_date, zone_name))
-                else:
-                    cursor.execute("""
-                        SELECT * FROM actual_runs 
-                        WHERE run_date = ?
-                        ORDER BY actual_start_time
-                    """, (target_date,))
-                
-                results = [dict(row) for row in cursor.fetchall()]
-                logger.info(f"Read {len(results)} actual runs for {target_date}")
-                return results
+            # Use universal database manager instead of direct SQLite connection
+            if zone_name:
+                query = """
+                    SELECT * FROM actual_runs 
+                    WHERE run_date = %s AND zone_name = %s
+                    ORDER BY actual_start_time
+                """
+                results = self.storage.adapter.execute_query(query, (target_date, zone_name))
+            else:
+                query = """
+                    SELECT * FROM actual_runs 
+                    WHERE run_date = %s
+                    ORDER BY actual_start_time
+                """
+                results = self.storage.adapter.execute_query(query, (target_date,))
+            
+            logger.info(f"Read {len(results)} actual runs for {target_date}")
+            return results
                 
         except Exception as e:
             logger.error(f"Failed to read actual runs: {e}")
@@ -270,65 +286,64 @@ class HydrawiseDB:
         end_date = start_date + timedelta(days=days-1)
         
         # Sync down latest data before reading
-        if self.use_cloud_sync:
+        if self.use_cloud_sync and self.cloud_sync:
             try:
-                self.cloud_sync.sync_down()
-                logger.debug("Synced latest data from cloud before reading summary")
+                # Check if sync_down method exists
+                if hasattr(self.cloud_sync, 'sync_down'):
+                    self.cloud_sync.sync_down()
+                    logger.debug("Synced latest data from cloud before reading summary")
+                else:
+                    logger.debug("Cloud sync_down method not available, skipping")
             except Exception as e:
                 logger.warning(f"Cloud sync down failed: {e}")
         
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get scheduled runs count by date
-                cursor.execute("""
-                    SELECT schedule_date, COUNT(*) as scheduled_count,
-                           SUM(CASE WHEN is_rain_cancelled = 1 THEN 1 ELSE 0 END) as rain_cancelled_count,
-                           SUM(scheduled_duration_minutes) as total_scheduled_minutes
-                    FROM scheduled_runs 
-                    WHERE schedule_date BETWEEN ? AND ?
-                    GROUP BY schedule_date
-                    ORDER BY schedule_date
-                """, (start_date, end_date))
-                
-                scheduled_data = cursor.fetchall()
-                
-                # Get actual runs count by date
-                cursor.execute("""
-                    SELECT run_date, COUNT(*) as actual_count,
-                           SUM(actual_duration_minutes) as total_actual_minutes,
-                           SUM(actual_gallons) as total_gallons
-                    FROM actual_runs 
-                    WHERE run_date BETWEEN ? AND ?
-                    GROUP BY run_date
-                    ORDER BY run_date
-                """, (start_date, end_date))
-                
-                actual_data = cursor.fetchall()
-                
-                summary = {
-                    'date_range': f"{start_date} to {end_date}",
-                    'scheduled_by_date': [
-                        {
-                            'date': row[0],
-                            'scheduled_count': row[1],
-                            'rain_cancelled_count': row[2],
-                            'total_scheduled_minutes': row[3]
-                        } for row in scheduled_data
-                    ],
-                    'actual_by_date': [
-                        {
-                            'date': row[0],
-                            'actual_count': row[1],
-                            'total_actual_minutes': row[2],
-                            'total_gallons': row[3]
-                        } for row in actual_data
-                    ]
-                }
-                
-                logger.info(f"Generated schedule summary for {start_date} to {end_date}")
-                return summary
+            # Get scheduled runs count by date using universal database manager
+            scheduled_query = """
+                SELECT schedule_date, COUNT(*) as scheduled_count,
+                       SUM(CASE WHEN is_rain_cancelled = true THEN 1 ELSE 0 END) as rain_cancelled_count,
+                       SUM(scheduled_duration_minutes) as total_scheduled_minutes
+                FROM scheduled_runs 
+                WHERE schedule_date BETWEEN %s AND %s
+                GROUP BY schedule_date
+                ORDER BY schedule_date
+            """
+            scheduled_data = self.storage.adapter.execute_query(scheduled_query, (start_date, end_date))
+            
+            # Get actual runs count by date
+            actual_query = """
+                SELECT run_date, COUNT(*) as actual_count,
+                       SUM(actual_duration_minutes) as total_actual_minutes,
+                       SUM(actual_gallons) as total_gallons
+                FROM actual_runs 
+                WHERE run_date BETWEEN %s AND %s
+                GROUP BY run_date
+                ORDER BY run_date
+            """
+            actual_data = self.storage.adapter.execute_query(actual_query, (start_date, end_date))
+            
+            summary = {
+                'date_range': f"{start_date} to {end_date}",
+                'scheduled_by_date': [
+                    {
+                        'date': row['schedule_date'],
+                        'scheduled_count': row['scheduled_count'],
+                        'rain_cancelled_count': row['rain_cancelled_count'],
+                        'total_scheduled_minutes': row['total_scheduled_minutes']
+                    } for row in scheduled_data
+                ],
+                'actual_by_date': [
+                    {
+                        'date': row['run_date'],
+                        'actual_count': row['actual_count'],
+                        'total_actual_minutes': row['total_actual_minutes'],
+                        'total_gallons': row['total_gallons']
+                    } for row in actual_data
+                ]
+            }
+            
+            logger.info(f"Generated schedule summary for {start_date} to {end_date}")
+            return summary
                 
         except Exception as e:
             logger.error(f"Failed to read schedule summary: {e}")
@@ -352,12 +367,18 @@ class HydrawiseDB:
             
         try:
             if direction in ["down", "both"]:
-                self.cloud_sync.sync_down()
-                logger.info("Cloud sync down completed")
+                if hasattr(self.cloud_sync, 'sync_down'):
+                    self.cloud_sync.sync_down()
+                    logger.info("Cloud sync down completed")
+                else:
+                    logger.warning("Cloud sync_down method not available")
                 
             if direction in ["up", "both"]:
-                self.cloud_sync.sync_up()
-                logger.info("Cloud sync up completed")
+                if hasattr(self.cloud_sync, 'sync_up'):
+                    self.cloud_sync.sync_up()
+                    logger.info("Cloud sync up completed")
+                else:
+                    logger.warning("Cloud sync_up method not available")
                 
             return True
             
@@ -373,35 +394,42 @@ class HydrawiseDB:
             Dictionary with database statistics
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get table counts
-                cursor.execute("SELECT COUNT(*) FROM scheduled_runs")
-                scheduled_count = cursor.fetchone()[0]
-                
-                cursor.execute("SELECT COUNT(*) FROM actual_runs")
-                actual_count = cursor.fetchone()[0]
-                
-                cursor.execute("SELECT COUNT(*) FROM zones")
-                zones_count = cursor.fetchone()[0]
-                
-                # Get date range
-                cursor.execute("SELECT MIN(schedule_date), MAX(schedule_date) FROM scheduled_runs")
-                scheduled_date_range = cursor.fetchone()
-                
-                cursor.execute("SELECT MIN(run_date), MAX(run_date) FROM actual_runs")
-                actual_date_range = cursor.fetchone()
-                
-                return {
-                    'database_path': self.db_path,
-                    'cloud_sync_enabled': self.use_cloud_sync,
-                    'scheduled_runs_count': scheduled_count,
-                    'actual_runs_count': actual_count,
-                    'zones_count': zones_count,
-                    'scheduled_date_range': scheduled_date_range,
-                    'actual_date_range': actual_date_range
-                }
+            # Get table counts using universal database manager
+            scheduled_result = self.storage.adapter.execute_query("SELECT COUNT(*) as count FROM scheduled_runs")
+            scheduled_count = scheduled_result[0]['count'] if scheduled_result else 0
+            
+            actual_result = self.storage.adapter.execute_query("SELECT COUNT(*) as count FROM actual_runs")
+            actual_count = actual_result[0]['count'] if actual_result else 0
+            
+            zones_result = self.storage.adapter.execute_query("SELECT COUNT(*) as count FROM zones")
+            zones_count = zones_result[0]['count'] if zones_result else 0
+            
+            # Get date range
+            scheduled_range_result = self.storage.adapter.execute_query(
+                "SELECT MIN(schedule_date) as min_date, MAX(schedule_date) as max_date FROM scheduled_runs"
+            )
+            scheduled_date_range = (
+                scheduled_range_result[0]['min_date'], 
+                scheduled_range_result[0]['max_date']
+            ) if scheduled_range_result else (None, None)
+            
+            actual_range_result = self.storage.adapter.execute_query(
+                "SELECT MIN(run_date) as min_date, MAX(run_date) as max_date FROM actual_runs"
+            )
+            actual_date_range = (
+                actual_range_result[0]['min_date'], 
+                actual_range_result[0]['max_date']
+            ) if actual_range_result else (None, None)
+            
+            return {
+                'database_type': 'postgresql' if hasattr(self.storage.adapter, 'connection_pool') else 'sqlite',
+                'cloud_sync_enabled': self.use_cloud_sync,
+                'scheduled_runs_count': scheduled_count,
+                'actual_runs_count': actual_count,
+                'zones_count': zones_count,
+                'scheduled_date_range': scheduled_date_range,
+                'actual_date_range': actual_date_range
+            }
                 
         except Exception as e:
             logger.error(f"Failed to get database info: {e}")

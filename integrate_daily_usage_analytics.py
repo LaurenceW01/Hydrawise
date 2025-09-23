@@ -36,9 +36,18 @@ class DailyAnalyticsIntegration:
         self.config = load_config_from_env()
         self.reporter = None
         
+        logger.info(f"[INIT] Analytics config loaded - enabled: {self.config.enabled}")
+        logger.info(f"[INIT] Email recipients: {self.config.email_recipients}")
+        logger.info(f"[INIT] SMTP configured: username={bool(self.config.smtp_username)}, password={bool(self.config.smtp_password)}")
+        
         if self.config.enabled:
-            self.reporter = DailyUsageAnalyticsReporter(self.config)
-            logger.info("Daily usage analytics integration initialized")
+            try:
+                self.reporter = DailyUsageAnalyticsReporter(self.config)
+                logger.info("Daily usage analytics integration initialized")
+                logger.info(f"[INIT] Reporter email manager exists: {self.reporter.email_manager is not None}")
+            except Exception as e:
+                logger.error(f"[INIT] Failed to create DailyUsageAnalyticsReporter: {e}")
+                self.reporter = None
         else:
             logger.info("Daily usage analytics integration disabled")
     
@@ -141,7 +150,7 @@ def integrate_with_automated_collector():
         logger.error(f"[INTEGRATION] Error initializing daily analytics integration: {e}")
         return None
 
-def add_to_daily_collection(integration: DailyAnalyticsIntegration) -> bool:
+def add_to_daily_collection(integration: DailyAnalyticsIntegration, external_logger=None) -> bool:
     """
     Add daily analytics to daily collection process
     
@@ -153,30 +162,30 @@ def add_to_daily_collection(integration: DailyAnalyticsIntegration) -> bool:
         
     Returns:
         True if analytics were processed successfully
+  
     """
+    # Use external logger if provided, otherwise use module logger
+    log = external_logger if external_logger else logger
+    
+    log.info("[DAILY COLLECTION] Entered add_to_daily_collection.")
     if not integration or not integration.is_enabled():
+        log.info("[DAILY COLLECTION] integration object problem")
         return True  # Not an error if disabled
     
     try:
-        # Check if it's time to send daily report
-        if integration.should_send_daily_report():
-            logger.info("[DAILY COLLECTION] Sending daily usage analytics report...")
-            success = integration.send_daily_analytics_report()
-            
-            if success:
-                logger.info("[DAILY COLLECTION] Daily analytics report sent successfully")
-            else:
-                logger.warning("[DAILY COLLECTION] Daily analytics report failed to send")
-            
-            return success
+        # Always send analytics report after collection completes (ignore time check)
+        log.info("[DAILY COLLECTION] Sending daily usage analytics report...")
+        success = integration.send_daily_analytics_report()
+        
+        if success:
+            log.info("[DAILY COLLECTION] Daily analytics report sent successfully")
         else:
-            current_hour = get_houston_now().hour
-            report_hour = integration.config.report_time_hour
-            logger.info(f"[DAILY COLLECTION] Daily analytics report scheduled for {report_hour}:00, current time is {current_hour}:xx")
-            return True
+            log.warning("[DAILY COLLECTION] Daily analytics report failed to send")
+        
+        return success
             
     except Exception as e:
-        logger.error(f"[DAILY COLLECTION] Error processing daily analytics: {e}")
+        log.error(f"[DAILY COLLECTION] Error processing daily analytics: {e}")
         return False
 
 def main():
