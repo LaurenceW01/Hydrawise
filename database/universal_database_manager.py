@@ -86,6 +86,8 @@ class UniversalDatabaseManager:
             self._add_missing_columns()
             # Migrate failure_events table to events if needed
             self._migrate_failure_events_to_events()
+            # Add enhancements to events table for improved event detection
+            self._add_events_table_enhancements()
             logger.info("Schema migration completed")
         except Exception as e:
             logger.warning(f"Schema migration failed: {e}")
@@ -276,6 +278,56 @@ class UniversalDatabaseManager:
                 """
             
             self.adapter.execute_script(sql)
+    
+    def _add_events_table_enhancements(self):
+        """Add new columns to events table for enhanced event detection"""
+        try:
+            # Check if events table exists
+            if not self.adapter.table_exists('events'):
+                logger.debug("Events table doesn't exist yet, skipping column additions")
+                return
+            
+            # List of new columns to add
+            new_columns = [
+                ('event_time', 'TIMESTAMP', 'actual_start_time of the irrigation run that triggered this event'),
+                ('estimated_gallons', 'REAL', 'Expected gallons for comparison (may differ from scheduled)'),
+                ('actual_flow_rate', 'REAL', 'Calculated: actual_gallons / actual_duration_minutes'),
+                ('expected_flow_rate', 'REAL', 'Zone average flow rate for comparison'),
+                ('last_updated', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'When event was last modified')
+            ]
+            
+            for column_name, column_type, comment in new_columns:
+                try:
+                    # Check if column already exists
+                    if is_postgresql():
+                        check_sql = """
+                            SELECT column_name FROM information_schema.columns 
+                            WHERE table_name = 'events' AND column_name = %s
+                        """
+                        result = self.adapter.execute_query(check_sql, (column_name,))
+                    else:
+                        # SQLite: Use PRAGMA table_info
+                        check_sql = "PRAGMA table_info(events)"
+                        result = self.adapter.execute_query(check_sql)
+                        result = [row for row in result if row['name'] == column_name]
+                    
+                    if not result:
+                        # Column doesn't exist, add it
+                        add_sql = f"ALTER TABLE events ADD COLUMN {column_name} {column_type}"
+                        self.adapter.execute_update(add_sql)
+                        logger.info(f"Added column '{column_name}' to events table: {comment}")
+                    else:
+                        logger.debug(f"Column '{column_name}' already exists in events table")
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to add column '{column_name}' to events table: {e}")
+                    # Don't fail the entire migration for individual column issues
+            
+            logger.info("Events table enhancement migration completed")
+            
+        except Exception as e:
+            logger.error(f"Failed to enhance events table: {e}")
+            # Don't raise the exception - this is not critical for system operation
     
     def _migrate_failure_events_to_events(self):
         """Migrate failure_events table to events table if needed"""

@@ -350,11 +350,21 @@ class AutomatedCollector:
             if self.event_detector:
                 try:
                     self.logger.info("[STARTUP] Running water usage event detection...")
-                    event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, now.date())
-                    if event_success:
-                        self.logger.info("[STARTUP] Water usage event detection completed successfully")
-                    else:
-                        self.logger.warning("[STARTUP] Water usage event detection failed")
+                    # Process both yesterday (if collected) and today
+                    if not yesterday_complete and self.config.collect_reported_runs:
+                        yesterday_event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, yesterday)
+                        if yesterday_event_success:
+                            self.logger.info(f"[STARTUP] Water usage event detection for {yesterday} completed successfully")
+                        else:
+                            self.logger.warning(f"[STARTUP] Water usage event detection for {yesterday} failed")
+                    
+                    if self.config.collect_reported_runs:
+                        today_event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, now.date())
+                        if today_event_success:
+                            self.logger.info(f"[STARTUP] Water usage event detection for {now.date()} completed successfully")
+                        else:
+                            self.logger.warning(f"[STARTUP] Water usage event detection for {now.date()} failed")
+                            
                 except Exception as e:
                     self.logger.error(f"[STARTUP] Error running water usage event detection: {e}")
             
@@ -672,11 +682,19 @@ class AutomatedCollector:
                         if self.event_detector:
                             try:
                                 self.logger.info("[DAILY] Running water usage event detection...")
-                                event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, current_date)
-                                if event_success:
-                                    self.logger.info("[DAILY] Water usage event detection completed successfully")
-                                else:
-                                    self.logger.warning("[DAILY] Water usage event detection failed")
+                                # Process both yesterday and today (the dates that were just collected)
+                                if self.config.collect_reported_runs:
+                                    yesterday_event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, yesterday)
+                                    if yesterday_event_success:
+                                        self.logger.info(f"[DAILY] Water usage event detection for {yesterday} completed successfully")
+                                    else:
+                                        self.logger.warning(f"[DAILY] Water usage event detection for {yesterday} failed")
+                                    
+                                    today_event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, current_date)
+                                    if today_event_success:
+                                        self.logger.info(f"[DAILY] Water usage event detection for {current_date} completed successfully")
+                                    else:
+                                        self.logger.warning(f"[DAILY] Water usage event detection for {current_date} failed")
                             except Exception as e:
                                 self.logger.error(f"[DAILY] Error running water usage event detection: {e}")
                         
@@ -719,6 +737,20 @@ class AutomatedCollector:
                                         self.logger.warning(f"[INTERVAL] {interval_tracking['status_changes_detected']} status changes detected")
                             except Exception as e:
                                 self.logger.error(f"[INTERVAL] Tracking analysis failed: {e}")
+                        
+                        # Run water usage event detection after interval collection completes
+                        if self.event_detector:
+                            try:
+                                self.logger.info("[INTERVAL] Running water usage event detection...")
+                                # Process today's runs (admin_reported_runs.py update mode processes today)
+                                if self.config.collect_reported_runs:
+                                    event_success = add_event_detection_to_daily_collection(self.event_detector, self.logger, current_date)
+                                    if event_success:
+                                        self.logger.info(f"[INTERVAL] Water usage event detection for {current_date} completed successfully")
+                                    else:
+                                        self.logger.warning(f"[INTERVAL] Water usage event detection for {current_date} failed")
+                            except Exception as e:
+                                self.logger.error(f"[INTERVAL] Error running water usage event detection: {e}")
                         
                         self.last_interval_time = now
                         next_interval_time = now + timedelta(minutes=self.config.hourly_interval_minutes)

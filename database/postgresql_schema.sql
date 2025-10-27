@@ -193,11 +193,19 @@ CREATE TABLE IF NOT EXISTS events (
     scheduled_run_id INTEGER,  -- Link to scheduled_runs table
     actual_run_id INTEGER,     -- Link to actual_runs table
     
-    -- Failure details
+    -- Event timing (enhanced for run-specific detection)
+    event_time TIMESTAMP,      -- actual_start_time of the irrigation run that triggered this event
+    
+    -- Failure details (enhanced for usage events)
     scheduled_gallons REAL,
     actual_gallons REAL,
+    estimated_gallons REAL,    -- Expected gallons for comparison (may differ from scheduled)
     water_deficit REAL,
     hours_since_last_water REAL,
+    
+    -- Flow rate analysis (for usage variance events)
+    actual_flow_rate REAL,     -- Calculated: actual_gallons / actual_duration_minutes
+    expected_flow_rate REAL,   -- Zone average flow rate for comparison
     
     -- Resolution tracking
     resolved BOOLEAN DEFAULT FALSE,
@@ -205,7 +213,9 @@ CREATE TABLE IF NOT EXISTS events (
     resolution_method TEXT,  -- 'manual_run', 'auto_recovery', 'weather_delay'
     resolution_notes TEXT,
     
-    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Audit timestamps
+    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- When event was first detected
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- When event was last modified
     
     FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
     FOREIGN KEY (scheduled_run_id) REFERENCES scheduled_runs(id),
@@ -579,12 +589,12 @@ CREATE TABLE IF NOT EXISTS collection_status (
 CREATE INDEX IF NOT EXISTS idx_scheduled_runs_date_zone ON scheduled_runs(schedule_date, zone_id);
 CREATE INDEX IF NOT EXISTS idx_actual_runs_date_zone ON actual_runs(run_date, zone_id);
 CREATE INDEX IF NOT EXISTS idx_daily_variance_date_zone ON daily_variance(analysis_date, zone_id);
-CREATE INDEX IF NOT EXISTS idx_failure_events_date_severity ON failure_events(failure_date, severity);
+CREATE INDEX IF NOT EXISTS idx_events_date_severity ON events(failure_date, severity);
 
 -- Time-based indexes for analysis
 CREATE INDEX IF NOT EXISTS idx_scheduled_runs_start_time ON scheduled_runs(scheduled_start_time);
 CREATE INDEX IF NOT EXISTS idx_actual_runs_start_time ON actual_runs(actual_start_time);
-CREATE INDEX IF NOT EXISTS idx_failure_events_detected_at ON failure_events(detected_at);
+CREATE INDEX IF NOT EXISTS idx_events_detected_at ON events(detected_at);
 
 -- Status and monitoring indexes
 CREATE INDEX IF NOT EXISTS idx_collection_log_date_status ON collection_log(collection_date, status);
@@ -668,7 +678,7 @@ SELECT
         WHEN fe.detected_at > NOW() - INTERVAL '6 hours' THEN 'URGENT' 
         ELSE 'REVIEW'
     END as urgency_level
-FROM failure_events fe
+FROM events fe
 JOIN zones z ON fe.zone_id = z.zone_id
 WHERE fe.resolved = FALSE
 ORDER BY 
