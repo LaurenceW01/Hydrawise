@@ -326,7 +326,7 @@ class ComprehensiveStatusMonitor:
         Args:
             change_results: Results from change detection
             current_alerts: Current status alerts
-            sensor_status_changed: Whether rain sensor status actually changed
+            sensor_status_changed: Whether rain sensor status actually changed THIS RUN
             sensor_change_type: Type of sensor change (SENSOR_ACTIVATED or SENSOR_DEACTIVATED)
             sensor_change_id: Database ID of the sensor change record
         """
@@ -345,7 +345,7 @@ class ComprehensiveStatusMonitor:
             # Check if we've already sent notification for this deactivation
             notification_sent = self._check_restoration_notification_sent()
             if not notification_sent:
-                self.logger.info("[EMAIL DECISION] Sending email: Irrigation RESTORED - sensor stopped stopping irrigation")
+                self.logger.info("[EMAIL DECISION] Sending email: Irrigation RESTORED - sensor stopped stopping irrigation (change detected)")
                 # Mark this restoration as notified (will be updated after email sent)
                 self._restoration_notification_pending = True
                 self._restoration_change_id = sensor_change_id
@@ -353,6 +353,20 @@ class ComprehensiveStatusMonitor:
             else:
                 self.logger.info("[EMAIL DECISION] NOT sending email: Restoration already notified (sensor still not stopping)")
                 return False
+        
+        # Priority 2b: Check for UNSENT restoration notifications in database
+        # This catches restoration events that happened before code was deployed or when system was down
+        if not sensor_status_changed and not critical_alerts:
+            # Sensor not currently stopping and no change detected this run
+            # Check database for unsent SENSOR_DEACTIVATED records
+            unsent_restoration = self._check_for_unsent_restoration()
+            if unsent_restoration:
+                self.logger.info(f"[EMAIL DECISION] Sending email: Found unsent restoration notification from {unsent_restoration['detected_at']} (catching up)")
+                # Store the change ID for marking as sent after email is sent
+                self._restoration_notification_pending = True
+                self._restoration_change_id = unsent_restoration['id']
+                self._unsent_restoration_record = unsent_restoration
+                return True
         
         # Priority 3: Sensor status changed to stopping irrigation (activation)
         # Send email when sensor starts stopping (this is a critical change)
@@ -375,6 +389,53 @@ class ComprehensiveStatusMonitor:
         # No email needed
         self.logger.info("[EMAIL DECISION] No email needed: No actual changes or critical alerts detected")
         return False
+    
+    def _check_for_unsent_restoration(self) -> Optional[Dict]:
+        """
+        Check if there's an unsent SENSOR_DEACTIVATED notification in the database
+        This catches restoration events that happened before code was deployed or when system was down
+        
+        Returns:
+            Dictionary with unsent restoration record info, or None if all notifications sent
+        """
+        try:
+            db_manager = get_universal_database_manager()
+            
+            # Find the most recent SENSOR_DEACTIVATED that hasn't been notified
+            # Only return it if it's not followed by a SENSOR_ACTIVATED (still in restoration period)
+            results = db_manager.adapter.execute_query("""
+                SELECT id, change_type, notification_sent, change_date, detected_at
+                FROM status_changes
+                WHERE change_type IN ('SENSOR_ACTIVATED', 'SENSOR_DEACTIVATED')
+                ORDER BY detected_at DESC
+                LIMIT 2
+            """)
+            
+            if not results:
+                return None
+            
+            # Check most recent change
+            most_recent = results[0]
+            
+            # If most recent is ACTIVATED, we're currently in a "stopping" period
+            # No restoration notification should be sent
+            if most_recent['change_type'] == 'SENSOR_ACTIVATED':
+                return None
+            
+            # If most recent is DEACTIVATED and notification NOT sent yet, return it
+            if most_recent['change_type'] == 'SENSOR_DEACTIVATED':
+                if not most_recent['notification_sent']:
+                    self.logger.info(f"[DATABASE CHECK] Found unsent SENSOR_DEACTIVATED record (ID: {most_recent['id']}, detected: {most_recent['detected_at']})")
+                    return most_recent
+                else:
+                    self.logger.debug(f"[DATABASE CHECK] Most recent SENSOR_DEACTIVATED already notified")
+                    return None
+            
+            return None
+                
+        except Exception as e:
+            self.logger.error(f"Error checking for unsent restoration notifications: {e}")
+            return None
     
     def _check_restoration_notification_sent(self) -> bool:
         """
@@ -465,15 +526,16 @@ class ComprehensiveStatusMonitor:
                                            current_alerts: List[CurrentStatusAlert],
                                            target_date: date, 
                                            sensor_status_changed: bool = False,
-                                           sensor_change_type: str = None) -> Dict[str, str]:
+                                           sensor_change_type: str = None,
+                                           unsent_restoration_record: Dict = None) -> Dict[str, str]:
         """Generate email content focusing on CHANGES, not repetitive current status"""
         
         # Determine email urgency and subject based on sensor change type
         critical_alerts = [a for a in current_alerts if a.severity == 'critical']
         has_changes = change_results.changes_detected > 0
         
-        # Priority 1: Irrigation restored (sensor deactivated)
-        if sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED':
+        # Priority 1: Irrigation restored (sensor deactivated) - either from real-time change or unsent database record
+        if (sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED') or unsent_restoration_record:
             subject = f"Hydrawise - IRRIGATION RESTORED: Rain sensor no longer blocking watering"
             urgency = "GOOD NEWS"
         # Priority 2: Sensor activated (started stopping)
@@ -500,15 +562,22 @@ URGENCY: {urgency}
 """
         
         # RESTORATION MESSAGE: Sensor deactivated (stopped stopping irrigation)
-        if sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED':
+        # Handles both real-time changes and unsent database records
+        if (sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED') or unsent_restoration_record:
             body += "✅ IRRIGATION RESTORED - RAIN SENSOR NO LONGER BLOCKING WATERING\n\n"
             body += "GOOD NEWS: The rain sensor has stopped blocking irrigation.\n"
             body += "Automatic watering cycles will now resume as scheduled.\n\n"
             body += "Details:\n"
             body += "- Rain sensor status changed from STOPPING irrigation to NOT stopping\n"
             body += "- All scheduled irrigation runs can now proceed normally\n"
-            body += "- No further action required - system has resumed normal operation\n\n"
-            body += "NOTE: You will not receive another notification about sensor status\n"
+            body += "- No further action required - system has resumed normal operation\n"
+            
+            # If this is from an unsent database record, add note about timing
+            if unsent_restoration_record:
+                detected_time = unsent_restoration_record.get('detected_at', 'earlier')
+                body += f"\n(This restoration occurred at {detected_time} but notification was delayed)\n"
+            
+            body += "\nNOTE: You will not receive another notification about sensor status\n"
             body += "unless the sensor becomes active again and starts stopping irrigation.\n\n"
         
         # ACTIVATION MESSAGE: Sensor activated (started stopping irrigation)
@@ -626,14 +695,20 @@ def integrate_comprehensive_monitoring(tracking_system, target_date: date,
         # Generate email content if needed
         email_content = None
         if should_email and tracking_system.email_manager:
+            # Check if we need to pass unsent restoration record info
+            unsent_restoration_record = getattr(monitor, '_unsent_restoration_record', None)
+            
             email_content = monitor.generate_comprehensive_email_content(
                 change_results, current_alerts, target_date, sensor_status_changed,
-                sensor_change_type
+                sensor_change_type, unsent_restoration_record
             )
             
             # Mark restoration notification as sent if this was a restoration email
             if sensor_change_type == 'SENSOR_DEACTIVATED' and sensor_change_id:
                 monitor._mark_restoration_notification_sent(sensor_change_id)
+            elif unsent_restoration_record:
+                # Mark the unsent restoration from database as sent
+                monitor._mark_restoration_notification_sent(unsent_restoration_record['id'])
         
         return {
             'collection_type': collection_type,
