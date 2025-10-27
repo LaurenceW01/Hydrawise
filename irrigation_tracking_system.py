@@ -161,9 +161,16 @@ class IrrigationTrackingSystem:
                 # Store sensor status in database
                 self._store_sensor_status(sensor_info, collection_run_id)
                 
-                # Check for sensor status changes
-                if self._check_sensor_status_change(sensor_info):
-                    self.logger.warning(f"[SENSOR CHANGE] Rain sensor status changed: {sensor_info['sensor_status']}")
+                # Check for sensor status changes and record them
+                change_info = self._check_sensor_status_change(sensor_info)
+                if change_info['changed']:
+                    self.logger.warning(f"[SENSOR CHANGE] Rain sensor status changed: {change_info['change_type']} - {sensor_info['sensor_status']}")
+                    # Store change info in sensor_info for use in email logic
+                    sensor_info['change_detected'] = True
+                    sensor_info['change_type'] = change_info['change_type']
+                    sensor_info['change_id'] = change_info['change_id']
+                else:
+                    sensor_info['change_detected'] = False
                 
                 self.logger.info(f"[SENSOR] Status collected: {sensor_info['sensor_status']}")
                 return sensor_info
@@ -460,15 +467,15 @@ class IrrigationTrackingSystem:
             self.logger.error(f"Error storing sensor status: {e}")
             self.logger.error(f"sensor_info was: {sensor_info}")  # Include sensor_info for debugging
     
-    def _check_sensor_status_change(self, current_sensor_info: Dict[str, Any]) -> bool:
+    def _check_sensor_status_change(self, current_sensor_info: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Check if sensor status has changed since last check
+        Check if sensor status has changed since last check and record the change
         
         Args:
             current_sensor_info: Current sensor status information
             
         Returns:
-            True if status changed, False otherwise
+            Dictionary with 'changed' (bool), 'change_type' (str), 'change_id' (int or None)
         """
         try:
             # Get last sensor status from database
@@ -482,20 +489,60 @@ class IrrigationTrackingSystem:
             
             if len(results) >= 2:
                 # Compare current with previous
-                current_stopping = current_sensor_info['rain_sensor_active']
-                current_suspended = current_sensor_info['irrigation_suspended']
-                
+                current_stopping = current_sensor_info['irrigation_suspended']
                 prev_stopping = bool(results[1]['is_stopping_irrigation'])
-                prev_suspended = bool(results[1]['irrigation_suspended'])
                 
-                return (current_stopping != prev_stopping or 
-                       current_suspended != prev_suspended)
+                # Detect if status changed
+                status_changed = current_stopping != prev_stopping
+                
+                if status_changed:
+                    # Determine change type
+                    if current_stopping and not prev_stopping:
+                        change_type = 'SENSOR_ACTIVATED'
+                        change_desc = 'Rain sensor started stopping irrigation'
+                    else:
+                        change_type = 'SENSOR_DEACTIVATED'
+                        change_desc = 'Rain sensor stopped stopping irrigation - irrigation restored'
+                    
+                    # Write change record to status_changes table
+                    now = get_houston_now()
+                    change_id = db_manager.adapter.execute_insert("""
+                        INSERT INTO status_changes (
+                            change_date, change_type, change_description,
+                            previous_value, new_value, sensor_status,
+                            notification_sent, detected_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        now.date().isoformat(),
+                        change_type,
+                        change_desc,
+                        str(prev_stopping),
+                        str(current_stopping),
+                        current_sensor_info.get('sensor_status', 'Unknown'),
+                        False,  # notification_sent - will be updated when email is sent
+                        get_database_timestamp()
+                    ))
+                    
+                    self.logger.info(f"[SENSOR CHANGE] Recorded {change_type} in database (ID: {change_id})")
+                    
+                    return {
+                        'changed': True,
+                        'change_type': change_type,
+                        'change_id': change_id,
+                        'previous_stopping': prev_stopping,
+                        'current_stopping': current_stopping
+                    }
+                
+                # No change detected
+                return {'changed': False, 'change_type': None, 'change_id': None}
             
-            return False  # No previous status to compare
+            # No previous status to compare
+            return {'changed': False, 'change_type': None, 'change_id': None}
                 
         except Exception as e:
             self.logger.error(f"Error checking sensor status change: {e}")
-            return False
+            return {'changed': False, 'change_type': None, 'change_id': None}
     
     def _send_daily_status_email(self, target_date: date):
         """Send daily status email in background thread to avoid blocking collection"""

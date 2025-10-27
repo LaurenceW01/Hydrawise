@@ -317,7 +317,9 @@ class ComprehensiveStatusMonitor:
     
     def should_send_immediate_email(self, change_results: ChangeDetectionResult, 
                                   current_alerts: List[CurrentStatusAlert],
-                                  sensor_status_changed: bool = False) -> bool:
+                                  sensor_status_changed: bool = False,
+                                  sensor_change_type: str = None,
+                                  sensor_change_id: int = None) -> bool:
         """
         Determine if immediate email should be sent based on CHANGES, not current status
         
@@ -325,33 +327,133 @@ class ComprehensiveStatusMonitor:
             change_results: Results from change detection
             current_alerts: Current status alerts
             sensor_status_changed: Whether rain sensor status actually changed
+            sensor_change_type: Type of sensor change (SENSOR_ACTIVATED or SENSOR_DEACTIVATED)
+            sensor_change_id: Database ID of the sensor change record
         """
         
-        # CRITICAL FIX: Only send email for critical alerts if sensor status CHANGED
+        # Priority 1: Sensor actively stopping irrigation (critical ongoing alert)
+        # Send email EVERY time when sensor is actively stopping
         critical_alerts = [a for a in current_alerts if a.severity == 'critical']
-        if critical_alerts and sensor_status_changed:
-            self.logger.info("[EMAIL DECISION] Sending email: Rain sensor status CHANGED")
+        if critical_alerts and not sensor_status_changed:
+            # Sensor IS stopping irrigation but hasn't changed status (ongoing critical situation)
+            self.logger.info("[EMAIL DECISION] Sending email: Rain sensor actively stopping irrigation (ongoing critical alert)")
             return True
-        elif critical_alerts and not sensor_status_changed:
-            self.logger.info("[EMAIL DECISION] NOT sending email: Rain sensor status unchanged (already reported)")
-            return False
         
-        # Send if there are significant changes
+        # Priority 2: Sensor status changed from stopping to NOT stopping (restoration)
+        # Send email ONCE when irrigation is restored
+        if sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED':
+            # Check if we've already sent notification for this deactivation
+            notification_sent = self._check_restoration_notification_sent()
+            if not notification_sent:
+                self.logger.info("[EMAIL DECISION] Sending email: Irrigation RESTORED - sensor stopped stopping irrigation")
+                # Mark this restoration as notified (will be updated after email sent)
+                self._restoration_notification_pending = True
+                self._restoration_change_id = sensor_change_id
+                return True
+            else:
+                self.logger.info("[EMAIL DECISION] NOT sending email: Restoration already notified (sensor still not stopping)")
+                return False
+        
+        # Priority 3: Sensor status changed to stopping irrigation (activation)
+        # Send email when sensor starts stopping (this is a critical change)
+        if sensor_status_changed and sensor_change_type == 'SENSOR_ACTIVATED':
+            self.logger.info("[EMAIL DECISION] Sending email: Rain sensor ACTIVATED - started stopping irrigation")
+            # Reset restoration notification flag so next deactivation can send email
+            self._mark_restoration_notification_reset()
+            return True
+        
+        # Priority 4: Send if there are significant zone status changes
         if change_results.requires_immediate_alert:
-            self.logger.info("[EMAIL DECISION] Sending email: Significant changes detected")
+            self.logger.info("[EMAIL DECISION] Sending email: Significant zone status changes detected")
             return True
         
-        # Send if multiple zones affected by ACTUAL changes
+        # Priority 5: Send if multiple zones affected by ACTUAL changes
         if len(change_results.affected_zones) >= 3:
             self.logger.info(f"[EMAIL DECISION] Sending email: {len(change_results.affected_zones)} zones with ACTUAL changes")
             return True
         
-        # REMOVED: No longer send emails just for current status without changes
-        # Old logic was: if many zones currently have problems, send email
-        # New logic: only send emails for actual changes, not ongoing conditions
-        
-        self.logger.info("[EMAIL DECISION] No email needed: No actual changes detected")
+        # No email needed
+        self.logger.info("[EMAIL DECISION] No email needed: No actual changes or critical alerts detected")
         return False
+    
+    def _check_restoration_notification_sent(self) -> bool:
+        """
+        Check if a restoration notification (SENSOR_DEACTIVATED) has already been sent
+        for the current non-stopping period
+        
+        Returns:
+            True if restoration notification was already sent, False otherwise
+        """
+        try:
+            db_manager = get_universal_database_manager()
+            
+            # Find the most recent SENSOR_DEACTIVATED change that hasn't been followed by SENSOR_ACTIVATED
+            # If notification_sent is True for the most recent deactivation, we already sent it
+            results = db_manager.adapter.execute_query("""
+                SELECT id, change_type, notification_sent, change_date
+                FROM status_changes
+                WHERE change_type IN ('SENSOR_ACTIVATED', 'SENSOR_DEACTIVATED')
+                ORDER BY detected_at DESC
+                LIMIT 2
+            """)
+            
+            if not results:
+                return False
+            
+            # Check most recent change
+            most_recent = results[0]
+            
+            # If most recent is ACTIVATED, we're in a "stopping" period, not restoration
+            if most_recent['change_type'] == 'SENSOR_ACTIVATED':
+                return False
+            
+            # If most recent is DEACTIVATED and notification already sent, don't send again
+            if most_recent['change_type'] == 'SENSOR_DEACTIVATED':
+                return bool(most_recent['notification_sent'])
+            
+            return False
+                
+        except Exception as e:
+            self.logger.error(f"Error checking restoration notification status: {e}")
+            return False
+    
+    def _mark_restoration_notification_sent(self, change_id: int):
+        """
+        Mark a SENSOR_DEACTIVATED change record as notification sent
+        
+        Args:
+            change_id: ID of the status_changes record to update
+        """
+        try:
+            db_manager = get_universal_database_manager()
+            from utils.timezone_utils import get_houston_now
+            
+            db_manager.adapter.execute_insert("""
+                UPDATE status_changes
+                SET notification_sent = TRUE,
+                    notification_sent_at = %s,
+                    notification_method = 'email'
+                WHERE id = %s
+            """, (get_houston_now().isoformat(), change_id))
+            
+            self.logger.info(f"[RESTORATION] Marked restoration notification as sent (change ID: {change_id})")
+                
+        except Exception as e:
+            self.logger.error(f"Error marking restoration notification as sent: {e}")
+    
+    def _mark_restoration_notification_reset(self):
+        """
+        Reset restoration notification tracking when sensor becomes active again
+        This allows the next deactivation to send an email
+        
+        Note: This is implicit - when SENSOR_ACTIVATED is recorded, the next
+        SENSOR_DEACTIVATED will have notification_sent=FALSE by default
+        """
+        # This is actually handled automatically by the database:
+        # - SENSOR_ACTIVATED gets recorded with notification_sent=FALSE
+        # - Next SENSOR_DEACTIVATED will also get notification_sent=FALSE
+        # - So no explicit reset needed, but logging for clarity
+        self.logger.info("[RESTORATION] Sensor activated - future restoration notifications enabled")
     
     def should_suppress_daily_email(self, current_alerts: List[CurrentStatusAlert]) -> bool:
         """Determine if daily status email should be suppressed due to comprehensive email being sent"""
@@ -362,16 +464,27 @@ class ComprehensiveStatusMonitor:
     def generate_comprehensive_email_content(self, change_results: ChangeDetectionResult,
                                            current_alerts: List[CurrentStatusAlert],
                                            target_date: date, 
-                                           sensor_status_changed: bool = False) -> Dict[str, str]:
+                                           sensor_status_changed: bool = False,
+                                           sensor_change_type: str = None) -> Dict[str, str]:
         """Generate email content focusing on CHANGES, not repetitive current status"""
         
-        # Determine email urgency and subject
+        # Determine email urgency and subject based on sensor change type
         critical_alerts = [a for a in current_alerts if a.severity == 'critical']
         has_changes = change_results.changes_detected > 0
         
-        if critical_alerts and sensor_status_changed:
-            subject = f"CRITICAL: Hydrawise - Rain sensor status CHANGED"
+        # Priority 1: Irrigation restored (sensor deactivated)
+        if sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED':
+            subject = f"Hydrawise - IRRIGATION RESTORED: Rain sensor no longer blocking watering"
+            urgency = "GOOD NEWS"
+        # Priority 2: Sensor activated (started stopping)
+        elif sensor_status_changed and sensor_change_type == 'SENSOR_ACTIVATED':
+            subject = f"CRITICAL: Hydrawise - Rain sensor ACTIVATED: Stopping all irrigation"
             urgency = "CRITICAL"
+        # Priority 3: Sensor actively stopping (ongoing critical)
+        elif critical_alerts and not sensor_status_changed:
+            subject = f"CRITICAL: Hydrawise - Rain sensor actively stopping all irrigation"
+            urgency = "CRITICAL - ONGOING"
+        # Priority 4: Zone changes
         elif has_changes:
             affected_count = len(change_results.affected_zones)
             subject = f"Hydrawise Alert - {affected_count} zones affected by irrigation changes"
@@ -386,14 +499,39 @@ URGENCY: {urgency}
 
 """
         
-        # CRITICAL FIX: Only include sensor status if it actually CHANGED
-        if critical_alerts and sensor_status_changed:
-            body += "RAIN SENSOR STATUS CHANGE:\n"
+        # RESTORATION MESSAGE: Sensor deactivated (stopped stopping irrigation)
+        if sensor_status_changed and sensor_change_type == 'SENSOR_DEACTIVATED':
+            body += "✅ IRRIGATION RESTORED - RAIN SENSOR NO LONGER BLOCKING WATERING\n\n"
+            body += "GOOD NEWS: The rain sensor has stopped blocking irrigation.\n"
+            body += "Automatic watering cycles will now resume as scheduled.\n\n"
+            body += "Details:\n"
+            body += "- Rain sensor status changed from STOPPING irrigation to NOT stopping\n"
+            body += "- All scheduled irrigation runs can now proceed normally\n"
+            body += "- No further action required - system has resumed normal operation\n\n"
+            body += "NOTE: You will not receive another notification about sensor status\n"
+            body += "unless the sensor becomes active again and starts stopping irrigation.\n\n"
+        
+        # ACTIVATION MESSAGE: Sensor activated (started stopping irrigation)
+        elif sensor_status_changed and sensor_change_type == 'SENSOR_ACTIVATED':
+            body += "🔴 RAIN SENSOR ACTIVATED - NOW STOPPING ALL IRRIGATION\n\n"
+            body += "CRITICAL: The rain sensor has activated and is now blocking all irrigation.\n\n"
+            body += "Details:\n"
+            body += "- Rain sensor status changed from NOT stopping to STOPPING irrigation\n"
+            body += "- ALL scheduled irrigation runs will be prevented\n"
+            body += "- Monitor plants carefully for water stress\n"
+            body += "- System will automatically resume when sensor deactivates\n\n"
+            body += "You will continue to receive alerts while the sensor remains active.\n\n"
+        
+        # ONGOING CRITICAL: Sensor still stopping (not a change, but ongoing critical condition)
+        elif critical_alerts and not sensor_status_changed:
+            body += "🔴 RAIN SENSOR ACTIVELY STOPPING IRRIGATION (ONGOING)\n\n"
             for alert in critical_alerts:
-                body += f"🔴 {alert.message}\n"
+                body += f"{alert.message}\n"
                 if alert.expected_gallons_lost > 0:
-                    body += f"   Water impact: {alert.expected_gallons_lost:.1f} gallons\n"
+                    body += f"   Water impact: {alert.expected_gallons_lost:.1f} gallons prevented today\n"
             body += "\n"
+            body += "This is a reminder that the rain sensor is still active.\n"
+            body += "You will continue to receive these alerts until the sensor deactivates.\n\n"
         
         # Current non-critical alerts (ongoing issues with zones)
         non_critical_alerts = [a for a in current_alerts if a.severity != 'critical']
@@ -466,10 +604,10 @@ def integrate_comprehensive_monitoring(tracking_system, target_date: date,
             target_date, current_runs, sensor_info, collection_run_id
         )
         
-        # Check if sensor status actually changed
-        sensor_status_changed = False
-        if sensor_info and hasattr(tracking_system, '_check_sensor_status_change'):
-            sensor_status_changed = tracking_system._check_sensor_status_change(sensor_info)
+        # Extract sensor change information from sensor_info
+        sensor_status_changed = sensor_info.get('change_detected', False) if sensor_info else False
+        sensor_change_type = sensor_info.get('change_type') if sensor_info else None
+        sensor_change_id = sensor_info.get('change_id') if sensor_info else None
         
         # CRITICAL FIX: Only send emails for TODAY's analysis, not historical analysis
         from utils.timezone_utils import get_houston_now
@@ -480,14 +618,22 @@ def integrate_comprehensive_monitoring(tracking_system, target_date: date,
             tracking_system.logger.info(f"[EMAIL DECISION] Skipping email for historical date {target_date} (not today)")
         else:
             # Determine if email should be sent (based on actual changes, not current status)
-            should_email = monitor.should_send_immediate_email(change_results, current_alerts, sensor_status_changed)
+            should_email = monitor.should_send_immediate_email(
+                change_results, current_alerts, sensor_status_changed, 
+                sensor_change_type, sensor_change_id
+            )
         
         # Generate email content if needed
         email_content = None
         if should_email and tracking_system.email_manager:
             email_content = monitor.generate_comprehensive_email_content(
-                change_results, current_alerts, target_date, sensor_status_changed
+                change_results, current_alerts, target_date, sensor_status_changed,
+                sensor_change_type
             )
+            
+            # Mark restoration notification as sent if this was a restoration email
+            if sensor_change_type == 'SENSOR_DEACTIVATED' and sensor_change_id:
+                monitor._mark_restoration_notification_sent(sensor_change_id)
         
         return {
             'collection_type': collection_type,
